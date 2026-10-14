@@ -1,0 +1,1190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="GitHub 上可直接安装的 Agent Skill 仓库 Star Top 30，含中文功能说明与仓库地址。">
+  <title>GitHub Agent Skills · Star Top 30</title>
+  <style>
+    :root {
+      --paper: #f3f7fb;
+      --paper-deep: #e7eef7;
+      --ink: #101828;
+      --muted: #58677c;
+      --line: #cbd6e5;
+      --blue: #165dff;
+      --blue-deep: #0b3cb5;
+      --orange: #ff5c35;
+      --jade: #008e72;
+      --white: #ffffff;
+      --shadow: 0 18px 50px rgba(29, 59, 104, 0.12);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(22, 93, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 93, 255, 0.045) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: "SF Pro Text", "Segoe UI Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    a:focus-visible,
+    button:focus-visible {
+      outline: 3px solid rgba(22, 93, 255, 0.35);
+      outline-offset: 4px;
+    }
+
+    .page-shell {
+      width: min(1220px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 26px 0 72px;
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(circle at 83% 27%, rgba(22, 93, 255, 0.18), transparent 27%),
+        linear-gradient(135deg, rgba(255, 255, 255, 0.97), rgba(232, 241, 252, 0.94));
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -120px;
+      top: -210px;
+      width: 520px;
+      height: 520px;
+      border: 1px solid rgba(22, 93, 255, 0.2);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 44px rgba(22, 93, 255, 0.035),
+        0 0 0 96px rgba(22, 93, 255, 0.025);
+      pointer-events: none;
+    }
+
+    .masthead {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding-bottom: 54px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      color: var(--white);
+      border-radius: 10px;
+      background: var(--ink);
+      transform: rotate(-4deg);
+    }
+
+    .snapshot {
+      color: var(--blue-deep);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    .hero-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+      gap: 72px;
+      align-items: end;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 18px;
+      color: var(--blue-deep);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 38px;
+      height: 3px;
+      background: var(--orange);
+    }
+
+    h1 {
+      max-width: 760px;
+      margin: 0;
+      font-family: "Arial Black", "SF Pro Display", "PingFang SC", sans-serif;
+      font-size: clamp(48px, 7.5vw, 94px);
+      font-weight: 900;
+      letter-spacing: -0.068em;
+      line-height: 0.91;
+    }
+
+    h1 span {
+      display: block;
+      margin-top: 14px;
+      color: var(--blue);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 0.48em;
+      letter-spacing: -0.06em;
+      line-height: 1;
+    }
+
+    .hero-copy {
+      max-width: 680px;
+      margin: 28px 0 0;
+      color: #3d4d63;
+      font-size: 17px;
+    }
+
+    .hero-copy strong {
+      color: var(--ink);
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      min-height: 122px;
+      padding: 22px 18px;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .metric-value {
+      display: block;
+      color: var(--blue);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: clamp(25px, 3vw, 42px);
+      font-weight: 850;
+      letter-spacing: -0.07em;
+      line-height: 1;
+    }
+
+    .metric-label {
+      display: block;
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    main {
+      padding: 74px 0 88px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 28px;
+      margin-bottom: 26px;
+    }
+
+    .section-kicker {
+      margin: 0 0 8px;
+      color: var(--orange);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 48px);
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+
+    .section-note {
+      max-width: 490px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .podium {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 18px;
+      margin-bottom: 34px;
+    }
+
+    .podium-card {
+      position: relative;
+      grid-column: span 4;
+      min-height: 350px;
+      overflow: hidden;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 14px 40px rgba(31, 57, 91, 0.09);
+      transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    }
+
+    .podium-card:first-child {
+      grid-column: span 5;
+      color: var(--white);
+      border-color: var(--blue);
+      background: var(--blue);
+      transform: translateY(-8px);
+    }
+
+    .podium-card:nth-child(2) {
+      grid-column: span 4;
+    }
+
+    .podium-card:nth-child(3) {
+      grid-column: span 3;
+    }
+
+    .podium-card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(22, 93, 255, 0.58);
+      box-shadow: 0 22px 48px rgba(31, 57, 91, 0.15);
+    }
+
+    .podium-card:first-child:hover {
+      transform: translateY(-12px);
+    }
+
+    .podium-card::after {
+      content: attr(data-rank);
+      position: absolute;
+      right: -6px;
+      bottom: -48px;
+      color: rgba(22, 93, 255, 0.07);
+      font-family: "Arial Black", sans-serif;
+      font-size: 190px;
+      font-weight: 900;
+      letter-spacing: -0.12em;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .podium-card:first-child::after {
+      color: rgba(255, 255, 255, 0.12);
+    }
+
+    .card-topline {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .rank-badge,
+    .type-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .rank-badge {
+      color: var(--blue-deep);
+      background: #e7efff;
+    }
+
+    .podium-card:first-child .rank-badge {
+      color: var(--blue-deep);
+      background: var(--white);
+    }
+
+    .type-badge {
+      color: #35625b;
+      border: 1px solid rgba(0, 142, 114, 0.24);
+      background: rgba(0, 142, 114, 0.09);
+    }
+
+    .podium-card:first-child .type-badge {
+      color: var(--white);
+      border-color: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .repo-name {
+      position: relative;
+      z-index: 1;
+      overflow-wrap: anywhere;
+    }
+
+    .repo-name strong {
+      display: block;
+      margin-top: 28px;
+      font-size: clamp(22px, 2.3vw, 34px);
+      letter-spacing: -0.045em;
+      line-height: 1.06;
+    }
+
+    .repo-name span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .podium-card:first-child .repo-name span,
+    .podium-card:first-child .card-description {
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .card-description {
+      position: relative;
+      z-index: 1;
+      margin: 20px 0 28px;
+      color: #435268;
+      font-size: 14px;
+    }
+
+    .card-footer {
+      position: absolute;
+      z-index: 2;
+      right: 28px;
+      bottom: 26px;
+      left: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .stars {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 18px;
+      font-weight: 850;
+      letter-spacing: -0.04em;
+    }
+
+    .stars svg {
+      width: 18px;
+      height: 18px;
+      color: var(--orange);
+    }
+
+    .podium-card:first-child .stars svg {
+      color: #ffd85c;
+    }
+
+    .repo-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 780;
+      text-decoration: none;
+    }
+
+    .repo-link::after {
+      content: "↗";
+      font-size: 15px;
+      transition: transform 160ms ease;
+    }
+
+    .repo-link:hover::after {
+      transform: translate(2px, -2px);
+    }
+
+    .method {
+      display: grid;
+      grid-template-columns: 0.78fr 1.22fr;
+      gap: 1px;
+      overflow: hidden;
+      margin: 44px 0 76px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--line);
+    }
+
+    .method-title,
+    .method-copy {
+      padding: 26px 28px;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .method-title {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .method-index {
+      color: var(--orange);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .method-copy {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .method-copy strong {
+      color: var(--ink);
+    }
+
+    .ranking {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: var(--shadow);
+    }
+
+    .rank-row {
+      position: relative;
+      display: grid;
+      grid-template-columns: 66px minmax(210px, 0.82fr) minmax(300px, 1.45fr) 150px 52px;
+      gap: 20px;
+      align-items: center;
+      min-height: 132px;
+      padding: 24px 28px;
+      border-top: 1px solid var(--line);
+      transition: background-color 160ms ease;
+    }
+
+    .rank-row:first-child {
+      border-top: 0;
+    }
+
+    .rank-row:hover {
+      background: #f6f9ff;
+    }
+
+    .row-rank {
+      color: var(--blue);
+      font-family: "Arial Black", "SF Pro Display", sans-serif;
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -0.07em;
+    }
+
+    .row-repo {
+      min-width: 0;
+    }
+
+    .row-repo strong {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: 17px;
+      letter-spacing: -0.025em;
+      line-height: 1.28;
+    }
+
+    .row-repo .type-badge {
+      margin-top: 9px;
+    }
+
+    .row-description {
+      margin: 0;
+      color: #4c5c72;
+      font-size: 13px;
+    }
+
+    .row-description strong {
+      color: var(--ink);
+    }
+
+    .row-stars {
+      justify-self: end;
+      text-align: right;
+    }
+
+    .row-stars .stars {
+      font-size: 17px;
+    }
+
+    .star-bar {
+      width: 100%;
+      height: 4px;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #dfe7f2;
+    }
+
+    .star-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--blue), #5e8cff);
+    }
+
+    .row-link {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      place-items: center;
+      justify-self: end;
+      color: var(--blue);
+      border: 1px solid #bed0f5;
+      border-radius: 13px;
+      background: #eff4ff;
+      font-size: 19px;
+      font-weight: 800;
+      text-decoration: none;
+      transition: color 160ms ease, background-color 160ms ease, transform 160ms ease;
+    }
+
+    .row-link:hover {
+      color: var(--white);
+      background: var(--blue);
+      transform: translate(2px, -2px);
+    }
+
+    footer {
+      padding: 34px 0 48px;
+      color: #627187;
+      border-top: 1px solid var(--line);
+      background: rgba(235, 242, 250, 0.88);
+      font-size: 12px;
+    }
+
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 30px;
+      align-items: end;
+    }
+
+    .footer-grid p {
+      max-width: 820px;
+      margin: 0;
+    }
+
+    .footer-stamp {
+      color: var(--blue-deep);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-weight: 780;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      animation: reveal 560ms cubic-bezier(0.2, 0.75, 0.2, 1) forwards;
+    }
+
+    @keyframes reveal {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 980px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        gap: 42px;
+      }
+
+      .hero-metrics {
+        max-width: 620px;
+      }
+
+      .podium-card,
+      .podium-card:first-child,
+      .podium-card:nth-child(2),
+      .podium-card:nth-child(3) {
+        grid-column: span 12;
+        min-height: 300px;
+        transform: none;
+      }
+
+      .podium-card:first-child:hover,
+      .podium-card:hover {
+        transform: translateY(-4px);
+      }
+
+      .rank-row {
+        grid-template-columns: 54px minmax(190px, 0.9fr) minmax(250px, 1.4fr) 125px 42px;
+        gap: 14px;
+        padding: 22px 20px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page-shell {
+        width: min(100% - 24px, 620px);
+      }
+
+      .hero {
+        padding-bottom: 50px;
+      }
+
+      .masthead {
+        align-items: flex-start;
+        padding-bottom: 42px;
+      }
+
+      .snapshot {
+        max-width: 160px;
+        text-align: right;
+      }
+
+      h1 {
+        font-size: clamp(45px, 17vw, 72px);
+      }
+
+      .hero-copy {
+        font-size: 15px;
+      }
+
+      .hero-metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .metric {
+        display: flex;
+        min-height: 0;
+        align-items: center;
+        justify-content: space-between;
+        padding: 17px 19px;
+      }
+
+      .metric-label {
+        margin: 0;
+      }
+
+      main {
+        padding: 54px 0 64px;
+      }
+
+      .section-head {
+        display: block;
+      }
+
+      .section-note {
+        margin-top: 14px;
+      }
+
+      .method {
+        grid-template-columns: 1fr;
+        margin: 34px 0 58px;
+      }
+
+      .rank-row {
+        grid-template-columns: 46px minmax(0, 1fr) 42px;
+        min-height: 0;
+        padding: 22px 16px;
+      }
+
+      .row-rank {
+        align-self: start;
+        font-size: 25px;
+      }
+
+      .row-description {
+        grid-column: 2 / 4;
+        margin-top: -7px;
+      }
+
+      .row-stars {
+        grid-column: 2 / 4;
+        justify-self: stretch;
+        text-align: left;
+      }
+
+      .row-link {
+        grid-column: 3;
+        grid-row: 1;
+      }
+
+      .footer-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media print {
+      body {
+        background: var(--white);
+      }
+
+      .hero,
+      footer {
+        background: var(--white);
+      }
+
+      .podium-card,
+      .ranking,
+      .hero-metrics {
+        box-shadow: none;
+      }
+
+      .reveal {
+        opacity: 1;
+        transform: none;
+        animation: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="page-shell">
+      <div class="masthead">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">★</span>
+          Open-source field note
+        </div>
+        <div class="snapshot">SNAPSHOT · 2026-10-14</div>
+      </div>
+
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">GitHub repository atlas / 01</p>
+          <h1>Agent Skills<span>STAR TOP 30</span></h1>
+          <p class="hero-copy">
+            一份只看<strong>真实可安装 Skill</strong>的 GitHub 热度榜。每个入选仓库都提供
+            <code>SKILL.md</code>、Skill 安装命令或明确的宿主安装流程；纯导航榜单、通用 Agent
+            框架与 MCP 工具不参与排名。
+          </p>
+        </div>
+
+        <div class="hero-metrics" aria-label="榜单概览">
+          <div class="metric">
+            <span class="metric-value">30</span>
+            <span class="metric-label">VERIFIED REPOS</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value" id="totalStars">—</span>
+            <span class="metric-label">TOTAL STARS</span>
+          </div>
+          <div class="metric">
+            <span class="metric-value">#1</span>
+            <span class="metric-label">SORTED BY STARS</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section aria-labelledby="podium-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">The leaders</p>
+          <h2 id="podium-title">前三名，不只是数字大</h2>
+        </div>
+        <p class="section-note">
+          Star 是仓库热度，不等于质量评分。前三名分别代表完整工程方法、实战工程技能库和专业逆向工作流。
+        </p>
+      </div>
+      <div class="podium" id="podium"></div>
+    </section>
+
+    <aside class="method" aria-label="榜单口径">
+      <div class="method-title">
+        <span class="method-index">METHOD / 01</span>
+        <span>如何进入这张榜</span>
+      </div>
+      <div class="method-copy">
+        <strong>纳入：</strong>仓库公开提供一个或多个可实际安装、复制或加载的 Agent Skill。
+        <strong>排除：</strong>纯链接导航、只提供 Agent/Prompt 的仓库、通用 Agent 运行框架、单纯 MCP 服务，以及只在 README 中提到 Skills 但未交付 Skill 文件的项目。
+        GitHub 没有官方“Agent Skills”统一分类，因此本榜基于多组主题词、README 与安装证据交叉核验，是可复查的公开搜索快照，而非 GitHub 官方榜单。
+      </div>
+    </aside>
+
+    <section aria-labelledby="ranking-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Rank 04—30</p>
+          <h2 id="ranking-title">从通用工程到专业工作流</h2>
+        </div>
+        <p class="section-note">
+          每项均保留 GitHub 直达链接；功能说明依据仓库 README 与公开安装说明整理。
+        </p>
+      </div>
+      <div class="ranking" id="ranking"></div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="page-shell footer-grid">
+      <p>
+        数据来自 GitHub 公开仓库搜索与各仓库 README，Star 截止 2026-10-14。Star 会持续变化；同一仓库内的多个 Skill 共享仓库 Star，不能视为单个 Skill 的独立评分。
+      </p>
+      <span class="footer-stamp">CURATED · VERIFIED · LINKED</span>
+    </div>
+  </footer>
+
+  <noscript>此页面需要启用 JavaScript 才能渲染排行榜内容。</noscript>
+
+  <script>
+    const skills = [
+      {
+        repo: "obra/superpowers",
+        stars: 298992,
+        type: "工程 Skill 合集",
+        focus: "研发方法",
+        description: "把需求澄清、方案设计、计划编写、测试驱动开发、系统调试和代码评审组织成一套可复用的软件开发方法。",
+        url: "https://github.com/obra/superpowers"
+      },
+      {
+        repo: "mattpocock/skills",
+        stars: 290730,
+        type: "工程 Skill 合集",
+        focus: "实战开发",
+        description: "面向真实工程工作的技能集合，强调可直接安装到多种编码代理中，用成熟工作流辅助日常开发与代码质量控制。",
+        url: "https://github.com/mattpocock/skills"
+      },
+      {
+        repo: "morluto/rea",
+        stars: 231190,
+        type: "专业单项 Skill",
+        focus: "逆向工程",
+        description: "Reverse Engineer Anything：指导代理分析应用行为、协议、原生程序与二进制文件，形成可复查的逆向证据链。",
+        url: "https://github.com/morluto/rea"
+      },
+      {
+        repo: "anthropics/skills",
+        stars: 181077,
+        type: "官方 Skill 合集",
+        focus: "文档生产",
+        description: "Anthropic 的 Agent Skills 公共仓库，提供文档、PDF、演示文稿、电子表格等标准化技能及示例技能。",
+        url: "https://github.com/anthropics/skills"
+      },
+      {
+        repo: "DietrichGebert/ponytail",
+        stars: 163311,
+        type: "单项 Skill",
+        focus: "代码简化",
+        description: "让编码代理像经验丰富的高级工程师一样克制：优先删除复杂度、避免过度设计，只写真正需要维护的代码。",
+        url: "https://github.com/DietrichGebert/ponytail"
+      },
+      {
+        repo: "garrytan/gstack",
+        stars: 136381,
+        type: "工作流 Skill 合集",
+        focus: "产品研发",
+        description: "将 CEO、设计、工程管理、发布、文档和 QA 等角色工作流打包成一组可安装技能，覆盖从想法到交付。",
+        url: "https://github.com/garrytan/gstack"
+      },
+      {
+        repo: "nextlevelbuilder/ui-ux-pro-max-skill",
+        stars: 135743,
+        type: "设计 Skill 合集",
+        focus: "UI / UX",
+        description: "为网站、应用和设计系统提供风格、配色、字体、组件与交互决策支持，帮助代理生成更专业的界面。",
+        url: "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+      },
+      {
+        repo: "Graphify-Labs/graphify",
+        stars: 126393,
+        type: "单项 Skill",
+        focus: "代码理解",
+        description: "把代码、文档、数据库结构和配置解析为可查询知识图谱，让代理追踪模块关系并解释每条连接的来源。",
+        url: "https://github.com/Graphify-Labs/graphify"
+      },
+      {
+        repo: "addyosmani/agent-skills",
+        stars: 106525,
+        type: "工程 Skill 合集",
+        focus: "生产工程",
+        description: "面向生产环境的软件工程技能库，覆盖代码评审、质量、安全、测试、性能和前端工程等高频任务。",
+        url: "https://github.com/addyosmani/agent-skills"
+      },
+      {
+        repo: "Panniantong/Agent-Reach",
+        stars: 97243,
+        type: "工具型 Skill",
+        focus: "互联网检索",
+        description: "为代理提供跨平台搜索与读取能力，覆盖 GitHub、X、Reddit、YouTube、B 站和小红书等信息源。",
+        url: "https://github.com/Panniantong/Agent-Reach"
+      },
+      {
+        repo: "Leonxlnx/taste-skill",
+        stars: 96052,
+        type: "设计 Skill 合集",
+        focus: "视觉品味",
+        description: "要求代理先做艺术方向、寻找参考并执行浏览器检查，减少模板化 AI 界面，提升视觉判断与落地质量。",
+        url: "https://github.com/Leonxlnx/taste-skill"
+      },
+      {
+        repo: "tt-a1i/archify",
+        stars: 83413,
+        type: "单项 Skill",
+        focus: "架构可视化",
+        description: "将自然语言、代码库证据或 Mermaid 转换为可交互的架构、流程、时序、数据流和生命周期图。",
+        url: "https://github.com/tt-a1i/archify"
+      },
+      {
+        repo: "pbakaus/impeccable",
+        stars: 81062,
+        type: "设计 Skill 合集",
+        focus: "界面优化",
+        description: "为编码代理补充系统化设计语言，通过审计、打磨和重构工作流改善排版、层级、交互与整体完成度。",
+        url: "https://github.com/pbakaus/impeccable"
+      },
+      {
+        repo: "career-ops-hq/career-ops",
+        stars: 74510,
+        type: "单项 Skill",
+        focus: "求职运营",
+        description: "扫描职位、按简历匹配度评分，辅助定制 ATS 简历和求职信，并提供面试准备与申请进度跟踪。",
+        url: "https://github.com/career-ops-hq/career-ops"
+      },
+      {
+        repo: "calesthio/OpenMontage",
+        stars: 68182,
+        type: "视频 Skill 合集",
+        focus: "视频制作",
+        description: "开放式智能视频生产系统，内含覆盖策划、生成、剪辑与交付的生产管线、工具和大量技能知识包。",
+        url: "https://github.com/calesthio/OpenMontage"
+      },
+      {
+        repo: "mvanhorn/last30days-skill",
+        stars: 64212,
+        type: "单项 Skill",
+        focus: "近期调研",
+        description: "围绕“最近 30 天”跨 Reddit、X、YouTube、Hacker News 和网页检索主题，并综合为带依据的趋势摘要。",
+        url: "https://github.com/mvanhorn/last30days-skill"
+      },
+      {
+        repo: "heygen-com/hyperframes",
+        stars: 63390,
+        type: "视频 Skill 合集",
+        focus: "HTML 视频",
+        description: "用 HTML 描述并渲染视频，提供可按需安装的创作、编排和输出技能，让代理直接生成可交付视频。",
+        url: "https://github.com/heygen-com/hyperframes"
+      },
+      {
+        repo: "hugohe3/ppt-master",
+        stars: 61974,
+        type: "单项 Skill",
+        focus: "演示文稿",
+        description: "把文档或主题转换为原生可编辑 PowerPoint，支持母版、图表、动画、转场以及基于讲者备注的旁白。",
+        url: "https://github.com/hugohe3/ppt-master"
+      },
+      {
+        repo: "ayghri/i-have-adhd",
+        stars: 57060,
+        type: "单项 Skill",
+        focus: "信息表达",
+        description: "约束代理把结论放在前面、缩短长段落并明确下一步，避免重要信息被埋在冗长解释中。",
+        url: "https://github.com/ayghri/i-have-adhd"
+      },
+      {
+        repo: "blader/humanizer",
+        stars: 56838,
+        type: "单项 Skill",
+        focus: "自然写作",
+        description: "识别并修改 AI 文本常见痕迹，如机械排比、空泛强调、套路化转折和过度解释，让文字更像真人写作。",
+        url: "https://github.com/blader/humanizer"
+      },
+      {
+        repo: "cathrynlavery/diagram-design",
+        stars: 55104,
+        type: "单项 Skill",
+        focus: "图表设计",
+        description: "面向 44 类图表的编辑化设计技能，以自包含 HTML 和 SVG 输出结构清晰、可复用的专业图解。",
+        url: "https://github.com/cathrynlavery/diagram-design"
+      },
+      {
+        repo: "coreyhaines31/marketingskills",
+        stars: 54688,
+        type: "营销 Skill 合集",
+        focus: "增长营销",
+        description: "覆盖转化率优化、文案、SEO、数据分析和增长工程，让代理按专业营销流程诊断并执行任务。",
+        url: "https://github.com/coreyhaines31/marketingskills"
+      },
+      {
+        repo: "HKUDS/CLI-Anything",
+        stars: 52255,
+        type: "工具 Skill 合集",
+        focus: "软件 CLI 化",
+        description: "把现有软件包装为代理可调用的命令行接口，并为生成的 CLI 交付标准化 SKILL.md 和可安装技能。",
+        url: "https://github.com/HKUDS/CLI-Anything"
+      },
+      {
+        repo: "Imbad0202/academic-research-skills",
+        stars: 51944,
+        type: "学术 Skill 合集",
+        focus: "学术研究",
+        description: "将选题、检索、写作、审阅、修订和定稿串成学术研究流程，并支持跨模型验证与文档输出。",
+        url: "https://github.com/Imbad0202/academic-research-skills"
+      },
+      {
+        repo: "kepano/obsidian-skills",
+        stars: 49535,
+        type: "应用 Skill 合集",
+        focus: "Obsidian",
+        description: "教代理使用 Obsidian CLI 与 Markdown、Bases、JSON Canvas 等开放格式，创建和维护结构化知识库。",
+        url: "https://github.com/kepano/obsidian-skills"
+      },
+      {
+        repo: "K-Dense-AI/scientific-agent-skills",
+        stars: 49007,
+        type: "科研 Skill 合集",
+        focus: "科学研究",
+        description: "提供大规模验证过的科学技能与数据库访问指南，覆盖生物、化学、医学、药物发现和科研文档工作流。",
+        url: "https://github.com/K-Dense-AI/scientific-agent-skills"
+      },
+      {
+        repo: "Yuan1z0825/nature-skills",
+        stars: 48253,
+        type: "科研 Skill 合集",
+        focus: "论文与科研图",
+        description: "围绕 Nature 风格的论文表达和科研绘图组织技能，辅助生成学术图表、润色论述并保持科学表达规范。",
+        url: "https://github.com/Yuan1z0825/nature-skills"
+      },
+      {
+        repo: "MadsLorentzen/ai-job-search",
+        stars: 46754,
+        type: "求职 Skill 合集",
+        focus: "职位申请",
+        description: "提供职位门户工具与代理技能，完成岗位评估、简历和求职信定制、面试准备及本地申请资料管理。",
+        url: "https://github.com/MadsLorentzen/ai-job-search"
+      },
+      {
+        repo: "wshobson/agents",
+        stars: 40704,
+        type: "工程 Skill 合集",
+        focus: "编码代理",
+        description: "为 Claude Code、Codex、Cursor、OpenCode 等宿主交付可转换安装的插件、专业代理、命令与工程技能。",
+        url: "https://github.com/wshobson/agents"
+      },
+      {
+        repo: "github/awesome-copilot",
+        stars: 40006,
+        type: "社区 Skill 合集",
+        focus: "GitHub Copilot",
+        description: "GitHub 社区维护的 Copilot 配置仓库，实际托管可安装的 Skills、Agents 和 Instructions，并非只列外部链接。",
+        url: "https://github.com/github/awesome-copilot"
+      }
+    ]
+
+    const starIcon = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path fill="currentColor" d="m12 2.4 2.92 5.91 6.53.95-4.73 4.61 1.12 6.5L12 17.3l-5.84 3.07 1.12-6.5-4.73-4.61 6.53-.95L12 2.4Z"/>
+      </svg>
+    `
+
+    const formatStars = value => new Intl.NumberFormat("zh-CN").format(value)
+    const shortStars = value => `${(value / 1000).toFixed(value >= 100000 ? 0 : 1)}K`
+
+    const sortedSkills = [...skills].sort((a, b) => b.stars - a.stars)
+    const topStars = sortedSkills[0].stars
+    const totalStars = sortedSkills.reduce((sum, skill) => sum + skill.stars, 0)
+
+    document.getElementById("totalStars").textContent = `${(totalStars / 1000000).toFixed(1)}M`
+
+    document.getElementById("podium").innerHTML = sortedSkills.slice(0, 3).map((skill, index) => `
+      <article class="podium-card reveal" data-rank="${index + 1}" style="animation-delay:${index * 90}ms">
+        <div class="card-topline">
+          <span class="rank-badge">RANK ${String(index + 1).padStart(2, "0")}</span>
+          <span class="type-badge">${skill.type}</span>
+        </div>
+        <div class="repo-name">
+          <strong>${skill.repo.split("/")[1]}</strong>
+          <span>${skill.repo.split("/")[0]} · ${skill.focus}</span>
+        </div>
+        <p class="card-description">${skill.description}</p>
+        <div class="card-footer">
+          <span class="stars" aria-label="${formatStars(skill.stars)} Stars">${starIcon}${formatStars(skill.stars)}</span>
+          <a class="repo-link" href="${skill.url}" target="_blank" rel="noreferrer">GitHub</a>
+        </div>
+      </article>
+    `).join("")
+
+    document.getElementById("ranking").innerHTML = sortedSkills.slice(3).map((skill, index) => {
+      const rank = index + 4
+      const width = Math.max(8, (skill.stars / topStars) * 100)
+      return `
+        <article class="rank-row reveal" style="animation-delay:${Math.min(index * 24, 420)}ms">
+          <div class="row-rank">${String(rank).padStart(2, "0")}</div>
+          <div class="row-repo">
+            <strong>${skill.repo}</strong>
+            <span class="type-badge">${skill.type}</span>
+          </div>
+          <p class="row-description"><strong>${skill.focus}：</strong>${skill.description}</p>
+          <div class="row-stars">
+            <span class="stars" aria-label="${formatStars(skill.stars)} Stars">${starIcon}${shortStars(skill.stars)}</span>
+            <div class="star-bar" aria-hidden="true"><span style="width:${width.toFixed(2)}%"></span></div>
+          </div>
+          <a class="row-link" href="${skill.url}" target="_blank" rel="noreferrer" aria-label="打开 ${skill.repo} 的 GitHub 仓库">↗</a>
+        </article>
+      `
+    }).join("")
+  </script>
+</body>
+</html>

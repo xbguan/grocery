@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Grocery 项目的公开资源目录。">
+  <title>Grocery · 资源目录</title>
+  <style>
+    :root {
+      --paper: #f7f8fc;
+      --paper-deep: #edf0f7;
+      --ink: #182033;
+      --muted: #6c768c;
+      --line: #d9deea;
+      --blue: #3157d5;
+      --blue-soft: #e9edff;
+      --coral: #f05a47;
+      --white: #ffffff;
+      --shadow: 0 22px 60px rgba(43, 56, 91, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(49, 87, 213, 0.042) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(49, 87, 213, 0.042) 1px, transparent 1px),
+        var(--paper);
+      background-size: 32px 32px;
+      font-family: "SF Pro Text", "Segoe UI Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
+      line-height: 1.6;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    a:focus-visible {
+      outline: 3px solid rgba(49, 87, 213, 0.34);
+      outline-offset: 5px;
+    }
+
+    .shell {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 30px 0;
+    }
+
+    .identity {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .identity-mark {
+      position: relative;
+      width: 34px;
+      height: 40px;
+      border: 2px solid var(--ink);
+      border-radius: 4px 10px 10px 4px;
+      background: var(--white);
+      box-shadow: inset 7px 0 0 var(--blue);
+    }
+
+    .identity-mark::after {
+      content: "";
+      position: absolute;
+      top: 9px;
+      right: 7px;
+      width: 9px;
+      height: 2px;
+      background: var(--coral);
+      box-shadow: 0 6px 0 var(--coral), 0 12px 0 var(--coral);
+    }
+
+    .github-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .github-link::after {
+      content: "↗";
+      font-size: 17px;
+      transition: transform 160ms ease;
+    }
+
+    .github-link:hover::after {
+      transform: translate(2px, -2px);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      gap: 72px;
+      align-items: end;
+      min-height: 420px;
+      padding: 74px 0 68px;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 22px;
+      color: var(--coral);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 38px;
+      height: 3px;
+      background: currentColor;
+    }
+
+    h1 {
+      max-width: 700px;
+      margin: 0;
+      font-family: "Arial Rounded MT Bold", "SF Pro Rounded", "PingFang SC", sans-serif;
+      font-size: clamp(54px, 9vw, 104px);
+      font-weight: 900;
+      letter-spacing: -0.065em;
+      line-height: 0.9;
+    }
+
+    h1 span {
+      display: block;
+      margin-top: 18px;
+      color: var(--blue);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 0.25em;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .hero-copy {
+      margin: 28px 0 0;
+      max-width: 600px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .archive-note {
+      position: relative;
+      padding: 26px 24px 24px 31px;
+      border: 1px solid var(--line);
+      border-radius: 6px 22px 22px 6px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: var(--shadow);
+    }
+
+    .archive-note::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 8px;
+      border-radius: 6px 0 0 6px;
+      background: var(--coral);
+    }
+
+    .archive-note strong {
+      display: block;
+      color: var(--blue);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 46px;
+      letter-spacing: -0.08em;
+      line-height: 1;
+    }
+
+    .archive-note span {
+      display: block;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    main {
+      padding-bottom: 100px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 30px;
+      padding-top: 38px;
+      border-top: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 44px);
+      letter-spacing: -0.045em;
+      line-height: 1.1;
+    }
+
+    .section-note {
+      max-width: 430px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .resource-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      margin-top: 30px;
+    }
+
+    .resource-card {
+      position: relative;
+      min-height: 265px;
+      overflow: hidden;
+      padding: 30px 30px 27px 42px;
+      border: 1px solid var(--line);
+      border-radius: 7px 24px 24px 7px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 14px 38px rgba(43, 56, 91, 0.08);
+      text-decoration: none;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .resource-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 12px;
+      background: var(--blue);
+    }
+
+    .resource-card:hover {
+      border-color: rgba(49, 87, 213, 0.45);
+      box-shadow: 0 24px 50px rgba(43, 56, 91, 0.14);
+      transform: translateY(-5px);
+    }
+
+    .card-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .file-type {
+      display: inline-flex;
+      min-height: 28px;
+      align-items: center;
+      padding: 4px 10px;
+      color: var(--blue);
+      border: 1px solid #c9d3ff;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+    }
+
+    .open-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      color: var(--blue);
+      border-radius: 12px;
+      background: var(--blue-soft);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .resource-card h3 {
+      margin: 26px 0 10px;
+      overflow-wrap: anywhere;
+      font-size: clamp(22px, 3vw, 31px);
+      letter-spacing: -0.045em;
+      line-height: 1.12;
+    }
+
+    .resource-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .file-name {
+      display: block;
+      margin-top: 26px;
+      color: #8a93a6;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    footer {
+      padding: 26px 0 40px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+
+    .footer-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--coral);
+      box-shadow: 0 0 0 4px rgba(240, 90, 71, 0.12);
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100% - 24px, 580px);
+      }
+
+      .site-header {
+        padding: 20px 0;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 36px;
+        min-height: 0;
+        padding: 54px 0 58px;
+      }
+
+      h1 {
+        font-size: clamp(54px, 20vw, 78px);
+      }
+
+      .archive-note {
+        max-width: 280px;
+      }
+
+      .section-head {
+        display: block;
+      }
+
+      .section-note {
+        margin-top: 14px;
+      }
+
+      .resource-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .resource-card {
+        min-height: 245px;
+      }
+
+      .footer-row {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell site-header">
+    <div class="identity">
+      <span class="identity-mark" aria-hidden="true"></span>
+      Grocery archive
+    </div>
+    <a class="github-link" href="https://github.com/xbguan/grocery">GitHub 仓库</a>
+  </header>
+
+  <div class="shell hero">
+    <div>
+      <p class="eyebrow">Public index / GitHub Pages</p>
+      <h1>资源档案室<span>Files worth keeping, one shelf at a time.</span></h1>
+      <p class="hero-copy">
+        这里集中展示项目目录中的 HTML、AsciiDoc、Markdown 与其他公开资料。
+        选择一份档案，直接进入阅读。
+      </p>
+    </div>
+    <aside class="archive-note" aria-label="当前资源数量">
+      <strong>01</strong>
+      <span>Published resources</span>
+    </aside>
+  </div>
+
+  <main class="shell">
+    <section aria-labelledby="resources-title">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Current shelf</p>
+          <h2 id="resources-title">公开资源</h2>
+        </div>
+        <p class="section-note">HTML 文件在站内直接浏览；Markdown 与 AsciiDoc 文件以源文件形式打开。</p>
+      </div>
+
+      <div class="resource-grid">
+        <a class="resource-card" href="github-agent-skills-top30.html">
+          <div class="card-topline">
+            <span class="file-type">HTML · REPORT</span>
+            <span class="open-mark" aria-hidden="true">↗</span>
+          </div>
+          <h3>GitHub Agent Skills Star Top 30</h3>
+          <p>按 GitHub Star 排名的 30 个可安装 Agent Skill 仓库，附中文功能说明与项目地址。</p>
+          <span class="file-name">github-agent-skills-top30.html</span>
+        </a>
+
+      </div>
+
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-row">
+      <span>© 2026 GROCERY · STATIC RESOURCE INDEX</span>
+      <span class="status">GitHub Pages ready</span>
+    </div>
+  </footer>
+</body>
+</html>
