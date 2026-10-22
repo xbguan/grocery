@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Asciidoctor 2.0.20">
+<meta name="author" content="xbguan">
+<title>macOS 代理与 ChatGPT/Codex 配置记录</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
+<style>
+/*! Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
+/* Uncomment the following line when using as a custom stylesheet */
+/* @import "https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700"; */
+html{font-family:sans-serif;-webkit-text-size-adjust:100%}
+a{background:none}
+a:focus{outline:thin dotted}
+a:active,a:hover{outline:0}
+h1{font-size:2em;margin:.67em 0}
+b,strong{font-weight:bold}
+abbr{font-size:.9em}
+abbr[title]{cursor:help;border-bottom:1px dotted #dddddf;text-decoration:none}
+dfn{font-style:italic}
+hr{height:0}
+mark{background:#ff0;color:#000}
+code,kbd,pre,samp{font-family:monospace;font-size:1em}
+pre{white-space:pre-wrap}
+q{quotes:"\201C" "\201D" "\2018" "\2019"}
+small{font-size:80%}
+sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}
+sup{top:-.5em}
+sub{bottom:-.25em}
+img{border:0}
+svg:not(:root){overflow:hidden}
+figure{margin:0}
+audio,video{display:inline-block}
+audio:not([controls]){display:none;height:0}
+fieldset{border:1px solid silver;margin:0 2px;padding:.35em .625em .75em}
+legend{border:0;padding:0}
+button,input,select,textarea{font-family:inherit;font-size:100%;margin:0}
+button,input{line-height:normal}
+button,select{text-transform:none}
+button,html input[type=button],input[type=reset],input[type=submit]{-webkit-appearance:button;cursor:pointer}
+button[disabled],html input[disabled]{cursor:default}
+input[type=checkbox],input[type=radio]{padding:0}
+button::-moz-focus-inner,input::-moz-focus-inner{border:0;padding:0}
+textarea{overflow:auto;vertical-align:top}
+table{border-collapse:collapse;border-spacing:0}
+*,::before,::after{box-sizing:border-box}
+html,body{font-size:100%}
+body{background:#fff;color:rgba(0,0,0,.8);padding:0;margin:0;font-family:"Noto Serif","DejaVu Serif",serif;line-height:1;position:relative;cursor:auto;-moz-tab-size:4;-o-tab-size:4;tab-size:4;word-wrap:anywhere;-moz-osx-font-smoothing:grayscale;-webkit-font-smoothing:antialiased}
+a:hover{cursor:pointer}
+img,object,embed{max-width:100%;height:auto}
+object,embed{height:100%}
+img{-ms-interpolation-mode:bicubic}
+.left{float:left!important}
+.right{float:right!important}
+.text-left{text-align:left!important}
+.text-right{text-align:right!important}
+.text-center{text-align:center!important}
+.text-justify{text-align:justify!important}
+.hide{display:none}
+img,object,svg{display:inline-block;vertical-align:middle}
+textarea{height:auto;min-height:50px}
+select{width:100%}
+.subheader,.admonitionblock td.content>.title,.audioblock>.title,.exampleblock>.title,.imageblock>.title,.listingblock>.title,.literalblock>.title,.stemblock>.title,.openblock>.title,.paragraph>.title,.quoteblock>.title,table.tableblock>.title,.verseblock>.title,.videoblock>.title,.dlist>.title,.olist>.title,.ulist>.title,.qlist>.title,.hdlist>.title{line-height:1.45;color:#7a2518;font-weight:400;margin-top:0;margin-bottom:.25em}
+div,dl,dt,dd,ul,ol,li,h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6,pre,form,p,blockquote,th,td{margin:0;padding:0}
+a{color:#2156a5;text-decoration:underline;line-height:inherit}
+a:hover,a:focus{color:#1d4b8f}
+a img{border:0}
+p{line-height:1.6;margin-bottom:1.25em;text-rendering:optimizeLegibility}
+p aside{font-size:.875em;line-height:1.35;font-style:italic}
+h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6{font-family:"Open Sans","DejaVu Sans",sans-serif;font-weight:300;font-style:normal;color:#ba3925;text-rendering:optimizeLegibility;margin-top:1em;margin-bottom:.5em;line-height:1.0125em}
+h1 small,h2 small,h3 small,#toctitle small,.sidebarblock>.content>.title small,h4 small,h5 small,h6 small{font-size:60%;color:#e99b8f;line-height:0}
+h1{font-size:2.125em}
+h2{font-size:1.6875em}
+h3,#toctitle,.sidebarblock>.content>.title{font-size:1.375em}
+h4,h5{font-size:1.125em}
+h6{font-size:1em}
+hr{border:solid #dddddf;border-width:1px 0 0;clear:both;margin:1.25em 0 1.1875em}
+em,i{font-style:italic;line-height:inherit}
+strong,b{font-weight:bold;line-height:inherit}
+small{font-size:60%;line-height:inherit}
+code{font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;font-weight:400;color:rgba(0,0,0,.9)}
+ul,ol,dl{line-height:1.6;margin-bottom:1.25em;list-style-position:outside;font-family:inherit}
+ul,ol{margin-left:1.5em}
+ul li ul,ul li ol{margin-left:1.25em;margin-bottom:0}
+ul.circle{list-style-type:circle}
+ul.disc{list-style-type:disc}
+ul.square{list-style-type:square}
+ul.circle ul:not([class]),ul.disc ul:not([class]),ul.square ul:not([class]){list-style:inherit}
+ol li ul,ol li ol{margin-left:1.25em;margin-bottom:0}
+dl dt{margin-bottom:.3125em;font-weight:bold}
+dl dd{margin-bottom:1.25em}
+blockquote{margin:0 0 1.25em;padding:.5625em 1.25em 0 1.1875em;border-left:1px solid #ddd}
+blockquote,blockquote p{line-height:1.6;color:rgba(0,0,0,.85)}
+@media screen and (min-width:768px){h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6{line-height:1.2}
+h1{font-size:2.75em}
+h2{font-size:2.3125em}
+h3,#toctitle,.sidebarblock>.content>.title{font-size:1.6875em}
+h4{font-size:1.4375em}}
+table{background:#fff;margin-bottom:1.25em;border:1px solid #dedede;word-wrap:normal}
+table thead,table tfoot{background:#f7f8f7}
+table thead tr th,table thead tr td,table tfoot tr th,table tfoot tr td{padding:.5em .625em .625em;font-size:inherit;color:rgba(0,0,0,.8);text-align:left}
+table tr th,table tr td{padding:.5625em .625em;font-size:inherit;color:rgba(0,0,0,.8)}
+table tr.even,table tr.alt{background:#f8f8f7}
+table thead tr th,table tfoot tr th,table tbody tr td,table tr td,table tfoot tr td{line-height:1.6}
+h1,h2,h3,#toctitle,.sidebarblock>.content>.title,h4,h5,h6{line-height:1.2;word-spacing:-.05em}
+h1 strong,h2 strong,h3 strong,#toctitle strong,.sidebarblock>.content>.title strong,h4 strong,h5 strong,h6 strong{font-weight:400}
+.center{margin-left:auto;margin-right:auto}
+.stretch{width:100%}
+.clearfix::before,.clearfix::after,.float-group::before,.float-group::after{content:" ";display:table}
+.clearfix::after,.float-group::after{clear:both}
+:not(pre).nobreak{word-wrap:normal}
+:not(pre).nowrap{white-space:nowrap}
+:not(pre).pre-wrap{white-space:pre-wrap}
+:not(pre):not([class^=L])>code{font-size:.9375em;font-style:normal!important;letter-spacing:0;padding:.1em .5ex;word-spacing:-.15em;background:#f7f7f8;border-radius:4px;line-height:1.45;text-rendering:optimizeSpeed}
+pre{color:rgba(0,0,0,.9);font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;line-height:1.45;text-rendering:optimizeSpeed}
+pre code,pre pre{color:inherit;font-size:inherit;line-height:inherit}
+pre>code{display:block}
+pre.nowrap,pre.nowrap pre{white-space:pre;word-wrap:normal}
+em em{font-style:normal}
+strong strong{font-weight:400}
+.keyseq{color:rgba(51,51,51,.8)}
+kbd{font-family:"Droid Sans Mono","DejaVu Sans Mono",monospace;display:inline-block;color:rgba(0,0,0,.8);font-size:.65em;line-height:1.45;background:#f7f7f7;border:1px solid #ccc;border-radius:3px;box-shadow:0 1px 0 rgba(0,0,0,.2),inset 0 0 0 .1em #fff;margin:0 .15em;padding:.2em .5em;vertical-align:middle;position:relative;top:-.1em;white-space:nowrap}
+.keyseq kbd:first-child{margin-left:0}
+.keyseq kbd:last-child{margin-right:0}
+.menuseq,.menuref{color:#000}
+.menuseq b:not(.caret),.menuref{font-weight:inherit}
+.menuseq{word-spacing:-.02em}
+.menuseq b.caret{font-size:1.25em;line-height:.8}
+.menuseq i.caret{font-weight:bold;text-align:center;width:.45em}
+b.button::before,b.button::after{position:relative;top:-1px;font-weight:400}
+b.button::before{content:"[";padding:0 3px 0 2px}
+b.button::after{content:"]";padding:0 2px 0 3px}
+p a>code:hover{color:rgba(0,0,0,.9)}
+#header,#content,#footnotes,#footer{width:100%;margin:0 auto;max-width:62.5em;*zoom:1;position:relative;padding-left:.9375em;padding-right:.9375em}
+#header::before,#header::after,#content::before,#content::after,#footnotes::before,#footnotes::after,#footer::before,#footer::after{content:" ";display:table}
+#header::after,#content::after,#footnotes::after,#footer::after{clear:both}
+#content{margin-top:1.25em}
+#content::before{content:none}
+#header>h1:first-child{color:rgba(0,0,0,.85);margin-top:2.25rem;margin-bottom:0}
+#header>h1:first-child+#toc{margin-top:8px;border-top:1px solid #dddddf}
+#header>h1:only-child,body.toc2 #header>h1:nth-last-child(2){border-bottom:1px solid #dddddf;padding-bottom:8px}
+#header .details{border-bottom:1px solid #dddddf;line-height:1.45;padding-top:.25em;padding-bottom:.25em;padding-left:.25em;color:rgba(0,0,0,.6);display:flex;flex-flow:row wrap}
+#header .details span:first-child{margin-left:-.125em}
+#header .details span.email a{color:rgba(0,0,0,.85)}
+#header .details br{display:none}
+#header .details br+span::before{content:"\00a0\2013\00a0"}
+#header .details br+span.author::before{content:"\00a0\22c5\00a0";color:rgba(0,0,0,.85)}
+#header .details br+span#revremark::before{content:"\00a0|\00a0"}
+#header #revnumber{text-transform:capitalize}
+#header #revnumber::after{content:"\00a0"}
+#content>h1:first-child:not([class]){color:rgba(0,0,0,.85);border-bottom:1px solid #dddddf;padding-bottom:8px;margin-top:0;padding-top:1rem;margin-bottom:1.25rem}
+#toc{border-bottom:1px solid #e7e7e9;padding-bottom:.5em}
+#toc>ul{margin-left:.125em}
+#toc ul.sectlevel0>li>a{font-style:italic}
+#toc ul.sectlevel0 ul.sectlevel1{margin:.5em 0}
+#toc ul{font-family:"Open Sans","DejaVu Sans",sans-serif;list-style-type:none}
+#toc li{line-height:1.3334;margin-top:.3334em}
+#toc a{text-decoration:none}
+#toc a:active{text-decoration:underline}
+#toctitle{color:#7a2518;font-size:1.2em}
+@media screen and (min-width:768px){#toctitle{font-size:1.375em}
+body.toc2{padding-left:15em;padding-right:0}
+#toc.toc2{margin-top:0!important;background:#f8f8f7;position:fixed;width:15em;left:0;top:0;border-right:1px solid #e7e7e9;border-top-width:0!important;border-bottom-width:0!important;z-index:1000;padding:1.25em 1em;height:100%;overflow:auto}
+#toc.toc2 #toctitle{margin-top:0;margin-bottom:.8rem;font-size:1.2em}
+#toc.toc2>ul{font-size:.9em;margin-bottom:0}
+#toc.toc2 ul ul{margin-left:0;padding-left:1em}
+#toc.toc2 ul.sectlevel0 ul.sectlevel1{padding-left:0;margin-top:.5em;margin-bottom:.5em}
+body.toc2.toc-right{padding-left:0;padding-right:15em}
+body.toc2.toc-right #toc.toc2{border-right-width:0;border-left:1px solid #e7e7e9;left:auto;right:0}}
+@media screen and (min-width:1280px){body.toc2{padding-left:20em;padding-right:0}
+#toc.toc2{width:20em}
+#toc.toc2 #toctitle{font-size:1.375em}
+#toc.toc2>ul{font-size:.95em}
+#toc.toc2 ul ul{padding-left:1.25em}
+body.toc2.toc-right{padding-left:0;padding-right:20em}}
+#content #toc{border:1px solid #e0e0dc;margin-bottom:1.25em;padding:1.25em;background:#f8f8f7;border-radius:4px}
+#content #toc>:first-child{margin-top:0}
+#content #toc>:last-child{margin-bottom:0}
+#footer{max-width:none;background:rgba(0,0,0,.8);padding:1.25em}
+#footer-text{color:hsla(0,0%,100%,.8);line-height:1.44}
+#content{margin-bottom:.625em}
+.sect1{padding-bottom:.625em}
+@media screen and (min-width:768px){#content{margin-bottom:1.25em}
+.sect1{padding-bottom:1.25em}}
+.sect1:last-child{padding-bottom:0}
+.sect1+.sect1{border-top:1px solid #e7e7e9}
+#content h1>a.anchor,h2>a.anchor,h3>a.anchor,#toctitle>a.anchor,.sidebarblock>.content>.title>a.anchor,h4>a.anchor,h5>a.anchor,h6>a.anchor{position:absolute;z-index:1001;width:1.5ex;margin-left:-1.5ex;display:block;text-decoration:none!important;visibility:hidden;text-align:center;font-weight:400}
+#content h1>a.anchor::before,h2>a.anchor::before,h3>a.anchor::before,#toctitle>a.anchor::before,.sidebarblock>.content>.title>a.anchor::before,h4>a.anchor::before,h5>a.anchor::before,h6>a.anchor::before{content:"\00A7";font-size:.85em;display:block;padding-top:.1em}
+#content h1:hover>a.anchor,#content h1>a.anchor:hover,h2:hover>a.anchor,h2>a.anchor:hover,h3:hover>a.anchor,#toctitle:hover>a.anchor,.sidebarblock>.content>.title:hover>a.anchor,h3>a.anchor:hover,#toctitle>a.anchor:hover,.sidebarblock>.content>.title>a.anchor:hover,h4:hover>a.anchor,h4>a.anchor:hover,h5:hover>a.anchor,h5>a.anchor:hover,h6:hover>a.anchor,h6>a.anchor:hover{visibility:visible}
+#content h1>a.link,h2>a.link,h3>a.link,#toctitle>a.link,.sidebarblock>.content>.title>a.link,h4>a.link,h5>a.link,h6>a.link{color:#ba3925;text-decoration:none}
+#content h1>a.link:hover,h2>a.link:hover,h3>a.link:hover,#toctitle>a.link:hover,.sidebarblock>.content>.title>a.link:hover,h4>a.link:hover,h5>a.link:hover,h6>a.link:hover{color:#a53221}
+details,.audioblock,.imageblock,.literalblock,.listingblock,.stemblock,.videoblock{margin-bottom:1.25em}
+details{margin-left:1.25rem}
+details>summary{cursor:pointer;display:block;position:relative;line-height:1.6;margin-bottom:.625rem;outline:none;-webkit-tap-highlight-color:transparent}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"";border:solid transparent;border-left:solid;border-width:.3em 0 .3em .5em;position:absolute;top:.5em;left:-1.25rem;transform:translateX(15%)}
+details[open]>summary::before{border:solid transparent;border-top:solid;border-width:.5em .3em 0;transform:translateY(15%)}
+details>summary::after{content:"";width:1.25rem;height:1em;position:absolute;top:.3em;left:-1.25rem}
+.admonitionblock td.content>.title,.audioblock>.title,.exampleblock>.title,.imageblock>.title,.listingblock>.title,.literalblock>.title,.stemblock>.title,.openblock>.title,.paragraph>.title,.quoteblock>.title,table.tableblock>.title,.verseblock>.title,.videoblock>.title,.dlist>.title,.olist>.title,.ulist>.title,.qlist>.title,.hdlist>.title{text-rendering:optimizeLegibility;text-align:left;font-family:"Noto Serif","DejaVu Serif",serif;font-size:1rem;font-style:italic}
+table.tableblock.fit-content>caption.title{white-space:nowrap;width:0}
+.paragraph.lead>p,#preamble>.sectionbody>[class=paragraph]:first-of-type p{font-size:1.21875em;line-height:1.6;color:rgba(0,0,0,.85)}
+.admonitionblock>table{border-collapse:separate;border:0;background:none;width:100%}
+.admonitionblock>table td.icon{text-align:center;width:80px}
+.admonitionblock>table td.icon img{max-width:none}
+.admonitionblock>table td.icon .title{font-weight:bold;font-family:"Open Sans","DejaVu Sans",sans-serif;text-transform:uppercase}
+.admonitionblock>table td.content{padding-left:1.125em;padding-right:1.25em;border-left:1px solid #dddddf;color:rgba(0,0,0,.6);word-wrap:anywhere}
+.admonitionblock>table td.content>:last-child>:last-child{margin-bottom:0}
+.exampleblock>.content{border:1px solid #e6e6e6;margin-bottom:1.25em;padding:1.25em;background:#fff;border-radius:4px}
+.sidebarblock{border:1px solid #dbdbd6;margin-bottom:1.25em;padding:1.25em;background:#f3f3f2;border-radius:4px}
+.sidebarblock>.content>.title{color:#7a2518;margin-top:0;text-align:center}
+.exampleblock>.content>:first-child,.sidebarblock>.content>:first-child{margin-top:0}
+.exampleblock>.content>:last-child,.exampleblock>.content>:last-child>:last-child,.exampleblock>.content .olist>ol>li:last-child>:last-child,.exampleblock>.content .ulist>ul>li:last-child>:last-child,.exampleblock>.content .qlist>ol>li:last-child>:last-child,.sidebarblock>.content>:last-child,.sidebarblock>.content>:last-child>:last-child,.sidebarblock>.content .olist>ol>li:last-child>:last-child,.sidebarblock>.content .ulist>ul>li:last-child>:last-child,.sidebarblock>.content .qlist>ol>li:last-child>:last-child{margin-bottom:0}
+.literalblock pre,.listingblock>.content>pre{border-radius:4px;overflow-x:auto;padding:1em;font-size:.8125em}
+@media screen and (min-width:768px){.literalblock pre,.listingblock>.content>pre{font-size:.90625em}}
+@media screen and (min-width:1280px){.literalblock pre,.listingblock>.content>pre{font-size:1em}}
+.literalblock pre,.listingblock>.content>pre:not(.highlight),.listingblock>.content>pre[class=highlight],.listingblock>.content>pre[class^="highlight "]{background:#f7f7f8}
+.literalblock.output pre{color:#f7f7f8;background:rgba(0,0,0,.9)}
+.listingblock>.content{position:relative}
+.listingblock code[data-lang]::before{display:none;content:attr(data-lang);position:absolute;font-size:.75em;top:.425rem;right:.5rem;line-height:1;text-transform:uppercase;color:inherit;opacity:.5}
+.listingblock:hover code[data-lang]::before{display:block}
+.listingblock.terminal pre .command::before{content:attr(data-prompt);padding-right:.5em;color:inherit;opacity:.5}
+.listingblock.terminal pre .command:not([data-prompt])::before{content:"$"}
+.listingblock pre.highlightjs{padding:0}
+.listingblock pre.highlightjs>code{padding:1em;border-radius:4px}
+.listingblock pre.prettyprint{border-width:0}
+.prettyprint{background:#f7f7f8}
+pre.prettyprint .linenums{line-height:1.45;margin-left:2em}
+pre.prettyprint li{background:none;list-style-type:inherit;padding-left:0}
+pre.prettyprint li code[data-lang]::before{opacity:1}
+pre.prettyprint li:not(:first-child) code[data-lang]::before{display:none}
+table.linenotable{border-collapse:separate;border:0;margin-bottom:0;background:none}
+table.linenotable td[class]{color:inherit;vertical-align:top;padding:0;line-height:inherit;white-space:normal}
+table.linenotable td.code{padding-left:.75em}
+table.linenotable td.linenos,pre.pygments .linenos{border-right:1px solid;opacity:.35;padding-right:.5em;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
+pre.pygments span.linenos{display:inline-block;margin-right:.75em}
+.quoteblock{margin:0 1em 1.25em 1.5em;display:table}
+.quoteblock:not(.excerpt)>.title{margin-left:-1.5em;margin-bottom:.75em}
+.quoteblock blockquote,.quoteblock p{color:rgba(0,0,0,.85);font-size:1.15rem;line-height:1.75;word-spacing:.1em;letter-spacing:0;font-style:italic;text-align:justify}
+.quoteblock blockquote{margin:0;padding:0;border:0}
+.quoteblock blockquote::before{content:"\201c";float:left;font-size:2.75em;font-weight:bold;line-height:.6em;margin-left:-.6em;color:#7a2518;text-shadow:0 1px 2px rgba(0,0,0,.1)}
+.quoteblock blockquote>.paragraph:last-child p{margin-bottom:0}
+.quoteblock .attribution{margin-top:.75em;margin-right:.5ex;text-align:right}
+.verseblock{margin:0 1em 1.25em}
+.verseblock pre{font-family:"Open Sans","DejaVu Sans",sans-serif;font-size:1.15rem;color:rgba(0,0,0,.85);font-weight:300;text-rendering:optimizeLegibility}
+.verseblock pre strong{font-weight:400}
+.verseblock .attribution{margin-top:1.25rem;margin-left:.5ex}
+.quoteblock .attribution,.verseblock .attribution{font-size:.9375em;line-height:1.45;font-style:italic}
+.quoteblock .attribution br,.verseblock .attribution br{display:none}
+.quoteblock .attribution cite,.verseblock .attribution cite{display:block;letter-spacing:-.025em;color:rgba(0,0,0,.6)}
+.quoteblock.abstract blockquote::before,.quoteblock.excerpt blockquote::before,.quoteblock .quoteblock blockquote::before{display:none}
+.quoteblock.abstract blockquote,.quoteblock.abstract p,.quoteblock.excerpt blockquote,.quoteblock.excerpt p,.quoteblock .quoteblock blockquote,.quoteblock .quoteblock p{line-height:1.6;word-spacing:0}
+.quoteblock.abstract{margin:0 1em 1.25em;display:block}
+.quoteblock.abstract>.title{margin:0 0 .375em;font-size:1.15em;text-align:center}
+.quoteblock.excerpt>blockquote,.quoteblock .quoteblock{padding:0 0 .25em 1em;border-left:.25em solid #dddddf}
+.quoteblock.excerpt,.quoteblock .quoteblock{margin-left:0}
+.quoteblock.excerpt blockquote,.quoteblock.excerpt p,.quoteblock .quoteblock blockquote,.quoteblock .quoteblock p{color:inherit;font-size:1.0625rem}
+.quoteblock.excerpt .attribution,.quoteblock .quoteblock .attribution{color:inherit;font-size:.85rem;text-align:left;margin-right:0}
+p.tableblock:last-child{margin-bottom:0}
+td.tableblock>.content{margin-bottom:1.25em;word-wrap:anywhere}
+td.tableblock>.content>:last-child{margin-bottom:-1.25em}
+table.tableblock,th.tableblock,td.tableblock{border:0 solid #dedede}
+table.grid-all>*>tr>*{border-width:1px}
+table.grid-cols>*>tr>*{border-width:0 1px}
+table.grid-rows>*>tr>*{border-width:1px 0}
+table.frame-all{border-width:1px}
+table.frame-ends{border-width:1px 0}
+table.frame-sides{border-width:0 1px}
+table.frame-none>colgroup+*>:first-child>*,table.frame-sides>colgroup+*>:first-child>*{border-top-width:0}
+table.frame-none>:last-child>:last-child>*,table.frame-sides>:last-child>:last-child>*{border-bottom-width:0}
+table.frame-none>*>tr>:first-child,table.frame-ends>*>tr>:first-child{border-left-width:0}
+table.frame-none>*>tr>:last-child,table.frame-ends>*>tr>:last-child{border-right-width:0}
+table.stripes-all>*>tr,table.stripes-odd>*>tr:nth-of-type(odd),table.stripes-even>*>tr:nth-of-type(even),table.stripes-hover>*>tr:hover{background:#f8f8f7}
+th.halign-left,td.halign-left{text-align:left}
+th.halign-right,td.halign-right{text-align:right}
+th.halign-center,td.halign-center{text-align:center}
+th.valign-top,td.valign-top{vertical-align:top}
+th.valign-bottom,td.valign-bottom{vertical-align:bottom}
+th.valign-middle,td.valign-middle{vertical-align:middle}
+table thead th,table tfoot th{font-weight:bold}
+tbody tr th{background:#f7f8f7}
+tbody tr th,tbody tr th p,tfoot tr th,tfoot tr th p{color:rgba(0,0,0,.8);font-weight:bold}
+p.tableblock>code:only-child{background:none;padding:0}
+p.tableblock{font-size:1em}
+ol{margin-left:1.75em}
+ul li ol{margin-left:1.5em}
+dl dd{margin-left:1.125em}
+dl dd:last-child,dl dd:last-child>:last-child{margin-bottom:0}
+li p,ul dd,ol dd,.olist .olist,.ulist .ulist,.ulist .olist,.olist .ulist{margin-bottom:.625em}
+ul.checklist,ul.none,ol.none,ul.no-bullet,ol.no-bullet,ol.unnumbered,ul.unstyled,ol.unstyled{list-style-type:none}
+ul.no-bullet,ol.no-bullet,ol.unnumbered{margin-left:.625em}
+ul.unstyled,ol.unstyled{margin-left:0}
+li>p:empty:only-child::before{content:"";display:inline-block}
+ul.checklist>li>p:first-child{margin-left:-1em}
+ul.checklist>li>p:first-child>.fa-square-o:first-child,ul.checklist>li>p:first-child>.fa-check-square-o:first-child{width:1.25em;font-size:.8em;position:relative;bottom:.125em}
+ul.checklist>li>p:first-child>input[type=checkbox]:first-child{margin-right:.25em}
+ul.inline{display:flex;flex-flow:row wrap;list-style:none;margin:0 0 .625em -1.25em}
+ul.inline>li{margin-left:1.25em}
+.unstyled dl dt{font-weight:400;font-style:normal}
+ol.arabic{list-style-type:decimal}
+ol.decimal{list-style-type:decimal-leading-zero}
+ol.loweralpha{list-style-type:lower-alpha}
+ol.upperalpha{list-style-type:upper-alpha}
+ol.lowerroman{list-style-type:lower-roman}
+ol.upperroman{list-style-type:upper-roman}
+ol.lowergreek{list-style-type:lower-greek}
+.hdlist>table,.colist>table{border:0;background:none}
+.hdlist>table>tbody>tr,.colist>table>tbody>tr{background:none}
+td.hdlist1,td.hdlist2{vertical-align:top;padding:0 .625em}
+td.hdlist1{font-weight:bold;padding-bottom:1.25em}
+td.hdlist2{word-wrap:anywhere}
+.literalblock+.colist,.listingblock+.colist{margin-top:-.5em}
+.colist td:not([class]):first-child{padding:.4em .75em 0;line-height:1;vertical-align:top}
+.colist td:not([class]):first-child img{max-width:none}
+.colist td:not([class]):last-child{padding:.25em 0}
+.thumb,.th{line-height:0;display:inline-block;border:4px solid #fff;box-shadow:0 0 0 1px #ddd}
+.imageblock.left{margin:.25em .625em 1.25em 0}
+.imageblock.right{margin:.25em 0 1.25em .625em}
+.imageblock>.title{margin-bottom:0}
+.imageblock.thumb,.imageblock.th{border-width:6px}
+.imageblock.thumb>.title,.imageblock.th>.title{padding:0 .125em}
+.image.left,.image.right{margin-top:.25em;margin-bottom:.25em;display:inline-block;line-height:0}
+.image.left{margin-right:.625em}
+.image.right{margin-left:.625em}
+a.image{text-decoration:none;display:inline-block}
+a.image object{pointer-events:none}
+sup.footnote,sup.footnoteref{font-size:.875em;position:static;vertical-align:super}
+sup.footnote a,sup.footnoteref a{text-decoration:none}
+sup.footnote a:active,sup.footnoteref a:active{text-decoration:underline}
+#footnotes{padding-top:.75em;padding-bottom:.75em;margin-bottom:.625em}
+#footnotes hr{width:20%;min-width:6.25em;margin:-.25em 0 .75em;border-width:1px 0 0}
+#footnotes .footnote{padding:0 .375em 0 .225em;line-height:1.3334;font-size:.875em;margin-left:1.2em;margin-bottom:.2em}
+#footnotes .footnote a:first-of-type{font-weight:bold;text-decoration:none;margin-left:-1.05em}
+#footnotes .footnote:last-of-type{margin-bottom:0}
+#content #footnotes{margin-top:-.625em;margin-bottom:0;padding:.75em 0}
+div.unbreakable{page-break-inside:avoid}
+.big{font-size:larger}
+.small{font-size:smaller}
+.underline{text-decoration:underline}
+.overline{text-decoration:overline}
+.line-through{text-decoration:line-through}
+.aqua{color:#00bfbf}
+.aqua-background{background:#00fafa}
+.black{color:#000}
+.black-background{background:#000}
+.blue{color:#0000bf}
+.blue-background{background:#0000fa}
+.fuchsia{color:#bf00bf}
+.fuchsia-background{background:#fa00fa}
+.gray{color:#606060}
+.gray-background{background:#7d7d7d}
+.green{color:#006000}
+.green-background{background:#007d00}
+.lime{color:#00bf00}
+.lime-background{background:#00fa00}
+.maroon{color:#600000}
+.maroon-background{background:#7d0000}
+.navy{color:#000060}
+.navy-background{background:#00007d}
+.olive{color:#606000}
+.olive-background{background:#7d7d00}
+.purple{color:#600060}
+.purple-background{background:#7d007d}
+.red{color:#bf0000}
+.red-background{background:#fa0000}
+.silver{color:#909090}
+.silver-background{background:#bcbcbc}
+.teal{color:#006060}
+.teal-background{background:#007d7d}
+.white{color:#bfbfbf}
+.white-background{background:#fafafa}
+.yellow{color:#bfbf00}
+.yellow-background{background:#fafa00}
+span.icon>.fa{cursor:default}
+a span.icon>.fa{cursor:inherit}
+.admonitionblock td.icon [class^="fa icon-"]{font-size:2.5em;text-shadow:1px 1px 2px rgba(0,0,0,.5);cursor:default}
+.admonitionblock td.icon .icon-note::before{content:"\f05a";color:#19407c}
+.admonitionblock td.icon .icon-tip::before{content:"\f0eb";text-shadow:1px 1px 2px rgba(155,155,0,.8);color:#111}
+.admonitionblock td.icon .icon-warning::before{content:"\f071";color:#bf6900}
+.admonitionblock td.icon .icon-caution::before{content:"\f06d";color:#bf3400}
+.admonitionblock td.icon .icon-important::before{content:"\f06a";color:#bf0000}
+.conum[data-value]{display:inline-block;color:#fff!important;background:rgba(0,0,0,.8);border-radius:50%;text-align:center;font-size:.75em;width:1.67em;height:1.67em;line-height:1.67em;font-family:"Open Sans","DejaVu Sans",sans-serif;font-style:normal;font-weight:bold}
+.conum[data-value] *{color:#fff!important}
+.conum[data-value]+b{display:none}
+.conum[data-value]::after{content:attr(data-value)}
+pre .conum[data-value]{position:relative;top:-.125em}
+b.conum *{color:inherit!important}
+.conum:not([data-value]):empty{display:none}
+dt,th.tableblock,td.content,div.footnote{text-rendering:optimizeLegibility}
+h1,h2,p,td.content,span.alt,summary{letter-spacing:-.01em}
+p strong,td.content strong,div.footnote strong{letter-spacing:-.005em}
+p,blockquote,dt,td.content,td.hdlist1,span.alt,summary{font-size:1.0625rem}
+p{margin-bottom:1.25rem}
+.sidebarblock p,.sidebarblock dt,.sidebarblock td.content,p.tableblock{font-size:1em}
+.exampleblock>.content{background:#fffef7;border-color:#e0e0dc;box-shadow:0 1px 4px #e0e0dc}
+.print-only{display:none!important}
+@page{margin:1.25cm .75cm}
+@media print{*{box-shadow:none!important;text-shadow:none!important}
+html{font-size:80%}
+a{color:inherit!important;text-decoration:underline!important}
+a.bare,a[href^="#"],a[href^="mailto:"]{text-decoration:none!important}
+a[href^="http:"]:not(.bare)::after,a[href^="https:"]:not(.bare)::after{content:"(" attr(href) ")";display:inline-block;font-size:.875em;padding-left:.25em}
+abbr[title]{border-bottom:1px dotted}
+abbr[title]::after{content:" (" attr(title) ")"}
+pre,blockquote,tr,img,object,svg{page-break-inside:avoid}
+thead{display:table-header-group}
+svg{max-width:100%}
+p,blockquote,dt,td.content{font-size:1em;orphans:3;widows:3}
+h2,h3,#toctitle,.sidebarblock>.content>.title{page-break-after:avoid}
+#header,#content,#footnotes,#footer{max-width:none}
+#toc,.sidebarblock,.exampleblock>.content{background:none!important}
+#toc{border-bottom:1px solid #dddddf!important;padding-bottom:0!important}
+body.book #header{text-align:center}
+body.book #header>h1:first-child{border:0!important;margin:2.5em 0 1em}
+body.book #header .details{border:0!important;display:block;padding:0!important}
+body.book #header .details span:first-child{margin-left:0!important}
+body.book #header .details br{display:block}
+body.book #header .details br+span::before{content:none!important}
+body.book #toc{border:0!important;text-align:left!important;padding:0!important;margin:0!important}
+body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-break-before:always}
+.listingblock code[data-lang]::before{display:block}
+#footer{padding:0 .9375em}
+.hide-on-print{display:none!important}
+.print-only{display:block!important}
+.hide-for-print{display:none!important}
+.show-for-print{display:inherit!important}}
+@media amzn-kf8,print{#header>h1:first-child{margin-top:1.25rem}
+.sect1{padding:0!important}
+.sect1+.sect1{border:0}
+#footer{background:none}
+#footer-text{color:rgba(0,0,0,.6);font-size:.9em}}
+@media amzn-kf8{#header,#content,#footnotes,#footer{padding:0}}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body class="article toc2 toc-left">
+<div id="header">
+<h1>macOS 代理与 ChatGPT/Codex 配置记录</h1>
+<div class="details">
+<span id="author" class="author">xbguan</span><br>
+</div>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#overview">1. 结论速览</a></li>
+<li><a href="#baseline">2. 环境现状（诊断基线）</a>
+<ul class="sectlevel2">
+<li><a href="#baseline-proxy">2.1. 代理软件</a></li>
+<li><a href="#baseline-node">2.2. 节点演变</a></li>
+<li><a href="#baseline-dns">2.3. 本地 DNS 污染情况（实测）</a></li>
+<li><a href="#baseline-codex">2.4. Codex 客户端</a></li>
+</ul>
+</li>
+<li><a href="#changed-by-assistant">3. 助手改动的配置</a>
+<ul class="sectlevel2">
+<li><a href="#env-noproxy">3.1. <code>~/.codex/.env</code> — 补全 NO_PROXY</a></li>
+<li><a href="#cleanup-proxy">3.2. 清空六个网络服务的残留代理</a></li>
+<li><a href="#temp-files">3.3. 临时文件</a></li>
+</ul>
+</li>
+<li><a href="#changed-by-user">4. 用户改动的配置</a>
+<ul class="sectlevel2">
+<li><a href="#ext-rules">4.1. Clash 扩展规则</a></li>
+<li><a href="#merge-config">4.2. Clash 扩展覆写配置</a></li>
+<li><a href="#remove-git-mcp">4.3. 删除无效的 <code>[mcp_servers.git]</code></a></li>
+<li><a href="#zshrc">4.4. <code>~/.zshrc</code> 增加代理开关</a></li>
+<li><a href="#node-switch">4.5. 节点切换</a></li>
+<li><a href="#effort-switch">4.6. 推理档调整</a></li>
+</ul>
+</li>
+<li><a href="#pitfalls">5. 踩过的坑（重要，避免重复）</a>
+<ul class="sectlevel2">
+<li><a href="#pitfall-dns">5.1. mihomo 的 <code>nameserver-policy</code> 键名不能混写</a></li>
+<li><a href="#pitfall-networksetup">5.2. <code>networksetup -setwebproxy "X" "" 0</code> 会打开代理开关</a></li>
+<li><a href="#pitfall-rollback">5.3. Verge 校验失败会自动回滚</a></li>
+<li><a href="#pitfall-websocket">5.4. Codex 桌面版走 WebSocket，不是普通 HTTPS</a></li>
+</ul>
+</li>
+<li><a href="#metrics">6. 优化前后的实测数据</a>
+<ul class="sectlevel2">
+<li><a href="#metrics-slow">6.1. 一次「慢」的耗时拆解（23:05 那轮，共 3 分 23 秒）</a></li>
+</ul>
+</li>
+<li><a href="#todo">7. 待办</a></li>
+<li><a href="#appendix">8. 附录：常用自检命令</a></li>
+<li><a href="#criteria">9. 判断标准（避免误判为「卡死」）</a></li>
+</ul>
+</div>
+</div>
+<div id="content">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph lead">
+<p>记录区间：2026-10-21 22:22 — 23:22<br>
+机器：macOS / 用户 <code>xbguan</code><br>
+起因：分析「本机 ChatGPT 相关配置是否有问题」，随后逐项修复</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="overview">1. 结论速览</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 60%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">项目</th>
+<th class="tableblock halign-left valign-top">状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">系统代理 → Clash 链路</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">正常（Wi-Fi → 127.0.0.1:7897）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">OpenAI 域名分流规则</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">已生效（4 条 DOMAIN-SUFFIX 前置）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DNS 策略（OpenAI 系走 DoH）</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">已生效</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api.openai.com</code> 可达性</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">从 40 秒卡死 → 401 / 约 2 秒</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>chatgpt.com/backend-api</code> 可达性</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">从超时 → 401 / 约 2.4 秒</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">内网域名不走代理</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">已验证（直连 172.17.0.124）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">残留代理清理</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">六个网络服务已清空</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">节点线路质量</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">约 20% 建连失败，未解决</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">响应慢（分钟级）</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">主要为服务端推理耗时，非本机问题</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="sect1">
+<h2 id="baseline">2. 环境现状（诊断基线）</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="baseline-proxy">2.1. 代理软件</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">项</th>
+<th class="tableblock halign-left valign-top">值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">客户端</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Clash Verge Rev</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">内核</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">verge-mihomo（以系统服务方式运行）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">混合端口</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">7897（HTTP / HTTPS / SOCKS 同一端口）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">模式</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">rule</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DNS</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">fake-ip（198.18.0.1/16），respect-rules</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">TUN 模式</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>关闭</strong>（与公司 VPN 冲突，不可启用）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">系统代理</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">开启</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">订阅</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">XFLTD（api2.xfltd.bond）</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="baseline-node">2.2. 节点演变</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 20%;">
+<col style="width: 40%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">阶段</th>
+<th class="tableblock halign-left valign-top">节点</th>
+<th class="tableblock halign-left valign-top">出口 IP</th>
+<th class="tableblock halign-left valign-top">归属</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">初始</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">🇯🇵 日本 02 [V]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">85.234.83.32</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AS199524 G-Core Labs（东京机房）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">当前</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">🇸🇬 新加坡 03 [V]</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">67.159.52.199</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AS30058 FDCservers（机房）</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="sect2">
+<h3 id="baseline-dns">2.3. 本地 DNS 污染情况（实测）</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">chatgpt.com      → 162.125.32.2 / 128.242.245.125  （Dropbox、无关 IP）
+api.openai.com   → 69.171.224.36                   （Facebook）
+ab.chatgpt.com   → 31.13.88.169                    （Facebook）</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+走代理时域名原样交给节点解析（fake-ip），所以浏览器不受污染影响。<br>
+受影响的是「不认系统代理、自己解析 DNS 直连」的命令行工具。
+</td>
+</tr>
+</table>
+</div>
+</div>
+<div class="sect2">
+<h3 id="baseline-codex">2.4. Codex 客户端</h3>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">项</th>
+<th class="tableblock halign-left valign-top">值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">配置文件</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~/.codex/config.toml</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">日志库</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~/.codex/logs_2.sqlite</code>（表 <code>logs</code>，可只读查询）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">默认模型</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gpt-5.6-sol</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">推理档</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>high</code> → 界面改为「中」</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">沙箱</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>danger-full-access</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">审批</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>never</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MCP 服务器</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">computer-use、context7、playwright、hd-gitlab、jira、node_repl</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">插件</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">11 个全开（visualize、documents、pdf、spreadsheets、presentations、template-creator、browser、unified-computer-use、chrome、code-review、codex-app-tools）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ChatGPT.app</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">26.1016.51333</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="changed-by-assistant">3. 助手改动的配置</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="env-noproxy">3.1. <code>~/.codex/.env</code> — 补全 NO_PROXY</h3>
+<div class="paragraph">
+<p><strong>原因</strong>：原值只有 <code>localhost,127.0.0.1,::1</code>。而 <code>/etc/hosts</code> 里有 <code>172.17.0.124 gitlab.hd123.com</code>，
+内网请求会被丢给 Clash，绕到境外节点再回来访问内网地址，必然失败。</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-diff" data-lang="diff">- NO_PROXY=localhost,127.0.0.1,::1
++ NO_PROXY=localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.local,.hd123.com,gitlab.hd123.com</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>同一文件里其余三项保持不变：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-ini" data-lang="ini">HTTP_PROXY=http://127.0.0.1:7897
+HTTPS_PROXY=http://127.0.0.1:7897
+ALL_PROXY=http://127.0.0.1:7897</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="cleanup-proxy">3.2. 清空六个网络服务的残留代理</h3>
+<div class="paragraph">
+<p><strong>原因</strong>：Ethernet、USB LAN、Thunderbolt Bridge、iPhone USB、VPN、Spartan Sport WHR
+都残留了 <code>127.0.0.1:20809</code>（HTTP/HTTPS）和 <code>127.0.0.1:20808</code>（SOCKS）。
+虽然开关是关闭状态（不会立即断网），但属于历史垃圾，且可能被写回。</p>
+</div>
+<div class="paragraph">
+<p>执行的操作（对每个服务，web / secure / socks 各一遍）：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-bash" data-lang="bash">networksetup -setwebproxy "$服务" "" 0
+networksetup -setwebproxystate "$服务" off
+networksetup -setsecurewebproxy "$服务" "" 0
+networksetup -setsecurewebproxystate "$服务" off
+networksetup -setsocksfirewallproxy "$服务" "" 0
+networksetup -setsocksfirewallproxystate "$服务" off</code></pre>
+</div>
+</div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-important" title="Important"></i>
+</td>
+<td class="content">
+<strong>Wi-Fi 未动</strong>，仍为 <code>Yes / 127.0.0.1:7897</code>。
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>清理后状态：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">Wi-Fi                 Yes  127.0.0.1  7897
+Ethernet              No   空          0
+USB 10/100/1000 LAN   No   空          0
+Thunderbolt Bridge    No   空          0
+iPhone USB            No   空          0
+VPN                   No   空          0
+Spartan Sport WHR     No   空          0</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="temp-files">3.3. 临时文件</h3>
+<div class="ulist">
+<ul>
+<li>
+<p><code>/tmp/mt/</code>：用内核二进制做配置校验时的临时目录，可随时删除</p>
+</li>
+<li>
+<p><code>clash-verge-check.yaml</code>：Verge 自己生成的校验副本，非助手创建</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="changed-by-user">4. 用户改动的配置</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="ext-rules">4.1. Clash 扩展规则</h3>
+<div class="paragraph">
+<p>路径：订阅卡片 → 右键 → 编辑规则 → 高级<br>
+文件：<code>profiles/ree1K2rCJAYO.yaml</code></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">prepend:
+  - 'DOMAIN-SUFFIX,openai.com,XFLTD'
+  - 'DOMAIN-SUFFIX,chatgpt.com,XFLTD'
+  - 'DOMAIN-SUFFIX,oaistatic.com,XFLTD'
+  - 'DOMAIN-SUFFIX,oaiusercontent.com,XFLTD'
+
+append: []
+delete: []</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>作用</strong>：让 OpenAI 系域名直接命中规则走代理，不再依赖 <code>GEOIP,CN</code> 去解析 IP 比对，
+从而绕开被污染的 DNS。已验证位于运行配置 <code>rules</code> 段最前面（1033—1036 行）。</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="merge-config">4.2. Clash 扩展覆写配置</h3>
+<div class="paragraph">
+<p>路径：订阅卡片 → 右键 → 扩展覆写配置<br>
+文件：<code>profiles/m5eKMM93vXCY.yaml</code></p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">dns:
+  nameserver-policy:
+    "geosite:openai":
+      - https://1.1.1.1/dns-query#XFLTD
+    "+.chatgpt.com":
+      - https://1.1.1.1/dns-query#XFLTD
+    "+.oaistatic.com":
+      - https://1.1.1.1/dns-query#XFLTD
+    "+.oaiusercontent.com":
+      - https://1.1.1.1/dns-query#XFLTD</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>#XFLTD</code> 表示这条 DoH 查询走代理出去，否则 1.1.1.1 在国内本身就会被阻断或污染。</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="remove-git-mcp">4.3. 删除无效的 <code>[mcp_servers.git]</code></h3>
+<div class="paragraph">
+<p><strong>原因</strong>：原配置使用 <code>@modelcontextprotocol/server-git</code>，该 npm 包*不存在*：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">npm error 404 Not Found - GET https://registry.npmjs.org/@modelcontextprotocol%2fserver-git</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>从配置那天起就从未启动成功，每次开会话白跑一遍 <code>npx</code> 再失败。</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="zshrc">4.4. <code>~/.zshrc</code> 增加代理开关</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-zsh" data-lang="zsh"># ---- 代理开关（配合 Clash Verge 混合端口 7897）----
+proxy_on() {
+  export http_proxy="http://127.0.0.1:7897"
+  export https_proxy="http://127.0.0.1:7897"
+  export all_proxy="socks5://127.0.0.1:7897"
+  export no_proxy="localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.local,.hd123.com,gitlab.hd123.com"
+  echo "proxy on → 127.0.0.1:7897"
+}
+
+proxy_off() {
+  unset http_proxy https_proxy all_proxy no_proxy
+  echo "proxy off"
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>为什么不写 <code>git config --global http.proxy</code></strong>：那是持久化写死，之后关掉代理或访问内网时容易卡死且容易忘记。用开关函数，关掉就干净。</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="node-switch">4.5. 节点切换</h3>
+<div class="paragraph">
+<p>日本 02 [V]（G-Core 东京）→ 新加坡 03 [V]（FDCservers 新加坡）</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="effort-switch">4.6. 推理档调整</h3>
+<div class="paragraph">
+<p>界面把档位从「GPT-6 Sol 高」改为「GPT-6 Sol 中」，
+随后界面提示「模型已从 GPT-6 Sol 更改为 GPT-5.6 Sol」（被动回落，与配置文件里的默认值一致）。</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="pitfalls">5. 踩过的坑（重要，避免重复）</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="pitfall-dns">5.1. mihomo 的 <code>nameserver-policy</code> 键名不能混写</h3>
+<div class="paragraph">
+<p><strong>错误写法</strong>（最初给的，导致配置校验失败并自动回滚）：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-yaml" data-lang="yaml">nameserver-policy:
+  "geosite:openai,+.openai.com,+.chatgpt.com": [...]</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>报错：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">load GeoSite data error, failed to decode geodata file: geosite.dat,
+base error: list +.openai.com not found in geosite.dat</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>原因</strong>：键以 <code>geosite:</code> 开头时，逗号后面每一项都会被当成 geosite 名单名。<br>
+<strong>正确做法</strong>：每个域名 / 名单单独一个键。</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="pitfall-networksetup">5.2. <code>networksetup -setwebproxy "X" "" 0</code> 会打开代理开关</h3>
+<div class="paragraph">
+<p>清空字段时它会把 <code>Enabled</code> 设为 <code>Yes</code>（服务器为空），必须紧跟一条关闭命令：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-bash" data-lang="bash">networksetup -setwebproxy "Ethernet" "" 0 &amp;&amp; networksetup -setwebproxystate "Ethernet" off</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="pitfall-rollback">5.3. Verge 校验失败会自动回滚</h3>
+<div class="paragraph">
+<p>配置应用前 Verge 会跑内核校验（<code>verge-mihomo -t</code>），失败则*撤销本次变更并保留旧配置*。
+但*扩展规则文件*（<code>ree1K2rCJAYO.yaml</code>）的写入不受影响，会保留。</p>
+</div>
+<div class="paragraph">
+<p>想先自检可直接跑：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-bash" data-lang="bash">"/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo" -t -d &lt;含 geodata 的目录&gt; -f &lt;配置文件&gt;
+# 输出 "test is successful" 即通过</code></pre>
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="pitfall-websocket">5.4. Codex 桌面版走 WebSocket，不是普通 HTTPS</h3>
+<div class="paragraph">
+<p>传输是 <code>wss://chatgpt.com/backend-api/codex/responses</code>。
+链路上任何设备按*空闲超时*掐连接（实测 80~85 秒一次），就会触发「正在重新连接 x/5」；
+高推理档长时间不输出，最容易撞上。降到「中」后该现象消失。</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="metrics">6. 优化前后的实测数据</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">目标</th>
+<th class="tableblock halign-left valign-top">优化前</th>
+<th class="tableblock halign-left valign-top">优化后</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>api.openai.com/v1/models</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">000，40 秒零响应</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">401，约 2 秒（5 次中 4 次成功）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>chatgpt.com/backend-api/me</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">000，40 秒超时</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">401，约 2.4 秒</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cdn.oaistatic.com</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">000，12 秒超时</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">404，6.3 秒</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>auth.openai.com</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">403 挑战</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">403 挑战（未变，正常）</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>chatgpt.com</code> 首页</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">403 挑战</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">403 挑战（未变，CF 人机校验，浏览器可过）</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+残留问题：约 20% 的建连被直接丢弃（<code>000</code>），与节点出口质量相关。
+</td>
+</tr>
+</table>
+</div>
+<div class="sect2">
+<h3 id="metrics-slow">6.1. 一次「慢」的耗时拆解（23:05 那轮，共 3 分 23 秒）</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-text" data-lang="text">23:05:24  提交
+23:05:27  后台请求 200
+23:05:29 → 23:06:25   model/list 成功，耗时 56 秒（并行，不阻塞对话）
+23:05:29 → 23:08:22   空白 173 秒，无任何本地/网络事件 = 服务端推理
+23:08:22  响应开始返回
+23:08:47  出字</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>结论：慢的主体在服务端推理，不是网络、不是 MCP、不是插件数量。</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="todo">7. 待办</h2>
+<div class="sectionbody">
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>[ ] <strong>换到低延迟、支持 WebSocket 的节点</strong>（当前约 20% 丢连）</p>
+</li>
+<li>
+<p>[ ] 浏览器打开 chatgpt.com 问一句「1+1」，判断服务端是否整体慢</p>
+</li>
+<li>
+<p>[ ] 换节点后再问同一句，判断服务端 vs 线路</p>
+</li>
+<li>
+<p>[ ] 决定推理档位（「中」已可用，可试「低」对比总时长）</p>
+</li>
+<li>
+<p>[ ] 可选：精简 11 个插件 / 6 个 MCP（属整洁性问题，非速度主因）</p>
+</li>
+<li>
+<p>[ ] <strong>安全</strong>：<code>config.toml</code> 里 hd-gitlab 的 token、jira 的账号密码均为明文，jira 还是 http；
+该文件不要随意同步或分享，怀疑泄露时去后台吊销重建</p>
+</li>
+</ol>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="appendix">8. 附录：常用自检命令</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-bash" data-lang="bash"># 1) 看系统代理是否指向 7897
+scutil --proxy | grep -E "HTTPEnable|HTTPPort|SOCKS"
+
+# 2) OpenAI API 是否通（401 = 通，只是没带 token）
+curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" --max-time 15 \
+  -x http://127.0.0.1:7897 https://api.openai.com/v1/models
+
+# 3) 建连稳定性（应 8 个全 401）
+for i in $(seq 8); do curl -s -o /dev/null -w "%{http_code} " --max-time 10 \
+  -x http://127.0.0.1:7897 https://chatgpt.com/backend-api/me; done; echo
+
+# 4) WebSocket 是否被掐（返回任意 HTTP 码=通；空/000=被掐）
+curl -sS -o /dev/null -w "%{http_code}\n" --max-time 12 -x http://127.0.0.1:7897 \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  https://chatgpt.com/backend-api/codex/responses
+
+# 5) 命令行代理开关
+proxy_on    # 打开
+proxy_off   # 关闭</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>查 Codex 近 10 分钟的关键日志：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code class="language-python" data-lang="python">import sqlite3, os, datetime, re
+con = sqlite3.connect('file:' + os.path.expanduser('~/.codex/logs_2.sqlite') + '?mode=ro', uri=True)
+cut = int(datetime.datetime.now().timestamp()) - 600
+for ts, lv, b in con.execute("select ts,level,feedback_log_body from logs where ts&gt;? order by id", (str(cut),)):
+    b = b or ''
+    if lv in ('ERROR', 'WARN') or re.search(r'websocket|worker quit|is_timeout=', b, re.I):
+        print(datetime.datetime.fromtimestamp(int(ts)).strftime('%H:%M:%S'), lv, b[:140])</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="criteria">9. 判断标准（避免误判为「卡死」）</h2>
+<div class="sectionbody">
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">现象</th>
+<th class="tableblock halign-left valign-top">含义</th>
+<th class="tableblock halign-left valign-top">做法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">一直「正在思考」，无重连、无错误</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">模型在推理（WS 无数据流属正常）</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">继续等</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">出现「正在重新连接 x/5」</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">连接被掐</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">停下，重发 / 换节点</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">日志出现 <code>worker quit with fatal</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">本轮已死</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">停下，重发</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">超过 5 分钟零输出</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">大概率卡死</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">停下，重发</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2026-10-21 23:23:44 +0800
+</div>
+</div>
+</body>
+</html>

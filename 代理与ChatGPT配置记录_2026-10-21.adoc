@@ -1,0 +1,441 @@
+= macOS 代理与 ChatGPT/Codex 配置记录
+:author: xbguan
+:toc: left
+:toclevels: 3
+:sectnums:
+:icons: font
+:lang: zh-CN
+:doctype: article
+
+[.lead]
+记录区间：2026-10-21 22:22 — 23:22 +
+机器：macOS / 用户 `xbguan` +
+起因：分析「本机 ChatGPT 相关配置是否有问题」，随后逐项修复
+
+[[overview]]
+== 结论速览
+
+[%header,cols="3,2"]
+|===
+|项目 |状态
+
+|系统代理 → Clash 链路
+|正常（Wi-Fi → 127.0.0.1:7897）
+
+|OpenAI 域名分流规则
+|已生效（4 条 DOMAIN-SUFFIX 前置）
+
+|DNS 策略（OpenAI 系走 DoH）
+|已生效
+
+|`api.openai.com` 可达性
+|从 40 秒卡死 → 401 / 约 2 秒
+
+|`chatgpt.com/backend-api` 可达性
+|从超时 → 401 / 约 2.4 秒
+
+|内网域名不走代理
+|已验证（直连 172.17.0.124）
+
+|残留代理清理
+|六个网络服务已清空
+
+|节点线路质量
+|约 20% 建连失败，未解决
+
+|响应慢（分钟级）
+|主要为服务端推理耗时，非本机问题
+|===
+
+[[baseline]]
+== 环境现状（诊断基线）
+
+[[baseline-proxy]]
+=== 代理软件
+
+[%header,cols="1,2"]
+|===
+|项 |值
+
+|客户端 |Clash Verge Rev
+|内核 |verge-mihomo（以系统服务方式运行）
+|混合端口 |7897（HTTP / HTTPS / SOCKS 同一端口）
+|模式 |rule
+|DNS |fake-ip（198.18.0.1/16），respect-rules
+|TUN 模式 |*关闭*（与公司 VPN 冲突，不可启用）
+|系统代理 |开启
+|订阅 |XFLTD（api2.xfltd.bond）
+|===
+
+[[baseline-node]]
+=== 节点演变
+
+[%header,cols="1,1,1,2"]
+|===
+|阶段 |节点 |出口 IP |归属
+
+|初始 |🇯🇵 日本 02 [V] |85.234.83.32 |AS199524 G-Core Labs（东京机房）
+|当前 |🇸🇬 新加坡 03 [V] |67.159.52.199 |AS30058 FDCservers（机房）
+|===
+
+[[baseline-dns]]
+=== 本地 DNS 污染情况（实测）
+
+[source,text]
+----
+chatgpt.com      → 162.125.32.2 / 128.242.245.125  （Dropbox、无关 IP）
+api.openai.com   → 69.171.224.36                   （Facebook）
+ab.chatgpt.com   → 31.13.88.169                    （Facebook）
+----
+
+NOTE: 走代理时域名原样交给节点解析（fake-ip），所以浏览器不受污染影响。 +
+受影响的是「不认系统代理、自己解析 DNS 直连」的命令行工具。
+
+[[baseline-codex]]
+=== Codex 客户端
+
+[%header,cols="1,2"]
+|===
+|项 |值
+
+|配置文件 |`~/.codex/config.toml`
+|日志库 |`~/.codex/logs_2.sqlite`（表 `logs`，可只读查询）
+|默认模型 |`gpt-5.6-sol`
+|推理档 |`high` → 界面改为「中」
+|沙箱 |`danger-full-access`
+|审批 |`never`
+|MCP 服务器 |computer-use、context7、playwright、hd-gitlab、jira、node_repl
+|插件 |11 个全开（visualize、documents、pdf、spreadsheets、presentations、template-creator、browser、unified-computer-use、chrome、code-review、codex-app-tools）
+|ChatGPT.app |26.1016.51333
+|===
+
+[[changed-by-assistant]]
+== 助手改动的配置
+
+[[env-noproxy]]
+=== `~/.codex/.env` — 补全 NO_PROXY
+
+*原因*：原值只有 `localhost,127.0.0.1,::1`。而 `/etc/hosts` 里有 `172.17.0.124 gitlab.hd123.com`，
+内网请求会被丢给 Clash，绕到境外节点再回来访问内网地址，必然失败。
+
+[source,diff]
+----
+- NO_PROXY=localhost,127.0.0.1,::1
++ NO_PROXY=localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.local,.hd123.com,gitlab.hd123.com
+----
+
+同一文件里其余三项保持不变：
+
+[source,ini]
+----
+HTTP_PROXY=http://127.0.0.1:7897
+HTTPS_PROXY=http://127.0.0.1:7897
+ALL_PROXY=http://127.0.0.1:7897
+----
+
+[[cleanup-proxy]]
+=== 清空六个网络服务的残留代理
+
+*原因*：Ethernet、USB LAN、Thunderbolt Bridge、iPhone USB、VPN、Spartan Sport WHR
+都残留了 `127.0.0.1:20809`（HTTP/HTTPS）和 `127.0.0.1:20808`（SOCKS）。
+虽然开关是关闭状态（不会立即断网），但属于历史垃圾，且可能被写回。
+
+执行的操作（对每个服务，web / secure / socks 各一遍）：
+
+[source,bash]
+----
+networksetup -setwebproxy "$服务" "" 0
+networksetup -setwebproxystate "$服务" off
+networksetup -setsecurewebproxy "$服务" "" 0
+networksetup -setsecurewebproxystate "$服务" off
+networksetup -setsocksfirewallproxy "$服务" "" 0
+networksetup -setsocksfirewallproxystate "$服务" off
+----
+
+IMPORTANT: *Wi-Fi 未动*，仍为 `Yes / 127.0.0.1:7897`。
+
+清理后状态：
+
+[source,text]
+----
+Wi-Fi                 Yes  127.0.0.1  7897
+Ethernet              No   空          0
+USB 10/100/1000 LAN   No   空          0
+Thunderbolt Bridge    No   空          0
+iPhone USB            No   空          0
+VPN                   No   空          0
+Spartan Sport WHR     No   空          0
+----
+
+[[temp-files]]
+=== 临时文件
+
+* `/tmp/mt/`：用内核二进制做配置校验时的临时目录，可随时删除
+* `clash-verge-check.yaml`：Verge 自己生成的校验副本，非助手创建
+
+[[changed-by-user]]
+== 用户改动的配置
+
+[[ext-rules]]
+=== Clash 扩展规则
+
+路径：订阅卡片 → 右键 → 编辑规则 → 高级 +
+文件：`profiles/ree1K2rCJAYO.yaml`
+
+[source,yaml]
+----
+prepend:
+  - 'DOMAIN-SUFFIX,openai.com,XFLTD'
+  - 'DOMAIN-SUFFIX,chatgpt.com,XFLTD'
+  - 'DOMAIN-SUFFIX,oaistatic.com,XFLTD'
+  - 'DOMAIN-SUFFIX,oaiusercontent.com,XFLTD'
+
+append: []
+delete: []
+----
+
+*作用*：让 OpenAI 系域名直接命中规则走代理，不再依赖 `GEOIP,CN` 去解析 IP 比对，
+从而绕开被污染的 DNS。已验证位于运行配置 `rules` 段最前面（1033—1036 行）。
+
+[[merge-config]]
+=== Clash 扩展覆写配置
+
+路径：订阅卡片 → 右键 → 扩展覆写配置 +
+文件：`profiles/m5eKMM93vXCY.yaml`
+
+[source,yaml]
+----
+dns:
+  nameserver-policy:
+    "geosite:openai":
+      - https://1.1.1.1/dns-query#XFLTD
+    "+.chatgpt.com":
+      - https://1.1.1.1/dns-query#XFLTD
+    "+.oaistatic.com":
+      - https://1.1.1.1/dns-query#XFLTD
+    "+.oaiusercontent.com":
+      - https://1.1.1.1/dns-query#XFLTD
+----
+
+`#XFLTD` 表示这条 DoH 查询走代理出去，否则 1.1.1.1 在国内本身就会被阻断或污染。
+
+[[remove-git-mcp]]
+=== 删除无效的 `[mcp_servers.git]`
+
+*原因*：原配置使用 `@modelcontextprotocol/server-git`，该 npm 包*不存在*：
+
+[source,text]
+----
+npm error 404 Not Found - GET https://registry.npmjs.org/@modelcontextprotocol%2fserver-git
+----
+
+从配置那天起就从未启动成功，每次开会话白跑一遍 `npx` 再失败。
+
+[[zshrc]]
+=== `~/.zshrc` 增加代理开关
+
+[source,zsh]
+----
+# ---- 代理开关（配合 Clash Verge 混合端口 7897）----
+proxy_on() {
+  export http_proxy="http://127.0.0.1:7897"
+  export https_proxy="http://127.0.0.1:7897"
+  export all_proxy="socks5://127.0.0.1:7897"
+  export no_proxy="localhost,127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,.local,.hd123.com,gitlab.hd123.com"
+  echo "proxy on → 127.0.0.1:7897"
+}
+
+proxy_off() {
+  unset http_proxy https_proxy all_proxy no_proxy
+  echo "proxy off"
+}
+----
+
+*为什么不写 `git config --global http.proxy`*：那是持久化写死，之后关掉代理或访问内网时容易卡死且容易忘记。用开关函数，关掉就干净。
+
+[[node-switch]]
+=== 节点切换
+
+日本 02 [V]（G-Core 东京）→ 新加坡 03 [V]（FDCservers 新加坡）
+
+[[effort-switch]]
+=== 推理档调整
+
+界面把档位从「GPT-6 Sol 高」改为「GPT-6 Sol 中」，
+随后界面提示「模型已从 GPT-6 Sol 更改为 GPT-5.6 Sol」（被动回落，与配置文件里的默认值一致）。
+
+[[pitfalls]]
+== 踩过的坑（重要，避免重复）
+
+[[pitfall-dns]]
+=== mihomo 的 `nameserver-policy` 键名不能混写
+
+*错误写法*（最初给的，导致配置校验失败并自动回滚）：
+
+[source,yaml]
+----
+nameserver-policy:
+  "geosite:openai,+.openai.com,+.chatgpt.com": [...]
+----
+
+报错：
+
+[source,text]
+----
+load GeoSite data error, failed to decode geodata file: geosite.dat,
+base error: list +.openai.com not found in geosite.dat
+----
+
+*原因*：键以 `geosite:` 开头时，逗号后面每一项都会被当成 geosite 名单名。 +
+*正确做法*：每个域名 / 名单单独一个键。
+
+[[pitfall-networksetup]]
+=== `networksetup -setwebproxy "X" "" 0` 会打开代理开关
+
+清空字段时它会把 `Enabled` 设为 `Yes`（服务器为空），必须紧跟一条关闭命令：
+
+[source,bash]
+----
+networksetup -setwebproxy "Ethernet" "" 0 && networksetup -setwebproxystate "Ethernet" off
+----
+
+[[pitfall-rollback]]
+=== Verge 校验失败会自动回滚
+
+配置应用前 Verge 会跑内核校验（`verge-mihomo -t`），失败则*撤销本次变更并保留旧配置*。
+但*扩展规则文件*（`ree1K2rCJAYO.yaml`）的写入不受影响，会保留。
+
+想先自检可直接跑：
+
+[source,bash]
+----
+"/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo" -t -d <含 geodata 的目录> -f <配置文件>
+# 输出 "test is successful" 即通过
+----
+
+[[pitfall-websocket]]
+=== Codex 桌面版走 WebSocket，不是普通 HTTPS
+
+传输是 `wss://chatgpt.com/backend-api/codex/responses`。
+链路上任何设备按*空闲超时*掐连接（实测 80~85 秒一次），就会触发「正在重新连接 x/5」；
+高推理档长时间不输出，最容易撞上。降到「中」后该现象消失。
+
+[[metrics]]
+== 优化前后的实测数据
+
+[%header,cols="2,2,2"]
+|===
+|目标 |优化前 |优化后
+
+|`api.openai.com/v1/models`
+|000，40 秒零响应
+|401，约 2 秒（5 次中 4 次成功）
+
+|`chatgpt.com/backend-api/me`
+|000，40 秒超时
+|401，约 2.4 秒
+
+|`cdn.oaistatic.com`
+|000，12 秒超时
+|404，6.3 秒
+
+|`auth.openai.com`
+|403 挑战
+|403 挑战（未变，正常）
+
+|`chatgpt.com` 首页
+|403 挑战
+|403 挑战（未变，CF 人机校验，浏览器可过）
+|===
+
+WARNING: 残留问题：约 20% 的建连被直接丢弃（`000`），与节点出口质量相关。
+
+[[metrics-slow]]
+=== 一次「慢」的耗时拆解（23:05 那轮，共 3 分 23 秒）
+
+[source,text]
+----
+23:05:24  提交
+23:05:27  后台请求 200
+23:05:29 → 23:06:25   model/list 成功，耗时 56 秒（并行，不阻塞对话）
+23:05:29 → 23:08:22   空白 173 秒，无任何本地/网络事件 = 服务端推理
+23:08:22  响应开始返回
+23:08:47  出字
+----
+
+结论：慢的主体在服务端推理，不是网络、不是 MCP、不是插件数量。
+
+[[todo]]
+== 待办
+
+. [ ] *换到低延迟、支持 WebSocket 的节点*（当前约 20% 丢连）
+. [ ] 浏览器打开 chatgpt.com 问一句「1+1」，判断服务端是否整体慢
+. [ ] 换节点后再问同一句，判断服务端 vs 线路
+. [ ] 决定推理档位（「中」已可用，可试「低」对比总时长）
+. [ ] 可选：精简 11 个插件 / 6 个 MCP（属整洁性问题，非速度主因）
+. [ ] *安全*：`config.toml` 里 hd-gitlab 的 token、jira 的账号密码均为明文，jira 还是 http；
+      该文件不要随意同步或分享，怀疑泄露时去后台吊销重建
+
+[[appendix]]
+== 附录：常用自检命令
+
+[source,bash]
+----
+# 1) 看系统代理是否指向 7897
+scutil --proxy | grep -E "HTTPEnable|HTTPPort|SOCKS"
+
+# 2) OpenAI API 是否通（401 = 通，只是没带 token）
+curl -s -o /dev/null -w "%{http_code} %{time_total}s\n" --max-time 15 \
+  -x http://127.0.0.1:7897 https://api.openai.com/v1/models
+
+# 3) 建连稳定性（应 8 个全 401）
+for i in $(seq 8); do curl -s -o /dev/null -w "%{http_code} " --max-time 10 \
+  -x http://127.0.0.1:7897 https://chatgpt.com/backend-api/me; done; echo
+
+# 4) WebSocket 是否被掐（返回任意 HTTP 码=通；空/000=被掐）
+curl -sS -o /dev/null -w "%{http_code}\n" --max-time 12 -x http://127.0.0.1:7897 \
+  -H "Connection: Upgrade" -H "Upgrade: websocket" -H "Sec-WebSocket-Version: 13" \
+  -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+  https://chatgpt.com/backend-api/codex/responses
+
+# 5) 命令行代理开关
+proxy_on    # 打开
+proxy_off   # 关闭
+----
+
+查 Codex 近 10 分钟的关键日志：
+
+[source,python]
+----
+import sqlite3, os, datetime, re
+con = sqlite3.connect('file:' + os.path.expanduser('~/.codex/logs_2.sqlite') + '?mode=ro', uri=True)
+cut = int(datetime.datetime.now().timestamp()) - 600
+for ts, lv, b in con.execute("select ts,level,feedback_log_body from logs where ts>? order by id", (str(cut),)):
+    b = b or ''
+    if lv in ('ERROR', 'WARN') or re.search(r'websocket|worker quit|is_timeout=', b, re.I):
+        print(datetime.datetime.fromtimestamp(int(ts)).strftime('%H:%M:%S'), lv, b[:140])
+----
+
+[[criteria]]
+== 判断标准（避免误判为「卡死」）
+
+[%header,cols="2,2,2"]
+|===
+|现象 |含义 |做法
+
+|一直「正在思考」，无重连、无错误
+|模型在推理（WS 无数据流属正常）
+|继续等
+
+|出现「正在重新连接 x/5」
+|连接被掐
+|停下，重发 / 换节点
+
+|日志出现 `worker quit with fatal`
+|本轮已死
+|停下，重发
+
+|超过 5 分钟零输出
+|大概率卡死
+|停下，重发
+|===
