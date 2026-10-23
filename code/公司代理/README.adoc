@@ -1,0 +1,99 @@
+= 公司代理（macOS 菜单栏 App）
+:author: xbguan
+:date: 2026-10-23
+:doctype: article
+:toc: left
+:toclevels: 3
+:icons: font
+
+菜单栏常驻的小工具：把 macOS 系统代理和 Codex CLI 一起切到公司 3proxy，内置本地免认证中继解决浏览器代理认证弹框。纯 Swift 实现，除 Xcode Command Line Tools 外无第三方依赖。
+
+== 目录结构
+
+[cols="2,3",options="header"]
+|===
+|路径 |说明
+|`Sources/Config.swift` |配置读写（`~/.config/corp-proxy/config`，键值格式，权限 600）、VPN 模式枚举
+|`Sources/ProxyController.swift` |调 `networksetup` / `scutil` 挂载系统代理、改写 `~/.codex/.env`
+|`Sources/RelayServer.swift` |本地免认证中继，监听 `127.0.0.1:7899`，自动注入 `Proxy-Authorization`
+|`Sources/SettingsWindow.swift` |设置窗口（代理地址/端口/账号/密码、VPN 方式、中继端口、直连白名单）
+|`Sources/LoginItem.swift` |开机自启（`SMAppService`）
+|`Sources/Uninstaller.swift` |卸载清理
+|`Sources/AppDelegate.swift` |菜单栏菜单、状态刷新、开关流程
+|`Sources/main.swift` |入口（`LSUIElement`，无 Dock 图标）
+|`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
+|`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
+|`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
+|`dist/公司代理-2.0.dmg` |成品安装包
+|===
+
+== 构建
+
+[source,bash]
+----
+cd code/公司代理
+./build.sh
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.dmg
+----
+
+要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。脚本用 `-target x86_64-apple-macos13.0` 编译（Intel 机器原生；Apple Silicon 上会走 Rosetta）。需要通用二进制时把 target 换成 `arm64-apple-macos13.0` 或分别编译后用 `lipo -create` 合并。
+
+签名方式为 ad-hoc（`codesign --sign -`），换机器分发时对方首次打开需右键 →「打开」越过 Gatekeeper。
+
+== 安装
+
+打开 DMG，把 `公司代理.app` 拖进 `Applications`。启动后出现在菜单栏，无 Dock 图标。
+
+== 配置项
+
+配置文件：`~/.config/corp-proxy/config`（600）。App 的「设置…」写的就是它，也可手改，App 5 秒内自动重载。
+
+[cols="2,1,3",options="header"]
+|===
+|键 |示例 |说明
+|`CORP_HOST` |`172.17.2.15` |公司 3proxy 地址
+|`CORP_PORT` |`7887` |3proxy HTTP 端口
+|`CORP_USER` |`admin` |代理用户名
+|`CORP_PASS` |`******` |代理密码
+|`RELAY_PORT` |`7899` |本地中继端口（系统代理指向 `127.0.0.1:该端口`）
+|`VPN_MODE` |`auto` |`auto` / `hdvpn` / `l2tp`，见下
+|`BYPASS` |`*.hd123.com gitlab.hd123.com` |直连白名单（空格分隔）
+|===
+
+=== VPN 接入方式
+
+[cols="1,3",options="header"]
+|===
+|模式 |行为
+|`auto` |检测到 `ppp0` 有地址 → 按 HD-VPN；否则按路由器 L2TP
+|`hdvpn` |系统代理同时挂到「VPN」服务 + Wi-Fi/Ethernet/USB LAN
+|`l2tp` |只挂物理网卡，不给「VPN」服务设代理
+|===
+
+== 工作原理
+
+. 用户点「启用」→ `ProxyController` 给多个网络服务设置 HTTP/HTTPS 代理 `127.0.0.1:7899`
+. 中继收到请求后与 `CORP_HOST:CORP_PORT` 建连，注入 `Proxy-Authorization: Basic ...` 再转发
+. 同时把 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY` 写入 `~/.codex/.env`（Codex CLI 只认环境变量，不读系统代理）
+. 「关闭」则清空各网络服务代理、把 `.env` 改回直连
+
+=== 为什么需要本地中继
+
+macOS 系统代理里保存的代理账号密码，Chromium 系（Chrome/Edge/ChatGPT 桌面版）不读取，会反复弹「登录以访问此站点」。中继在本机代填认证，浏览器看到的是无需认证的 `127.0.0.1:7899`。
+
+=== 中继的两个实现要点（踩坑记录）
+
+* 双向数据搬运用**每条连接两个专用 `Thread`**，不能放 `DispatchQueue.global()`：GCD 全局池只有 64 线程，浏览器几十条常驻 CONNECT 隧道会把池子占满，新请求排队 → 表现为「网页和 CLI 一起变慢」。
+* 连接超时用 `poll()` 而非 `FD_SET/FD_ZERO`（`swiftc` 下这些宏不可用）。
+
+== 卸载
+
+菜单栏 →「卸载公司代理…」：关系统代理、`.env` 改回直连、停中继、注销开机自启、删除配置/日志/偏好/缓存/LaunchAgent，最后自删 App 本体。可选是否连带删除旧版命令行脚本 `~/.local/bin/corp-proxy`。
+
+App 若已进废纸篓，双击 DMG 里的 `卸载公司代理.command` 做同样清理。
+
+== 已知限制
+
+* 公司出口对 `api.openai.com` 会做 TLS reset（30 次里约 18 次失败）；`chatgpt.com/backend-api` 稳定可用，Codex 走后者，不受影响。
+* 开启系统代理后，iCloud/微信等流量也会经过公司 3proxy，会落在对方 `log D` 日志里。
+* 不能与 TUN 模式代理同时使用（会与公司 VPN 抢路由）。
