@@ -61,13 +61,14 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     private let bypassField = NSTextField()
     private let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let modeHint = NSTextField(labelWithString: "")
+    private let dockCheck = NSButton(checkboxWithTitle: "在程序坞显示图标", target: nil, action: nil)
     private let resultLabel = NSTextField(wrappingLabelWithString: "")
     private let testButton = NSButton(title: "测试连接", target: nil, action: nil)
 
     init(cfg: Config, onSave: @escaping (Config) -> Void) {
         self.cfg = cfg
         self.onSave = onSave
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 470),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 500),
                            styleMask: [.titled, .closable],
                            backing: .buffered, defer: false)
         win.title = "公司代理 · 设置"
@@ -162,6 +163,9 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         modeHint.lineBreakMode = .byWordWrapping
         modeHint.maximumNumberOfLines = 2
 
+        dockCheck.font = .systemFont(ofSize: 12)
+        dockCheck.translatesAutoresizingMaskIntoConstraints = false
+
         let reveal = NSButton(checkboxWithTitle: "显示", target: self, action: #selector(toggleReveal))
         reveal.font = .systemFont(ofSize: 11)
         reveal.translatesAutoresizingMaskIntoConstraints = false
@@ -215,6 +219,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
             row([label("端口"), relayPortField, dimLabel("系统代理指向 127.0.0.1:该端口，由 App 代填认证")]),
             section("直连白名单"),
             row([label("不走代理"), bypassField]),
+            section("外观"),
+            row([spacer(92), dockCheck, dimLabel("勾选后可常驻程序坞，右键图标可快速开关代理")]),
             spacer(h: 8),
             resultLabel,
             buttons,
@@ -243,6 +249,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         relayPortField.stringValue = String(cfg.relayPort)
         bypassField.stringValue = cfg.bypass
         modePopup.selectItem(at: VPNMode.allCases.firstIndex(of: cfg.vpnMode) ?? 0)
+        dockCheck.state = cfg.showInDock ? .on : .off
         updateModeHint()
     }
 
@@ -279,6 +286,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         c.relayPort = rport
         c.bypass = bypassField.stringValue.trimmingCharacters(in: .whitespaces)
         c.vpnMode = VPNMode.allCases[max(0, modePopup.indexOfSelectedItem)]
+        c.showInDock = dockCheck.state == .on
         return c
     }
 

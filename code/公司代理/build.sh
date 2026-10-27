@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.0"
+VERSION="2.0.1"
 BUNDLE_ID="local.xbguan.corpproxy"
 
 rm -rf build/app build/dmg dist
@@ -46,15 +46,15 @@ cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0</string>
+	<string>2.0.1</string>
 	<key>CFBundleVersion</key>
-	<string>2.0</string>
+	<string>2.0.1</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>LSUIElement</key>
-	<true/>
+	<false/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
@@ -82,7 +82,9 @@ cat > "$STAGE/安装说明.txt" <<'README'
 安装
 ----
 把「公司代理.app」拖到左侧的 Applications（应用程序）文件夹，然后从「应用程序」打开一次。
-打开后菜单栏会出现一个建筑图标，没有 Dock 图标。
+打开后菜单栏会出现一个建筑图标。默认不占程序坞；想常驻程序坞就打开
+「设置…→ 外观 → 在程序坞显示图标」，或点菜单栏图标勾选「在程序坞显示」，
+之后可右键程序坞图标快速开关代理。
 
 首次启用前
 ----------

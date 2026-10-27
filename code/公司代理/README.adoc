@@ -20,11 +20,11 @@
 |`Sources/LoginItem.swift` |开机自启（`SMAppService`）
 |`Sources/Uninstaller.swift` |卸载清理
 |`Sources/AppDelegate.swift` |菜单栏菜单、状态刷新、开关流程
-|`Sources/main.swift` |入口（`LSUIElement`，无 Dock 图标）
+|`Sources/main.swift` |入口（启动时按配置决定 `regular`（有 Dock 图标）/ `accessory`（仅菜单栏））
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.dmg` |成品安装包
+|`dist/公司代理-2.0.1.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,7 +33,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.1.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。脚本用 `-target x86_64-apple-macos13.0` 编译（Intel 机器原生；Apple Silicon 上会走 Rosetta）。需要通用二进制时把 target 换成 `arm64-apple-macos13.0` 或分别编译后用 `lipo -create` 合并。
@@ -42,7 +42,7 @@ cd code/公司代理
 
 == 安装
 
-打开 DMG，把 `公司代理.app` 拖进 `Applications`。启动后出现在菜单栏，无 Dock 图标。
+打开 DMG，把 `公司代理.app` 拖进 `Applications`。启动后常驻菜单栏；需要在程序坞也放一个图标时，勾选菜单里的「在程序坞显示」（或「设置…→ 外观」），勾选后可将图标拖到程序坞固定。
 
 == 配置项
 
@@ -58,6 +58,7 @@ cd code/公司代理
 |`RELAY_PORT` |`7899` |本地中继端口（系统代理指向 `127.0.0.1:该端口`）
 |`VPN_MODE` |`auto` |`auto` / `hdvpn` / `l2tp`，见下
 |`BYPASS` |`*.hd123.com gitlab.hd123.com` |直连白名单（空格分隔）
+|`SHOW_IN_DOCK` |`1` |是否在程序坞显示图标：`1` 显示 / `0` 仅菜单栏
 |===
 
 === VPN 接入方式
@@ -69,6 +70,18 @@ cd code/公司代理
 |`hdvpn` |系统代理同时挂到「VPN」服务 + Wi-Fi/Ethernet/USB LAN
 |`l2tp` |只挂物理网卡，不给「VPN」服务设代理
 |===
+
+=== 程序坞显示
+
+默认只驻留菜单栏（`LSUIElement=false` + 启动时 `setActivationPolicy(.accessory)`，不占程序坞）。
+
+需要常驻程序坞时，勾选菜单栏菜单里的「在程序坞显示」，或「设置…→ 外观 → 在程序坞显示图标」：
+
+* 立即切换激活策略为 `.regular`，Dock 图标出现，可拖到程序坞固定
+* 同时装上一套最简主菜单（关于 / 设置 / 代理 / 窗口），⌘, ⌘Q ⌘M 可用
+* 右键 Dock 图标可直接「启用 / 关闭 / 重新应用」代理或打开设置
+* 点 Dock 图标且当前无窗口时，自动打开设置窗口
+* 关闭选项则回到 `.accessory`，Dock 图标消失、菜单栏图标保留
 
 == 工作原理
 

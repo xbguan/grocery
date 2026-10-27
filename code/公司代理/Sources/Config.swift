@@ -35,6 +35,8 @@ struct Config {
     var relayPort: Int = 7899
     var bypass: String = "127.0.0.1 localhost *.local 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 *.hd123.com gitlab.hd123.com"
     var vpnMode: VPNMode = .auto
+    /// 是否在程序坞显示图标（开启后可把 App 常驻程序坞，右键图标可快速开关代理）
+    var showInDock: Bool = false
 
     static var dirPath: String { NSString(string: "~/.config/corp-proxy").expandingTildeInPath }
     static var filePath: String { dirPath + "/config" }
@@ -74,6 +76,7 @@ struct Config {
             case "RELAY_PORT":  if let n = Int(val), n > 0 { c.relayPort = n }
             case "BYPASS_DOMAINS": if !val.isEmpty { c.bypass = val }
             case "VPN_MODE":    c.vpnMode = VPNMode(rawValue: val.lowercased()) ?? .auto
+            case "SHOW_IN_DOCK": c.showInDock = Self.boolValue(val)
             default: break
             }
         }
@@ -102,9 +105,19 @@ struct Config {
         # VPN 接入方式：auto | hdvpn | l2tp
         VPN_MODE=\(vpnMode.rawValue)
 
+        # 是否在程序坞显示图标：1 显示 / 0 仅菜单栏
+        SHOW_IN_DOCK=\(showInDock ? "1" : "0")
+
         """
         try body.write(toFile: Config.filePath, atomically: true, encoding: .utf8)
         chmod(Config.filePath, 0o600)
+    }
+
+    private static func boolValue(_ s: String) -> Bool {
+        switch s.lowercased() {
+        case "1", "true", "yes", "on": return true
+        default: return false
+        }
     }
 
     private static func quote(_ s: String) -> String {

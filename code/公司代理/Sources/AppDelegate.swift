@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusLine = NSMenuItem(title: "检测中…", action: nil, keyEquivalent: "")
     private let infoLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let autoStartItem = NSMenuItem(title: "开机自动启动", action: nil, keyEquivalent: "")
+    private let dockItem = NSMenuItem(title: "在程序坞显示", action: nil, keyEquivalent: "")
     private let toggleItem = NSMenuItem(title: "启用公司代理", action: nil, keyEquivalent: "")
 
     // MARK: 启动
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildMenu()
         startRelay()
         bootstrapAutoStart()
+        applyDockVisibility(activate: false)
 
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -77,6 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoStartItem.action = #selector(toggleAutoStart)
         menu.addItem(autoStartItem)
 
+        dockItem.target = self
+        dockItem.action = #selector(toggleDockIcon)
+        menu.addItem(dockItem)
+
         menu.addItem(.separator())
         menu.addItem(make("卸载公司代理…", #selector(uninstall)))
         let quit = NSMenuItem(title: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -118,6 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             : "公司代理：已关闭"
 
         autoStartItem.state = LoginItem.isEnabled ? .on : .off
+        dockItem.state = cfg.showInDock ? .on : .off
 
         if !relay.isRunning {
             DispatchQueue.global(qos: .utility).async { [weak self] in self?.startRelay() }
@@ -237,6 +244,107 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh()
     }
 
+    // MARK: 程序坞
+
+    /// regular = 有 Dock 图标 + 菜单栏菜单；accessory = 仅菜单栏常驻
+    private func applyDockVisibility(activate: Bool) {
+        if cfg.showInDock {
+            NSApp.setActivationPolicy(.regular)
+            installMainMenu()
+            if activate { NSApp.activate(ignoringOtherApps: true) }
+        } else {
+            NSApp.setActivationPolicy(.accessory)
+            NSApp.mainMenu = nil
+        }
+        dockItem.state = cfg.showInDock ? .on : .off
+    }
+
+    @objc private func toggleDockIcon() {
+        cfg.showInDock.toggle()
+        do {
+            try cfg.save()
+        } catch {
+            cfg.showInDock.toggle()
+            show("保存失败", error.localizedDescription)
+            return
+        }
+        controller.cfg = cfg
+        lastCfgMtime = Self.mtime()
+        applyDockVisibility(activate: cfg.showInDock)
+        refresh()
+    }
+
+    private func installMainMenu() {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appSub = NSMenu()
+        appItem.submenu = appSub
+        main.addItem(appItem)
+        appSub.addItem(mi("关于公司代理", #selector(showAbout)))
+        appSub.addItem(.separator())
+        appSub.addItem(mi("设置…", #selector(openSettings), key: ","))
+        appSub.addItem(.separator())
+        appSub.addItem(NSMenuItem(title: "隐藏公司代理", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"))
+        appSub.addItem(.separator())
+        appSub.addItem(NSMenuItem(title: "退出公司代理", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+
+        let proxyItem = NSMenuItem()
+        let proxySub = NSMenu(title: "代理")
+        proxyItem.submenu = proxySub
+        main.addItem(proxyItem)
+        let on = controller.systemProxy().on
+        proxySub.addItem(mi(on ? "重新应用代理" : "启用公司代理", #selector(toggleProxy)))
+        proxySub.addItem(mi("关闭代理（直连）", #selector(turnOff)))
+        proxySub.addItem(.separator())
+        proxySub.addItem(mi("测试连接", #selector(quickTest)))
+        proxySub.addItem(mi("查看详细状态…", #selector(showStatus)))
+
+        let winItem = NSMenuItem()
+        let winSub = NSMenu(title: "窗口")
+        winItem.submenu = winSub
+        main.addItem(winItem)
+        winSub.addItem(NSMenuItem(title: "最小化", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
+        winSub.addItem(NSMenuItem(title: "关闭", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+
+        NSApp.mainMenu = main
+    }
+
+    private func mi(_ title: String, _ sel: Selector, key: String = "") -> NSMenuItem {
+        let m = NSMenuItem(title: title, action: sel, keyEquivalent: key)
+        m.target = self
+        return m
+    }
+
+    @objc private func showAbout() {
+        NSApp.activate(ignoringOtherApps: true)
+        let credits = NSAttributedString(
+            string: "公司 3proxy 一键开关 · 本地免认证中继",
+            attributes: [.font: NSFont.systemFont(ofSize: 11)])
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "公司代理",
+            .applicationVersion: "2.0.1",
+            .credits: credits,
+        ])
+    }
+
+    // 点 Dock 图标（当前无窗口）→ 打开设置
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { openSettings() }
+        return true
+    }
+
+    // 右键 Dock 图标
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let m = NSMenu()
+        let on = controller.systemProxy().on
+        m.addItem(mi(on ? "重新应用代理" : "启用公司代理", #selector(toggleProxy)))
+        if on { m.addItem(mi("关闭代理（直连）", #selector(turnOff))) }
+        m.addItem(.separator())
+        m.addItem(mi("设置…", #selector(openSettings)))
+        return m
+    }
+
     @objc private func openSettings() {
         if settingsWC == nil {
             settingsWC = SettingsWindowController(cfg: cfg) { [weak self] newCfg in
@@ -250,6 +358,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func apply(_ newCfg: Config) {
         let wasOn = controller.systemProxy().on
+        let dockChanged = newCfg.showInDock != cfg.showInDock
         do {
             try newCfg.save()
         } catch {
@@ -259,6 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cfg = newCfg
         controller.cfg = newCfg
         lastCfgMtime = Self.mtime()
+        if dockChanged { applyDockVisibility(activate: newCfg.showInDock) }
         restartRelay()
 
         guard wasOn else {
