@@ -15,9 +15,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var note: String?
     private var noteAt: Date?
 
+    /// 退出清理是否已执行（保证只跑一次）
+    private var exitCleanupDone = false
+    /// 系统正在关机 / 重启 / 注销
+    private var poweringOff = false
+    /// 串行化退出清理：主线程的 terminate 与信号线程不会同时进来
+    private let exitQueue = DispatchQueue(label: "local.xbguan.corpproxy.exit")
+    /// 信号源要保活，否则会被释放掉
+    private var signalSources: [DispatchSourceSignal] = []
+
     private let statusLine = NSMenuItem(title: "检测中…", action: nil, keyEquivalent: "")
     private let infoLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let autoStartItem = NSMenuItem(title: "开机自动启动", action: nil, keyEquivalent: "")
+    private let autoOffItem = NSMenuItem(title: "退出时关闭代理", action: nil, keyEquivalent: "")
     private let dockItem = NSMenuItem(title: "在程序坞显示", action: nil, keyEquivalent: "")
     private let toggleItem = NSMenuItem(title: "启用公司代理", action: nil, keyEquivalent: "")
 
@@ -34,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startRelay()
         bootstrapAutoStart()
         applyDockVisibility(activate: false)
+        installExitHandlers()
 
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
@@ -116,6 +127,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         autoStartItem.action = #selector(toggleAutoStart)
         autoStartItem.image = UIStatus.menuImage("power")
         menu.addItem(autoStartItem)
+
+        autoOffItem.target = self
+        autoOffItem.action = #selector(toggleAutoOffOnQuit)
+        autoOffItem.image = UIStatus.menuImage("door.left.hand.open")
+        menu.addItem(autoOffItem)
 
         dockItem.target = self
         dockItem.action = #selector(toggleDockIcon)
@@ -202,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             : "公司代理：已关闭"
 
         autoStartItem.state = LoginItem.isEnabled ? .on : .off
+        autoOffItem.state = Self.autoOffOnQuit ? .on : .off
         dockItem.state = cfg.showInDock ? .on : .off
 
         if !relay.isRunning {
@@ -593,25 +610,86 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         a.runModal()
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard controller.systemProxy().on else { return .terminateNow }
-        NSApp.activate(ignoringOtherApps: true)
-        let a = NSAlert()
-        a.messageText = "系统代理仍然开启"
-        a.informativeText = "代理指向本机中继 \(cfg.relayHost):\(cfg.relayPort)，退出 App 后中继会停止，浏览器将无法上网。"
-        a.addButton(withTitle: "关闭代理并退出")
-        a.addButton(withTitle: "保持开启，仅退出")
-        a.addButton(withTitle: "取消")
-        switch a.runModal() {
-        case .alertFirstButtonReturn:
-            _ = controller.turnOff()
-            relay.stop()
-            return .terminateNow
-        case .alertSecondButtonReturn:
-            relay.stop()
-            return .terminateNow
-        default:
-            return .terminateCancel
+    // MARK: 退出
+
+    /// 退出时是否自动关闭系统代理（默认开）
+    private static var autoOffOnQuit: Bool {
+        get { UserDefaults.standard.object(forKey: "autoOffOnQuit") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "autoOffOnQuit") }
+    }
+
+    @objc private func toggleAutoOffOnQuit() {
+        Self.autoOffOnQuit = !Self.autoOffOnQuit
+        autoOffItem.state = Self.autoOffOnQuit ? .on : .off
+    }
+
+    /// 注册所有能捕获到的退出入口。
+    ///
+    /// 覆盖范围：
+    /// - 菜单「退出」 / ⌘Q / 程序坞右键「退出」 / AppleScript quit → `applicationShouldTerminate`
+    /// - 关机 / 重启 / 注销 → `NSWorkspace.willPowerOff` + 随后的 terminate
+    /// - `kill` / `killall` / 系统在关机超时后发的 SIGTERM，以及 Ctrl-C → 信号源
+    ///
+    /// 覆盖不了：SIGKILL（强制退出、崩溃、关机超时被硬杀）。此时进程没有机会执行任何代码，
+    /// 只能靠下次启动时的自检把残留的代理设置纠正回来。
+    private func installExitHandlers() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.poweringOff = true
+            // 关机/注销时提前清一次，别等到系统给的几秒宽限期才动手
+            self.cleanupBeforeExit(reason: "关机 / 注销")
         }
+
+        let sigQueue = DispatchQueue(label: "local.xbguan.corpproxy.signal")
+        for sig in [SIGTERM, SIGINT, SIGHUP] {
+            signal(sig, SIG_IGN)        // 挡掉默认的「立刻杀死进程」
+            let src = DispatchSource.makeSignalSource(signal: sig, queue: sigQueue)
+            src.setEventHandler { [weak self] in
+                self?.cleanupBeforeExit(reason: "signal \(sig)")
+                exit(0)
+            }
+            src.resume()
+            signalSources.append(src)
+        }
+    }
+
+    /// 退出前清理；串行队列保证「多入口并发」时也只会执行一次
+    private func cleanupBeforeExit(reason: String) {
+        exitQueue.sync {
+            guard !exitCleanupDone else { return }
+            exitCleanupDone = true
+            performExitCleanup(reason: reason)
+        }
+    }
+
+    private func performExitCleanup(reason: String) {
+        guard Self.autoOffOnQuit else {
+            NSLog("corp-proxy: 退出（%@），已按设置保留系统代理", reason)
+            relay.stop()
+            return
+        }
+
+        // 不看「global 代理状态」：主服务未必是我们设过代理的那个
+        // （例如主服务是 ppp0/VPN 时会话，而代理设在 Wi-Fi 上），
+        // 只看每个服务自己的地址，是「我们的」才撤，别家的（Clash 等）不碰。
+        let closed = controller.turnOffOwnProxyOnly()
+        if closed.isEmpty {
+            NSLog("corp-proxy: 退出（%@），没有发现本 App 设置的系统代理", reason)
+        } else {
+            // 先撤系统代理，再停中继 —— 反过来的话中间会有一段「代理在、中继死」的空窗
+            controller.rewriteCodexEnv(enabled: false, viaRelay: false)
+            NSLog("corp-proxy: 退出（%@）已关闭系统代理，涉及服务：%@",
+                  reason, closed.joined(separator: "、"))
+        }
+
+        relay.stop()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if uninstalling { return .terminateNow }    // 卸载流程自己已经清理过
+        cleanupBeforeExit(reason: poweringOff ? "关机 / 注销" : "退出")
+        return .terminateNow
     }
 }

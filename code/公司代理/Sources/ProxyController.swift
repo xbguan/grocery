@@ -237,6 +237,49 @@ final class ProxyController {
         return .success("系统代理已关闭（\(touched.count) 个网络服务）\nCodex CLI：已改为直连")
     }
 
+    /// 解析单个服务的代理状态
+    private func proxyInfo(_ service: String, secure: Bool) -> (enabled: Bool, addr: String)? {
+        let (rc, out) = Shell.networksetup([secure ? "-getsecurewebproxy" : "-getwebproxy", service])
+        guard rc == 0 else { return nil }
+        var enabled = false
+        var host = ""
+        var port = 0
+        for line in out.components(separatedBy: .newlines) {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("Enabled:") {
+                enabled = t.lowercased().contains("yes")
+            } else if t.hasPrefix("Server:") {
+                host = String(t.dropFirst("Server:".count)).trimmingCharacters(in: .whitespaces)
+            } else if t.hasPrefix("Port:") {
+                port = Int(String(t.dropFirst("Port:".count)).trimmingCharacters(in: .whitespaces)) ?? 0
+            }
+        }
+        return (enabled, "\(host):\(port)")
+    }
+
+    /// 「这个代理地址是不是本 App 写进去的」
+    func isOwnProxy(_ addr: String) -> Bool {
+        addr == "\(cfg.relayHost):\(cfg.relayPort)" || addr == "\(cfg.host):\(cfg.port)"
+    }
+
+    /// 退出 / 关机时用：只关掉指向本地中继（或公司上游）的系统代理。
+    /// 与 `turnOff()` 不同 —— 用户自己配的代理（Clash 等）一律不碰。
+    /// - Returns: 被关闭的服务名
+    @discardableResult
+    func turnOffOwnProxyOnly() -> [String] {
+        var closed: [String] = []
+        for s in allServices() {
+            let infos = [proxyInfo(s, secure: false), proxyInfo(s, secure: true)].compactMap { $0 }
+            let ours = infos.contains { $0.enabled && isOwnProxy($0.addr) }
+            // 该服务没开代理，或开的是别人的代理（Clash 等）→ 跳过
+            guard ours else { continue }
+            Shell.networksetup(["-setwebproxystate", s, "off"])
+            Shell.networksetup(["-setsecurewebproxystate", s, "off"])
+            closed.append(s)
+        }
+        return closed
+    }
+
     /// 走代理验证出口；401 表示 OpenAI 认这个 IP
     private func curlStatus(viaRelay: Bool) -> String {
         let proxy = viaRelay ? cfg.relayURL : cfg.upstreamURLWithAuth

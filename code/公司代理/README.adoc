@@ -24,7 +24,7 @@
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.4.dmg` |成品安装包
+|`dist/公司代理-2.0.5.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,7 +33,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.4.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.5.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
@@ -127,6 +127,25 @@ cd code/公司代理
 
 首次启动（还没有配置文件）时，如果系统里残留着上次的代理，也会被按上面规则清理，不会出现「装上就弹认证框」。
 
+=== 退出 / 关机时的清理
+
+代理指向的是本机中继，App 一退出中继就没了；若代理设置留着，整台机器会立刻断网。
+所以每条退出路径都会先撤代理、再停中继：
+
+[cols="1,2",options="header"]
+|===
+|退出方式 |触发点
+|菜单「退出」、⌘Q、程序坞右键「退出」、AppleScript quit |`applicationShouldTerminate`
+|关机、重启、注销 |`NSWorkspace.willPowerOff` 通知（提前清理）+ 随后的 terminate
+|`kill` / `killall`、系统关机超时的强制终止、Ctrl-C |SIGTERM / SIGINT / SIGHUP 信号源
+|===
+
+清理**只撤自己写的**：逐个网络服务比对代理地址，是 `127.0.0.1:<中继端口>` 或公司上游才关，
+Clash 等其它代理原样保留。这里刻意不看 `scutil` 的全局代理状态 —— 主服务是 ppp0/VPN 时
+全局状态反映不到物理网卡上的设置，会导致漏清。
+
+行为可以在菜单里用「退出时关闭代理」开关（默认开）关掉；关闭后退出只停中继、保留代理设置。
+
 === 为什么需要本地中继
 
 macOS 系统代理里保存的代理账号密码，Chromium 系（Chrome/Edge/ChatGPT 桌面版）不读取，会反复弹「登录以访问此站点」。中继在本机代填认证，浏览器看到的是无需认证的 `127.0.0.1:7899`。
@@ -147,3 +166,6 @@ App 若已进废纸篓，双击 DMG 里的 `卸载公司代理.command` 做同�
 * 公司出口对 `api.openai.com` 会做 TLS reset（30 次里约 18 次失败）；`chatgpt.com/backend-api` 稳定可用，Codex 走后者，不受影响。
 * 开启系统代理后，iCloud/微信等流量也会经过公司 3proxy，会落在对方 `log D` 日志里。
 * 不能与 TUN 模式代理同时使用（会与公司 VPN 抢路由）。
+* 被 **SIGKILL** 杀掉（强制退出、崩溃、关机超时被硬杀）时没有机会执行清理，系统代理会残留成
+  「指向已停止的中继」→ 表现为全部网络不通。重新打开 App 即可自动修正（见「启动自检」）；
+  也可手动执行 `networksetup -setwebproxystate Wi-Fi off` 应急。
