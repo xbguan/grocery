@@ -316,11 +316,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
         DispatchQueue.global(qos: .userInitiated).async {
             let reachable = Shell.tcpAlive(c.host, UInt16(c.port), timeout: 3)
-            var lines: [String] = []
+            var rows: [(String, NSColor, String)] = []
             if reachable {
-                lines.append("✓ 代理端口 \(c.host):\(c.port) 可连接")
+                rows.append(("circle.fill", .systemGreen, "代理端口 \(c.host):\(c.port) 可连接"))
             } else {
-                lines.append("✗ 代理端口不可达（VPN 是否已连接？若为路由器 L2TP，请确认内网路由）")
+                rows.append(("exclamationmark.triangle.fill", .systemOrange,
+                             "代理端口不可达（VPN 是否已连接？若为路由器 L2TP，请确认内网路由）"))
             }
             if reachable {
                 let t0 = Date()
@@ -330,19 +331,36 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
                 if v == "401" {
-                    lines.append("✓ 出口正常 chatgpt.com → 401（\(ms) ms）")
+                    rows.append(("bolt.horizontal.fill", .systemGreen,
+                                 "出口正常 chatgpt.com → 401（\(ms) ms）"))
                 } else if v.isEmpty || v == "000" {
-                    lines.append("✗ 通过代理访问 chatgpt.com 失败（超时或被重置）")
+                    rows.append(("exclamationmark.triangle.fill", .systemOrange,
+                                 "通过代理访问 chatgpt.com 失败（超时或被重置）"))
                 } else {
-                    lines.append("· 通过代理访问 chatgpt.com → HTTP \(v)（\(ms) ms）")
+                    rows.append(("dot.radiowaves.left.and.right", .secondaryLabelColor,
+                                 "通过代理访问 chatgpt.com → HTTP \(v)（\(ms) ms）"))
                 }
             }
-            let text = lines.joined(separator: "\n")
+            let att = Self.testResult(rows)
             DispatchQueue.main.async {
-                self.resultLabel.stringValue = text
-                self.resultLabel.textColor = NSColor.secondaryLabelColor
+                self.resultLabel.attributedStringValue = att
                 self.testButton.isEnabled = true
             }
         }
+    }
+
+    /// 测试结果里「图标 + 文字」的组装，替代原来的 ✓ / ✗ 字符
+    private static func testResult(_ rows: [(String, NSColor, String)]) -> NSAttributedString {
+        let font = NSFont.systemFont(ofSize: 11)
+        let out = NSMutableAttributedString()
+        for (i, r) in rows.enumerated() {
+            if i > 0 { out.append(NSAttributedString(string: "\n")) }
+            out.append(UIStatus.inline(r.0, color: r.1, font: font))
+            out.append(NSAttributedString(string: " " + r.2, attributes: [
+                .font: font,
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ]))
+        }
+        return out
     }
 }

@@ -104,33 +104,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggleItem.target = self
         toggleItem.action = #selector(toggleProxy)
         menu.addItem(toggleItem)
-        menu.addItem(make("关闭代理（直连）", #selector(turnOff)))
+        menu.addItem(make("关闭代理（直连）", #selector(turnOff), icon: "bolt.slash.fill"))
         menu.addItem(.separator())
 
-        menu.addItem(make("设置…", #selector(openSettings), key: ","))
-        menu.addItem(make("测试连接", #selector(quickTest)))
-        menu.addItem(make("查看详细状态…", #selector(showStatus)))
+        menu.addItem(make("设置…", #selector(openSettings), key: ",", icon: "gearshape"))
+        menu.addItem(make("测试连接", #selector(quickTest), icon: "dot.radiowaves.left.and.right"))
+        menu.addItem(make("查看详细状态…", #selector(showStatus), icon: "list.bullet.rectangle"))
         menu.addItem(.separator())
 
         autoStartItem.target = self
         autoStartItem.action = #selector(toggleAutoStart)
+        autoStartItem.image = UIStatus.menuImage("power")
         menu.addItem(autoStartItem)
 
         dockItem.target = self
         dockItem.action = #selector(toggleDockIcon)
+        dockItem.image = UIStatus.menuImage("dock.rectangle")
         menu.addItem(dockItem)
 
         menu.addItem(.separator())
-        menu.addItem(make("卸载公司代理…", #selector(uninstall)))
+        menu.addItem(make("卸载公司代理…", #selector(uninstall), icon: "trash"))
         let quit = NSMenuItem(title: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.image = UIStatus.menuImage("rectangle.portrait.and.arrow.right")
         menu.addItem(quit)
 
         item.menu = menu
     }
 
-    private func make(_ title: String, _ sel: Selector, key: String = "") -> NSMenuItem {
+    private func make(_ title: String, _ sel: Selector, key: String = "", icon: String? = nil) -> NSMenuItem {
         let mi = NSMenuItem(title: title, action: sel, keyEquivalent: key)
         mi.target = self
+        if let icon { mi.image = UIStatus.menuImage(icon) }
         return mi
     }
 
@@ -139,16 +143,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refresh() {
         let (on, addr) = controller.systemProxy()
         let mode = controller.resolvedMode()
+        let font = NSFont.menuFont(ofSize: 0)
 
+        // 状态用图标表达：绿点=已接通，空心圈=未启用，橙色三角=状态异常
         let directUpstream = on && addr == "\(cfg.host):\(cfg.port)"
-        if on {
-            statusLine.title = directUpstream
-                ? "● 已启用  \(addr)（直连上游，会弹认证框）"
-                : "● 已启用  \(addr)"
+        if on && directUpstream {
+            statusLine.attributedTitle = UIStatus.line(
+                icon: "exclamationmark.triangle.fill", color: .systemOrange,
+                text: "已启用  \(addr)（直连上游，会弹认证框）", font: font)
+        } else if on {
+            statusLine.attributedTitle = UIStatus.line(
+                icon: "circle.fill", color: .systemGreen,
+                text: "已启用  \(addr)", font: font)
         } else {
-            statusLine.title = cfg.hasCredentials ? "○ 已关闭（直连）" : "○ 已关闭 · 未填代理账号"
+            statusLine.attributedTitle = UIStatus.line(
+                icon: "circle", color: .secondaryLabelColor,
+                text: cfg.hasCredentials ? "已关闭（直连）" : "已关闭 · 未填代理账号", font: font)
         }
         toggleItem.title = on ? "重新应用代理" : "启用公司代理"
+        toggleItem.image = UIStatus.menuImage(on ? "arrow.triangle.2.circlepath" : "bolt.fill")
 
         let tunnel: String
         switch mode {
@@ -156,11 +169,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .l2tp:  tunnel = "L2TP 路由"
         case .auto:  tunnel = "自动"
         }
-        var info = "\(controller.primaryIface()) · \(tunnel) · 中继 \(relay.isRunning ? "✓" : "✗") · 自启 \(LoginItem.isEnabled ? "✓" : "✗")"
-        if let n = note, let t = noteAt, Date().timeIntervalSince(t) < 180 {
-            info += " · ⓘ \(n)"
+
+        let info = NSMutableAttributedString()
+        func seg(_ t: String) {
+            info.append(NSAttributedString(string: t, attributes: [.font: font]))
         }
-        infoLine.title = info
+        seg("\(controller.primaryIface()) · \(tunnel) · 中继")
+        info.append(UIStatus.inline(relay.isRunning ? "bolt.horizontal.fill" : "bolt.slash.fill",
+                                    color: relay.isRunning ? .systemGreen : .systemOrange,
+                                    font: font))
+        seg("  自启")
+        info.append(UIStatus.inline("power",
+                                    color: LoginItem.isEnabled ? .systemGreen : .secondaryLabelColor,
+                                    font: font))
+        if let n = note, let t = noteAt, Date().timeIntervalSince(t) < 180 {
+            seg(" · ⓘ \(n)")
+        }
+        infoLine.attributedTitle = info
 
         let symbol = on ? "building.2.fill" : "building.2"
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "公司代理")
@@ -278,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         runAsync({ [unowned self] in
             guard self.ensureRelayReady() else {
-                return ("✗ 本地中继没起来（\(self.cfg.relayHost):\(self.cfg.relayPort)）\n\n本次没有改动系统代理。请稍后重试，或重启 App；若端口被占用，可在设置里换一个中继端口。", false)
+                return ("本地中继没起来（\(self.cfg.relayHost):\(self.cfg.relayPort)）\n\n本次没有改动系统代理。请稍后重试，或重启 App；若端口被占用，可在设置里换一个中继端口。", false)
             }
             switch self.controller.turnOn(allowEmptyCredentials: allowEmpty) {
             case .success(let s): return (s, true)
@@ -301,7 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let proxy = viaRelay ? cfg.relayURL : cfg.upstreamURLWithAuth
         runAsync({ [unowned self] in
             guard Shell.tcpAlive(self.cfg.host, UInt16(self.cfg.port), timeout: 3) else {
-                return ("✗ 连不上 \(self.cfg.host):\(self.cfg.port)\n\n\(self.controller.resolvedMode() == .l2tp ? "请确认路由器 L2TP 已接通。" : "请确认 HD-VPN 已连接。")", false)
+                return ("连不上 \(self.cfg.host):\(self.cfg.port)\n\n\(self.controller.resolvedMode() == .l2tp ? "请确认路由器 L2TP 已接通。" : "请确认 HD-VPN 已连接。")", false)
             }
             let t0 = Date()
             let (_, code) = Shell.run("/usr/bin/curl",
@@ -310,8 +335,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let ms = Int(Date().timeIntervalSince(t0) * 1000)
             let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
             let head = "代理：\(self.cfg.host):\(self.cfg.port)（\(viaRelay ? "经本地中继" : "直连")）\n耗时：\(ms) ms\n\n"
-            if v == "401" { return (head + "✓ 出口正常：chatgpt.com → 401", true) }
-            if v.isEmpty || v == "000" { return (head + "✗ 访问 chatgpt.com 失败（超时 / 被重置）", false) }
+            if v == "401" { return (head + "出口正常：chatgpt.com → 401", true) }
+            if v.isEmpty || v == "000" { return (head + "访问 chatgpt.com 失败（超时 / 被重置）", false) }
             return (head + "· chatgpt.com → HTTP \(v)", true)
         }, done: { text, ok in self.show(ok ? "连接测试通过" : "连接测试未通过", text) })
     }
@@ -383,11 +408,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         proxyItem.submenu = proxySub
         main.addItem(proxyItem)
         let on = controller.systemProxy().on
-        proxySub.addItem(mi(on ? "重新应用代理" : "启用公司代理", #selector(toggleProxy)))
-        proxySub.addItem(mi("关闭代理（直连）", #selector(turnOff)))
+        proxySub.addItem(mi(on ? "重新应用代理" : "启用公司代理", #selector(toggleProxy),
+                            icon: on ? "arrow.triangle.2.circlepath" : "bolt.fill"))
+        proxySub.addItem(mi("关闭代理（直连）", #selector(turnOff), icon: "bolt.slash.fill"))
         proxySub.addItem(.separator())
-        proxySub.addItem(mi("测试连接", #selector(quickTest)))
-        proxySub.addItem(mi("查看详细状态…", #selector(showStatus)))
+        proxySub.addItem(mi("测试连接", #selector(quickTest), icon: "dot.radiowaves.left.and.right"))
+        proxySub.addItem(mi("查看详细状态…", #selector(showStatus), icon: "list.bullet.rectangle"))
 
         let winItem = NSMenuItem()
         let winSub = NSMenu(title: "窗口")
@@ -399,9 +425,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = main
     }
 
-    private func mi(_ title: String, _ sel: Selector, key: String = "") -> NSMenuItem {
+    private func mi(_ title: String, _ sel: Selector, key: String = "", icon: String? = nil) -> NSMenuItem {
         let m = NSMenuItem(title: title, action: sel, keyEquivalent: key)
         m.target = self
+        if let icon { m.image = UIStatus.menuImage(icon) }
         return m
     }
 
@@ -418,20 +445,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ])
     }
 
-    // 点 Dock 图标（当前无窗口）→ 打开设置
+    // 点 Dock 图标：不弹设置窗口，改成和点顶部菜单栏图标一样把菜单弹出来
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag { openSettings() }
-        return true
+        if flag { return true }        // 设置窗口已开着：交给系统前置即可
+        DispatchQueue.main.async { [weak self] in self?.popUpStatusMenu() }
+        return false
+    }
+
+    /// 以菜单栏图标为锚点弹出主菜单（与鼠标直接点图标视觉一致）
+    private func popUpStatusMenu() {
+        guard let button = item.button, let menu = item.menu else { return }
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: button)
     }
 
     // 右键 Dock 图标
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let m = NSMenu()
         let on = controller.systemProxy().on
-        m.addItem(mi(on ? "重新应用代理" : "启用公司代理", #selector(toggleProxy)))
-        if on { m.addItem(mi("关闭代理（直连）", #selector(turnOff))) }
+        m.addItem(mi(on ? "重新应用代理" : "启用公司代理", #selector(toggleProxy),
+                     icon: on ? "arrow.triangle.2.circlepath" : "bolt.fill"))
+        if on { m.addItem(mi("关闭代理（直连）", #selector(turnOff), icon: "bolt.slash.fill")) }
         m.addItem(.separator())
-        m.addItem(mi("设置…", #selector(openSettings)))
+        m.addItem(mi("设置…", #selector(openSettings), icon: "gearshape"))
         return m
     }
 

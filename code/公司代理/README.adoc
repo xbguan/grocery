@@ -24,7 +24,7 @@
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.2.dmg` |成品安装包
+|`dist/公司代理-2.0.3.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,7 +33,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.2.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.3.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。脚本用 `-target x86_64-apple-macos13.0` 编译（Intel 机器原生；Apple Silicon 上会走 Rosetta）。需要通用二进制时把 target 换成 `arm64-apple-macos13.0` 或分别编译后用 `lipo -create` 合并。
@@ -43,6 +43,14 @@ cd code/公司代理
 == 安装
 
 打开 DMG，把 `公司代理.app` 拖进 `Applications`。启动后常驻菜单栏；需要在程序坞也放一个图标时，勾选菜单里的「在程序坞显示」（或「设置…→ 外观」），勾选后可将图标拖到程序坞固定。
+
+勾选「在程序坞显示」之后：
+
+* *单击程序坞图标*：弹出与顶部菜单栏图标完全相同的菜单（不会直接打开设置窗口）
+* *右键程序坞图标*：系统快捷菜单，可一键启用 / 关闭代理
+* *改配置*：点菜单里的「设置…」（快捷键 `⌘,`）
+
+菜单里的状态一律用 SF Symbol 图标表达：绿色实心圆=已接通、空心圆=已关闭、橙色三角=状态异常；信息行的「中继」「自启」也用闪电 / 电源图标标出通断，不再使用 ✓ ✗ 字符。
 
 == 配置项
 
