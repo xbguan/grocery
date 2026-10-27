@@ -5,25 +5,45 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.0.3"
+VERSION="2.0.4"
 BUNDLE_ID="local.xbguan.corpproxy"
 
-rm -rf build/app build/dmg dist
-mkdir -p "build/app/${APP_NAME}.app/Contents/MacOS" "build/app/${APP_NAME}.app/Contents/Resources" dist
+# 构建机自身架构（用于只在构建期运行的辅助工具）
+HOST_ARCH="$(uname -m)"
+case "$HOST_ARCH" in arm64|x86_64) ;; *) HOST_ARCH="x86_64" ;; esac
+
+# 目标架构：同时产出 Intel 与 Apple Silicon，合成通用二进制
+TARGET_ARCHS="arm64 x86_64"
+
+rm -rf build/app build/dmg build/slices dist
+mkdir -p "build/app/${APP_NAME}.app/Contents/MacOS" "build/app/${APP_NAME}.app/Contents/Resources" dist build/slices
 
 # 1. 图标
 if [ ! -f build/AppIcon.icns ]; then
   mkdir -p build/AppIcon.iconset
-  swiftc -O -target x86_64-apple-macos13.0 -framework Cocoa -o build/icongen IconGen.swift
+  swiftc -O -target "${HOST_ARCH}-apple-macos13.0" -framework Cocoa -o build/icongen IconGen.swift
   ./build/icongen build/AppIcon.iconset
   iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
 fi
 cp build/AppIcon.icns "build/app/${APP_NAME}.app/Contents/Resources/AppIcon.icns"
 
-# 2. 可执行文件
-swiftc -O -target x86_64-apple-macos13.0 \
-  -framework Cocoa -framework SystemConfiguration -framework ServiceManagement \
-  -o "build/app/${APP_NAME}.app/Contents/MacOS/${BIN_NAME}" Sources/*.swift
+# 2. 可执行文件 —— 逐架构编译后 lipo 合并（Intel + M 芯片通用）
+BIN_OUT="build/app/${APP_NAME}.app/Contents/MacOS/${BIN_NAME}"
+SLICES=""   # 用字符串而非数组：macOS 自带 bash 3.2 下空数组配 set -u 会报错
+for ARCH in $TARGET_ARCHS; do
+  OUT="build/slices/${BIN_NAME}-${ARCH}"
+  if swiftc -O -target "${ARCH}-apple-macos13.0" \
+      -framework Cocoa -framework SystemConfiguration -framework ServiceManagement \
+      -o "$OUT" Sources/*.swift 2>"build/slices/${ARCH}.log"; then
+    SLICES="$SLICES $OUT"
+  else
+    echo "⚠️  ${ARCH} 编译失败（可能是本机 SDK 缺少该架构），已跳过："
+    grep -m3 "error:" "build/slices/${ARCH}.log" || tail -3 "build/slices/${ARCH}.log"
+  fi
+done
+[ -n "$SLICES" ] || { echo "❌ 没有任何架构编译成功"; exit 1; }
+lipo -create $SLICES -output "$BIN_OUT"
+echo "架构: $(lipo -archs "$BIN_OUT")"
 
 # 3. Info.plist
 cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
@@ -46,9 +66,9 @@ cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.3</string>
+	<string>2.0.4</string>
 	<key>CFBundleVersion</key>
-	<string>2.0.3</string>
+	<string>2.0.4</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSMinimumSystemVersion</key>

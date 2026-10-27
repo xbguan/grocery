@@ -24,7 +24,7 @@
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.3.dmg` |成品安装包
+|`dist/公司代理-2.0.4.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,10 +33,19 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.3.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.4.dmg
 ----
 
-要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。脚本用 `-target x86_64-apple-macos13.0` 编译（Intel 机器原生；Apple Silicon 上会走 Rosetta）。需要通用二进制时把 target 换成 `arm64-apple-macos13.0` 或分别编译后用 `lipo -create` 合并。
+要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
+
+产物为**通用二进制**（universal2），同时包含 `arm64` 与 `x86_64`：
+
+* `arm64` —— Apple Silicon（M1/M2/M3/M4 及后续）原生运行，不需要 Rosetta
+* `x86_64` —— Intel Mac 原生运行
+
+脚本对两个架构分别执行 `swiftc -target <arch>-apple-macos13.0`，再用 `lipo -create` 合并，
+因此在 Intel 或 Apple Silicon 任一机器上构建，都能产出两边通用的包。若某个架构编译失败
+（例如精简过的 SDK 缺少对应 slice），脚本会打印警告并降级为单架构，不会中断。
 
 签名方式为 ad-hoc（`codesign --sign -`），换机器分发时对方首次打开需右键 →「打开」越过 Gatekeeper。
 
