@@ -70,18 +70,21 @@ enum UIStatus {
         return s
     }
 
-    /// 透明占位图：让没有图标的行也占住图标列，文字才能与其它行对齐
-    static var blankIcon: NSImage {
-        let img = NSImage(size: NSSize(width: 12, height: 1))
-        img.lockFocus()
-        NSColor.clear.setFill()
-        NSRect(x: 0, y: 0, width: 12, height: 1).fill()
-        img.unlockFocus()
-        img.isTemplate = true
-        return img
+    /// 固定画布的彩色图标：菜单项 image 的宽度会推移标题起点，
+    /// 顶部两行必须用同一画布宽度，文字列才会严格对齐。
+    static func paddedImage(_ name: String, color: NSColor,
+                            glyph: CGFloat, canvas: CGFloat = 13) -> NSImage? {
+        guard let g = image(name, color: color, size: glyph) else { return nil }
+        let out = NSImage(size: NSSize(width: canvas, height: canvas))
+        out.lockFocus()
+        g.draw(in: NSRect(x: (canvas - g.size.width) / 2,
+                          y: (canvas - g.size.height) / 2,
+                          width: g.size.width, height: g.size.height))
+        out.unlockFocus()
+        return out
     }
 
-    /// 顶部第二行：文字已由菜单项图标列对齐，无需再缩进，可穿插小图标
+    /// 顶部第二行：文字已由菜单项图标列对齐，可穿插小图标
     static func subLine(_ pieces: [Piece], font: NSFont, iconSize: CGFloat) -> NSAttributedString {
         let s = NSMutableAttributedString(string: "")
         for p in pieces {
