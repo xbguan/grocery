@@ -50,6 +50,8 @@ struct Config {
 
     var relayURL: String { "http://\(relayHost):\(relayPort)" }
     var upstreamURL: String { "http://\(host):\(port)" }
+    /// 是否填全了代理凭据（用户名和密码都非空才算）
+    var hasCredentials: Bool { !user.isEmpty && !pass.isEmpty }
     var upstreamURLWithAuth: String {
         user.isEmpty ? upstreamURL : "http://\(user):\(pass)@\(host):\(port)"
     }

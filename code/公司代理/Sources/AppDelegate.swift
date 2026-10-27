@@ -11,6 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var busy = false
     private var uninstalling = false
     private var lastCfgMtime: Date?
+    /// 启动自检的结论（在菜单信息行里显示一段时间）
+    private var note: String?
+    private var noteAt: Date?
 
     private let statusLine = NSMenuItem(title: "检测中…", action: nil, keyEquivalent: "")
     private let infoLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
@@ -42,6 +45,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || !FileManager.default.fileExists(atPath: Config.filePath) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.openSettings() }
         }
+
+        // 等中继起来后做一次自检：清理/修正上次遗留的半死状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.startupSelfCheck() }
+    }
+
+    /// 启动自检，只处理「我们自己写进去的」代理设置，其它代理（如 Clash）不碰。
+    private func startupSelfCheck() {
+        let st = controller.systemProxy()
+        guard st.on else { return }
+        let mine = ["\(cfg.relayHost):\(cfg.relayPort)", "\(cfg.host):\(cfg.port)"]
+        guard mine.contains(st.address) else { return }
+
+        // 没有凭据却挂着代理：必然 407 → 浏览器弹认证框，直接关掉
+        if !cfg.hasCredentials {
+            _ = controller.turnOff()
+            setNote("已关闭遗留的系统代理：还没填代理密码")
+            refresh()
+            return
+        }
+
+        // 指向公司上游（直连）而非本地中继：Chromium 不读系统凭据，会弹认证框 → 改为经中继
+        if st.address == "\(cfg.host):\(cfg.port)" {
+            guard ensureRelayReady() else { return }
+            if case .success = controller.turnOn() {
+                setNote("已把「直连上游」改为经本地中继（直连会弹代理认证框）")
+            }
+            refresh()
+        }
+    }
+
+    private func setNote(_ text: String) {
+        note = text
+        noteAt = Date()
+        NSLog("corp-proxy: %@", text)
     }
 
     private func bootstrapAutoStart() {
@@ -103,7 +140,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let (on, addr) = controller.systemProxy()
         let mode = controller.resolvedMode()
 
-        statusLine.title = on ? "● 已启用  \(addr)" : "○ 已关闭（直连）"
+        let directUpstream = on && addr == "\(cfg.host):\(cfg.port)"
+        if on {
+            statusLine.title = directUpstream
+                ? "● 已启用  \(addr)（直连上游，会弹认证框）"
+                : "● 已启用  \(addr)"
+        } else {
+            statusLine.title = cfg.hasCredentials ? "○ 已关闭（直连）" : "○ 已关闭 · 未填代理账号"
+        }
         toggleItem.title = on ? "重新应用代理" : "启用公司代理"
 
         let tunnel: String
@@ -112,7 +156,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .l2tp:  tunnel = "L2TP 路由"
         case .auto:  tunnel = "自动"
         }
-        infoLine.title = "\(controller.primaryIface()) · \(tunnel) · 中继 \(relay.isRunning ? "✓" : "✗") · 自启 \(LoginItem.isEnabled ? "✓" : "✗")"
+        var info = "\(controller.primaryIface()) · \(tunnel) · 中继 \(relay.isRunning ? "✓" : "✗") · 自启 \(LoginItem.isEnabled ? "✓" : "✗")"
+        if let n = note, let t = noteAt, Date().timeIntervalSince(t) < 180 {
+            info += " · ⓘ \(n)"
+        }
+        infoLine.title = info
 
         let symbol = on ? "building.2.fill" : "building.2"
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "公司代理")
@@ -130,15 +178,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.global(qos: .utility).async { [weak self] in self?.startRelay() }
         }
 
-        // 配置文件被外部（命令行）改动时自动重载
-        if let m = Self.mtime(), let last = lastCfgMtime, m > last.addingTimeInterval(0.5) {
+        // 配置文件被外部（命令行 / 手工）改动时自动重载。
+        // 注意 lastCfgMtime 可能是 nil（首次启动时还没有配置文件），
+        // 这种情况一旦文件出现就必须重载，否则 App 会一直用默认空配置跑。
+        if let m = Self.mtime(), m > (lastCfgMtime ?? .distantPast).addingTimeInterval(0.5) {
             lastCfgMtime = m
             let fresh = Config.load()
             if fresh.host != cfg.host || fresh.port != cfg.port || fresh.user != cfg.user
                 || fresh.pass != cfg.pass || fresh.relayPort != cfg.relayPort
-                || fresh.vpnMode != cfg.vpnMode || fresh.bypass != cfg.bypass {
+                || fresh.vpnMode != cfg.vpnMode || fresh.bypass != cfg.bypass || fresh.showInDock != cfg.showInDock {
+                let dockChanged = fresh.showInDock != cfg.showInDock
                 cfg = fresh
                 controller.cfg = fresh
+                if dockChanged { applyDockVisibility(activate: false) }
                 restartRelay()
             }
         }
@@ -173,6 +225,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 确保本地中继真的在监听（不只是 isRunning 标志），最多等 timeout 秒
+    @discardableResult
+    private func ensureRelayReady(timeout: TimeInterval = 3) -> Bool {
+        if Shell.tcpAlive(cfg.relayHost, UInt16(cfg.relayPort), timeout: 0.4) { return true }
+        startRelay()
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if Shell.tcpAlive(cfg.relayHost, UInt16(cfg.relayPort), timeout: 0.3) { return true }
+            usleep(150_000)
+        }
+        return false
+    }
+
     // MARK: 动作
 
     private func runAsync(_ work: @escaping () -> (String, Bool), done: @escaping (String, Bool) -> Void) {
@@ -189,9 +254,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleProxy() {
-        startRelay()
+        // 没填账号密码就挂代理，公司 3proxy 会回 407，浏览器会不停弹认证框 —— 先问一句
+        var allowEmpty = false
+        if !cfg.hasCredentials {
+            NSApp.activate(ignoringOtherApps: true)
+            let a = NSAlert()
+            a.messageText = "还没有填写代理账号/密码"
+            a.informativeText = """
+            公司 3proxy 需要认证。空凭据启用后，浏览器会反复弹出「输入代理用户名和密码」。
+
+            建议先到「设置…」里填写，再启用。
+            """
+            a.alertStyle = .warning
+            a.addButton(withTitle: "去设置…")
+            a.addButton(withTitle: "仍然启用")
+            a.addButton(withTitle: "取消")
+            switch a.runModal() {
+            case .alertFirstButtonReturn: openSettings(); return
+            case .alertSecondButtonReturn: allowEmpty = true
+            default: return
+            }
+        }
+
         runAsync({ [unowned self] in
-            switch self.controller.turnOn() {
+            guard self.ensureRelayReady() else {
+                return ("✗ 本地中继没起来（\(self.cfg.relayHost):\(self.cfg.relayPort)）\n\n本次没有改动系统代理。请稍后重试，或重启 App；若端口被占用，可在设置里换一个中继端口。", false)
+            }
+            switch self.controller.turnOn(allowEmptyCredentials: allowEmpty) {
             case .success(let s): return (s, true)
             case .failure(let f): return (f.message, false)
             }
@@ -318,12 +407,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func showAbout() {
         NSApp.activate(ignoringOtherApps: true)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let credits = NSAttributedString(
             string: "公司 3proxy 一键开关 · 本地免认证中继",
             attributes: [.font: NSFont.systemFont(ofSize: 11)])
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "公司代理",
-            .applicationVersion: "2.0.1",
+            .applicationVersion: version,
             .credits: credits,
         ])
     }
@@ -375,7 +465,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             refresh()
             return
         }
+
+        // 密码被清空却还在启用状态：直接关掉，否则公司代理回 407，浏览器会弹认证框
+        if !newCfg.hasCredentials {
+            _ = controller.turnOff()
+            refresh()
+            show("已自动关闭代理", "代理账号/密码为空，已关闭系统代理，避免浏览器反复弹出认证框。\n填好账号密码后再点「启用公司代理」即可。")
+            return
+        }
+
         runAsync({ [unowned self] in
+            guard self.ensureRelayReady() else {
+                return ("配置已保存，但本地中继没起来，未重新挂载系统代理。\n请检查中继端口 \(self.cfg.relayPort) 是否被占用。", false)
+            }
             switch self.controller.turnOn() {
             case .success(let s): return ("配置已保存并重新应用。\n\n" + s, true)
             case .failure(let f): return (f.message, false)

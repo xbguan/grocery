@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.0.1"
+VERSION="2.0.2"
 BUNDLE_ID="local.xbguan.corpproxy"
 
 rm -rf build/app build/dmg dist
@@ -46,9 +46,9 @@ cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.0.1</string>
+	<string>2.0.2</string>
 	<key>CFBundleVersion</key>
-	<string>2.0.1</string>
+	<string>2.0.2</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSMinimumSystemVersion</key>
@@ -94,6 +94,7 @@ cat > "$STAGE/安装说明.txt" <<'README'
 2) 菜单栏图标 →「设置…」，填写公司 3proxy 的地址、端口、用户名、密码，
    并选择 VPN 接入方式（自动检测 / HD-VPN 客户端 / 路由器 L2TP）。
 3) 点「测试连接」确认 chatgpt.com 返回 401，再点「保存并应用」。
+   账号和密码都填好之后再启用；空凭据会让浏览器反复弹代理认证框。
 
 日常使用
 --------

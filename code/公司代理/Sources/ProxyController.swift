@@ -154,29 +154,37 @@ final class ProxyController {
     }
 
     @discardableResult
-    func turnOn() -> Result<String, Failure> {
+    func turnOn(allowEmptyCredentials: Bool = false) -> Result<String, Failure> {
         let mode = resolvedMode()
+
+        // 1) 凭据检查：空凭据挂上去，公司 3proxy 会回 407，浏览器就会不停弹认证框
+        if !cfg.hasCredentials && !allowEmptyCredentials {
+            return .failure(Failure(message:
+                "还没有填写代理用户名/密码。\n\n空凭据连公司 3proxy 会被拒绝（407），浏览器会反复弹「输入代理用户名和密码」。\n请先在「设置…」里填写后再启用。"))
+        }
+
+        // 2) 必须经本地中继。直连公司上游时，系统代理里存的凭据 Chromium 不读，
+        //    页面必然弹认证框 —— 所以这里不再回退到直连。
+        guard relayRunning() else {
+            return .failure(Failure(message:
+                "本地中继 127.0.0.1:\(cfg.relayPort) 还没就绪。\n\n为避免浏览器弹代理认证框，本次没有改动系统代理。\n请等几秒重试；若一直如此，重启 App 或检查端口是否被占用。"))
+        }
 
         guard Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 3) else {
             return .failure(Failure(message: "连不上公司代理 \(cfg.host):\(cfg.port)\n\n\(hookHint(mode))"))
         }
 
-        let useRelay = relayRunning()
-        let proxyHost = useRelay ? cfg.relayHost : cfg.host
-        let proxyPort = useRelay ? cfg.relayPort : cfg.port
+        let useRelay = true
+        let proxyHost = cfg.relayHost
+        let proxyPort = cfg.relayPort
         let services = servicesToSet()
         var applied: [String] = []
 
         for s in services {
             let (rc, _) = Shell.networksetup(["-getwebproxy", s])
             guard rc == 0 else { continue }     // 服务不存在
-            if useRelay {
-                Shell.networksetup(["-setwebproxy", s, proxyHost, String(proxyPort)])
-                Shell.networksetup(["-setsecurewebproxy", s, proxyHost, String(proxyPort)])
-            } else {
-                Shell.networksetup(["-setwebproxy", s, proxyHost, String(proxyPort), "on", cfg.user, cfg.pass])
-                Shell.networksetup(["-setsecurewebproxy", s, proxyHost, String(proxyPort), "on", cfg.user, cfg.pass])
-            }
+            Shell.networksetup(["-setwebproxy", s, proxyHost, String(proxyPort)])
+            Shell.networksetup(["-setsecurewebproxy", s, proxyHost, String(proxyPort)])
             Shell.networksetup(["-setproxybypassdomains", s] + cfg.bypassList)
             applied.append(s)
         }

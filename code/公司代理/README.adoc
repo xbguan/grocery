@@ -24,7 +24,7 @@
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.1.dmg` |成品安装包
+|`dist/公司代理-2.0.2.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,7 +33,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.1.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.2.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。脚本用 `-target x86_64-apple-macos13.0` 编译（Intel 机器原生；Apple Silicon 上会走 Rosetta）。需要通用二进制时把 target 换成 `arm64-apple-macos13.0` 或分别编译后用 `lipo -create` 合并。
@@ -89,6 +89,26 @@ cd code/公司代理
 . 中继收到请求后与 `CORP_HOST:CORP_PORT` 建连，注入 `Proxy-Authorization: Basic ...` 再转发
 . 同时把 `HTTP_PROXY/HTTPS_PROXY/ALL_PROXY` 写入 `~/.codex/.env`（Codex CLI 只认环境变量，不读系统代理）
 . 「关闭」则清空各网络服务代理、把 `.env` 改回直连
+
+=== 两条硬规则（2.0.2 起）
+
+**永远经本地中继，不再回退到直连公司上游。** 直连时系统代理里存的账号密码 Chromium 不读，页面必然弹「输入代理用户名和密码」。中继没起来就报错，不改系统代理。
+
+**账号或密码为空时拒绝启用。** 公司 3proxy 空凭据回 407，浏览器同样会弹认证框。点「启用」会先弹提示，可「去设置…」，也可明确选「仍然启用」（适用于确实无需认证的代理）。
+
+=== 启动自检
+
+每次启动 1.5 秒后检查一次系统代理，只处理「指向本机中继或公司上游」的设置，其它代理（如 Clash）不碰：
+
+[cols="1,2",options="header"]
+|===
+|发现的状态 |处理
+|没填账号密码，却挂着代理 |直接关闭系统代理，菜单显示「已关闭遗留的系统代理」
+|指向公司上游（直连，会弹认证框） |自动改挂到 `127.0.0.1:<中继端口>`
+|指向中继且配置正常 |不动
+|===
+
+首次启动（还没有配置文件）时，如果系统里残留着上次的代理，也会被按上面规则清理，不会出现「装上就弹认证框」。
 
 === 为什么需要本地中继
 

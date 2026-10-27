@@ -139,11 +139,13 @@ final class RelayServer {
         var zero = timeval(tv_sec: 0, tv_usec: 0)
         setsockopt(upstream, SOL_SOCKET, SO_RCVTIMEO, &zero, socklen_t(MemoryLayout<timeval>.size))
 
+        // 只有账号密码都填了才注入；否则注入 "user:" 反而会被上游判成错误认证
+        let hasCreds = !conf.user.isEmpty && !conf.pass.isEmpty
         let auth = "Proxy-Authorization: Basic "
             + Data("\(conf.user):\(conf.pass)".utf8).base64EncodedString()
 
         // 重组请求头：注入认证，去掉已有认证/长连接头
-        var rebuilt: [String] = [first, auth]
+        var rebuilt: [String] = hasCreds ? [first, auth] : [first]
         if isConnect {
             rebuilt.append("Proxy-Connection: keep-alive")
         } else {
