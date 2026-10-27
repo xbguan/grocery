@@ -143,23 +143,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refresh() {
         let (on, addr) = controller.systemProxy()
         let mode = controller.resolvedMode()
-        let font = NSFont.menuFont(ofSize: 0)
-
-        // 状态用图标表达：绿点=已接通，空心圈=未启用，橙色三角=状态异常
+        // 顶部表头：图标走菜单项 image（与下方图标列对齐），文字分「状态 / 详情」两列
+        let headFont = NSFont.menuFont(ofSize: 0)
+        let subFont = NSFont.systemFont(ofSize: 11.5)
         let directUpstream = on && addr == "\(cfg.host):\(cfg.port)"
         if on && directUpstream {
-            statusLine.attributedTitle = UIStatus.line(
-                icon: "exclamationmark.triangle.fill", color: .systemOrange,
-                text: "已启用  \(addr)（直连上游，会弹认证框）", font: font)
+            statusLine.image = UIStatus.image("exclamationmark.triangle.fill", color: .systemOrange, size: 11)
+            statusLine.attributedTitle = UIStatus.statusHead(
+                state: "已启用", detail: "\(addr)（直连上游，会弹认证框）", font: headFont)
         } else if on {
-            statusLine.attributedTitle = UIStatus.line(
-                icon: "circle.fill", color: .systemGreen,
-                text: "已启用  \(addr)", font: font)
+            statusLine.image = UIStatus.image("circle.fill", color: .systemGreen, size: 9)
+            statusLine.attributedTitle = UIStatus.statusHead(
+                state: "已启用", detail: addr, font: headFont)
         } else {
-            statusLine.attributedTitle = UIStatus.line(
-                icon: "circle", color: .secondaryLabelColor,
-                text: cfg.hasCredentials ? "已关闭（直连）" : "已关闭 · 未填代理账号", font: font)
+            statusLine.image = UIStatus.image("circle", color: .secondaryLabelColor, size: 9)
+            statusLine.attributedTitle = UIStatus.statusHead(
+                state: "已关闭", detail: cfg.hasCredentials ? "直连" : "未填代理账号", font: headFont)
         }
+        infoLine.image = UIStatus.blankIcon
         toggleItem.title = on ? "重新应用代理" : "启用公司代理"
         toggleItem.image = UIStatus.menuImage(on ? "arrow.triangle.2.circlepath" : "bolt.fill")
 
@@ -170,22 +171,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .auto:  tunnel = "自动"
         }
 
-        let info = NSMutableAttributedString()
-        func seg(_ t: String) {
-            info.append(NSAttributedString(string: t, attributes: [.font: font]))
-        }
-        seg("\(controller.primaryIface()) · \(tunnel) · 中继")
-        info.append(UIStatus.inline(relay.isRunning ? "bolt.horizontal.fill" : "bolt.slash.fill",
-                                    color: relay.isRunning ? .systemGreen : .systemOrange,
-                                    font: font))
-        seg("  自启")
-        info.append(UIStatus.inline("power",
-                                    color: LoginItem.isEnabled ? .systemGreen : .secondaryLabelColor,
-                                    font: font))
+        var sub: [UIStatus.Piece] = [.text("\(controller.primaryIface()) · \(tunnel)")]
+        sub.append(.text("    "))
+        sub.append(.tinted(relay.isRunning ? "bolt.horizontal.fill" : "bolt.slash.fill",
+                           relay.isRunning ? .systemGreen : .systemOrange))
+        sub.append(.text(" 中继"))
+        sub.append(.text("    "))
+        sub.append(.tinted("power",
+                           LoginItem.isEnabled ? .systemGreen : .secondaryLabelColor))
+        sub.append(.text(" 自启"))
         if let n = note, let t = noteAt, Date().timeIntervalSince(t) < 180 {
-            seg(" · ⓘ \(n)")
+            sub.append(.text("    ⓘ \(n)"))
         }
-        infoLine.attributedTitle = info
+        infoLine.attributedTitle = UIStatus.subLine(sub, font: subFont, iconSize: 10)
 
         let symbol = on ? "building.2.fill" : "building.2"
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "公司代理")

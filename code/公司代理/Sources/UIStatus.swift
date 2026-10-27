@@ -4,14 +4,10 @@ import Cocoa
 /// 不再用 ✓ ✗ 这类字符（字符对齐差、也无法上色）。
 enum UIStatus {
 
-    /// 带颜色语义的状态图标
-    /// - Parameters:
-    ///   - on: 正常/连通
-    ///   - onSymbol: 连通时的符号名
-    ///   - offSymbol: 断开时的符号名
-    static func symbol(on: Bool, on onSymbol: String, off offSymbol: String) -> (String, NSColor) {
-        on ? (onSymbol, .systemGreen) : (offSymbol, .systemOrange)
-    }
+    /// 顶部状态区的图标列宽：图标占 0..column，文字一律从 column 起
+    static let statusColumn: CGFloat = 22
+    /// 顶部第一行的第二列（状态文字之后、详情之前）
+    static let statusDetailColumn: CGFloat = 80
 
     /// 彩色 SF Symbol（不随文字颜色变化，用于内联图标）
     static func image(_ name: String, color: NSColor, size: CGFloat) -> NSImage? {
@@ -23,9 +19,11 @@ enum UIStatus {
     }
 
     /// 内联到富文本里的图标（菜单项 attributedTitle、NSTextField 用）
-    static func inline(_ name: String, color: NSColor, font: NSFont) -> NSAttributedString {
-        let size = max(font.pointSize, 11)
-        guard let img = image(name, color: color, size: size) else {
+    /// - Parameter size: 不传时跟随字号；顶部表头这类地方可以单独给更小的值
+    static func inline(_ name: String, color: NSColor, font: NSFont,
+                       size: CGFloat? = nil) -> NSAttributedString {
+        let pt = size ?? max(font.pointSize, 11)
+        guard let img = image(name, color: color, size: pt) else {
             return NSAttributedString(string: "")
         }
         let att = NSTextAttachment()
@@ -46,10 +44,63 @@ enum UIStatus {
         return img
     }
 
-    /// 组装一段「图标 + 文字」的菜单标题
-    static func line(icon: String, color: NSColor, text: String, font: NSFont) -> NSAttributedString {
-        let s = NSMutableAttributedString(attributedString: inline(icon, color: color, font: font))
-        s.append(NSAttributedString(string: "  " + text, attributes: [.font: font]))
+    /// 带制表位的文字属性。行首放图标再跟一个 `\t`，文字就跳到第一列；
+    /// 下面那行以 `\t` 开头即可让两行文字左边缘严格对齐。
+    static func columnAttrs(font: NSFont, color: NSColor?,
+                            tabs: [CGFloat] = [statusColumn]) -> [NSAttributedString.Key: Any] {
+        let p = NSMutableParagraphStyle()
+        p.tabStops = tabs.map { NSTextTab(textAlignment: .left, location: $0, options: [:]) }
+        p.defaultTabInterval = tabs.last ?? statusColumn
+        var attrs: [NSAttributedString.Key: Any] = [.font: font, .paragraphStyle: p]
+        if let color { attrs[.foregroundColor] = color }
+        return attrs
+    }
+
+    /// 顶部第一行的文字：状态词 + 详情两列。
+    /// 图标不放在文字里，而是用菜单项自己的 `image`，
+    /// 这样它能和下方各菜单项的图标严格同列。
+    static func statusHead(state: String, detail: String,
+                           font: NSFont, detailColumn: CGFloat = 46) -> NSAttributedString {
+        let s = NSMutableAttributedString(string: state)
+        s.append(NSAttributedString(
+            string: "\t" + detail,
+            attributes: columnAttrs(font: font, color: .labelColor, tabs: [detailColumn])))
+        s.addAttributes(columnAttrs(font: font, color: .labelColor, tabs: [detailColumn]),
+                        range: NSRange(location: 0, length: s.length))
         return s
+    }
+
+    /// 透明占位图：让没有图标的行也占住图标列，文字才能与其它行对齐
+    static var blankIcon: NSImage {
+        let img = NSImage(size: NSSize(width: 12, height: 1))
+        img.lockFocus()
+        NSColor.clear.setFill()
+        NSRect(x: 0, y: 0, width: 12, height: 1).fill()
+        img.unlockFocus()
+        img.isTemplate = true
+        return img
+    }
+
+    /// 顶部第二行：文字已由菜单项图标列对齐，无需再缩进，可穿插小图标
+    static func subLine(_ pieces: [Piece], font: NSFont, iconSize: CGFloat) -> NSAttributedString {
+        let s = NSMutableAttributedString(string: "")
+        for p in pieces {
+            switch p {
+            case .text(let t):
+                s.append(NSAttributedString(string: t,
+                                            attributes: columnAttrs(font: font, color: .secondaryLabelColor)))
+            case .icon(let name):
+                s.append(inline(name, color: .secondaryLabelColor, font: font, size: iconSize))
+            case .tinted(let name, let color):
+                s.append(inline(name, color: color, font: font, size: iconSize))
+            }
+        }
+        return s
+    }
+
+    enum Piece {
+        case text(String)
+        case icon(String)                    // 次要灰
+        case tinted(String, NSColor)         // 带语义色
     }
 }
