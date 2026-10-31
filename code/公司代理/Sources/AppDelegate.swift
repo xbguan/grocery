@@ -300,6 +300,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 同上，但结果是一组「标签, 值」，供两列对齐的弹窗使用
+    private func runAsyncRows(_ work: @escaping () -> ([(String, String)], Bool),
+                              done: @escaping ([(String, String)], Bool) -> Void) {
+        guard !busy else { return }
+        busy = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (rows, ok) = work()
+            DispatchQueue.main.async {
+                self.busy = false
+                self.refresh()
+                done(rows, ok)
+            }
+        }
+    }
+
     @objc private func toggleProxy() {
         // 没填账号密码就挂代理，公司 3proxy 会回 407，浏览器会不停弹认证框 —— 先问一句
         var allowEmpty = false
@@ -346,9 +361,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quickTest() {
         let viaRelay = relay.isRunning
         let proxy = viaRelay ? cfg.relayURL : cfg.upstreamURLWithAuth
-        runAsync({ [unowned self] in
+        let addr = "\(cfg.host):\(cfg.port)"
+        let path = viaRelay ? "经本地中继 \(cfg.relayHost):\(cfg.relayPort)" : "直连公司代理"
+        runAsyncRows({ [unowned self] in
             guard Shell.tcpAlive(self.cfg.host, UInt16(self.cfg.port), timeout: 3) else {
-                return ("连不上 \(self.cfg.host):\(self.cfg.port)\n\n\(self.controller.resolvedMode() == .l2tp ? "请确认路由器 L2TP 已接通。" : "请确认 HD-VPN 已连接。")", false)
+                return ([("代理", addr), ("结果", "端口不可达")], false)
             }
             let t0 = Date()
             let (_, code) = Shell.run("/usr/bin/curl",
@@ -356,16 +373,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                  "-x", proxy, "https://chatgpt.com/backend-api/me"], timeout: 20)
             let ms = Int(Date().timeIntervalSince(t0) * 1000)
             let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
-            let head = "代理：\(self.cfg.host):\(self.cfg.port)（\(viaRelay ? "经本地中继" : "直连")）\n耗时：\(ms) ms\n\n"
-            if v == "401" { return (head + "出口正常：chatgpt.com → 401", true) }
-            if v.isEmpty || v == "000" { return (head + "访问 chatgpt.com 失败（超时 / 被重置）", false) }
-            return (head + "· chatgpt.com → HTTP \(v)", true)
-        }, done: { text, ok in self.show(ok ? "连接测试通过" : "连接测试未通过", text) })
+            var rows: [(String, String)] = [
+                ("代理", addr),
+                ("路径", path),
+                ("耗时", "\(ms) ms"),
+            ]
+            if v == "401" {
+                rows.append(("出口", "chatgpt.com → 401，正常"))
+                return (rows, true)
+            }
+            if v.isEmpty || v == "000" {
+                rows.append(("出口", "chatgpt.com 访问失败（超时或被重置）"))
+                return (rows, false)
+            }
+            rows.append(("出口", "chatgpt.com → HTTP \(v)"))
+            return (rows, true)
+        }, done: { rows, ok in
+            let hint = ok ? nil
+                : (self.controller.resolvedMode() == .l2tp
+                   ? "请确认路由器 L2TP 已接通、本机在公司内网路由上。"
+                   : "请确认 HD-VPN 已连接（ppp0 有地址）。")
+            self.showGrid(ok ? "连接测试通过" : "连接测试未通过", rows, footnote: hint)
+        })
     }
 
     @objc private func showStatus() {
-        let text = controller.statusText()
-        show("代理状态", text)
+        showGrid("代理状态", controller.statusRows())
     }
 
     @objc private func toggleAutoStart() {
@@ -607,6 +640,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         a.informativeText = body.isEmpty ? "（无输出）" : body
         a.alertStyle = .informational
         a.addButton(withTitle: "好")
+        a.runModal()
+    }
+
+    /// 两列对齐的状态 / 测试结果弹窗（标签右对齐、值左对齐，值换行后悬挂缩进）
+    private func showGrid(_ title: String, _ rows: [(String, String)], footnote: String? = nil) {
+        NSApp.activate(ignoringOtherApps: true)
+        var all = rows
+        if let fn = footnote, !fn.isEmpty {
+            all.append(("", ""))
+            all.append(("", fn))
+        }
+        let a = NSAlert()
+        a.messageText = title
+        a.alertStyle = .informational
+        a.addButton(withTitle: "好")
+        a.accessoryView = AlertGrid.view(all)
         a.runModal()
     }
 

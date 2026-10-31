@@ -326,33 +326,43 @@ final class ProxyController {
 
     // MARK: 状态文本
 
-    func statusText() -> String {
+    /// 状态明细：(标签, 值)。标签为空表示分组之间的空行。
+    /// 用结构化的行而不是拼好的字符串，弹窗才能按两列对齐渲染。
+    func statusRows() -> [(String, String)] {
         let mode = resolvedMode()
         let st = systemProxy()
-        var out: [String] = []
-        out.append("主接口：\(primaryIface())")
-        out.append("接入方式：\(mode.shortTitle)（配置为 \(cfg.vpnMode.shortTitle)）")
+        var rows: [(String, String)] = []
 
+        rows.append(("主接口", primaryIface()))
+        rows.append(("接入方式", "\(mode.shortTitle)（配置为 \(cfg.vpnMode.shortTitle)）"))
         switch mode {
-        case .hdvpn:
-            out.append("ppp0 隧道：\(ppp0Up() ? "在线" : "断开")")
+        case .hdvpn, .auto:
+            rows.append(("隧道", "ppp0 \(ppp0Up() ? "在线" : "断开")"))
         case .l2tp:
-            out.append("路由器 L2TP：\(Shell.tcpAlive(cfg.host, UInt16(cfg.port)) ? "内网可达" : "内网不可达")")
-        case .auto:
-            out.append("ppp0 隧道：\(ppp0Up() ? "在线" : "断开")")
+            let ok = Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
+            rows.append(("隧道", "路由器 L2TP（\(ok ? "内网可达" : "内网不可达")）"))
         }
 
-        out.append("")
-        out.append(st.on ? "系统代理：已开启 → \(st.address)" : "系统代理：已关闭")
-        out.append(relayRunning() ? "本地中继：\(cfg.relayHost):\(cfg.relayPort) 运行中" : "本地中继：未运行")
+        rows.append(("", ""))
+        rows.append(("系统代理", st.on ? "已开启 → \(st.address)" : "已关闭"))
+        rows.append(("本地中继", relayRunning() ? "\(cfg.relayHost):\(cfg.relayPort) 运行中" : "未运行"))
         let envOn = (try? String(contentsOfFile: NSString(string: "~/.codex/.env").expandingTildeInPath, encoding: .utf8))?
             .contains("HTTPS_PROXY=http://") ?? false
-        out.append("Codex .env：\(envOn ? "指向代理" : "直连")")
-        out.append("")
-        out.append("公司代理：\(cfg.host):\(cfg.port)" + (Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2) ? "（可连接）" : "（不通）"))
-        out.append("用户：\(cfg.user)")
-        out.append("中继端口：\(cfg.relayPort)")
-        out.append("服务：\(servicesToSet().joined(separator: "、"))")
-        return out.joined(separator: "\n")
+        rows.append(("Codex", envOn ? "指向代理（~/.codex/.env）" : "直连"))
+
+        rows.append(("", ""))
+        let reachable = Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
+        rows.append(("公司代理", "\(cfg.host):\(cfg.port)（\(reachable ? "可连接" : "不通")）"))
+        rows.append(("用户", cfg.user))
+        rows.append(("中继端口", "\(cfg.relayPort)"))
+        let svcs = servicesToSet()
+        rows.append(("服务", "共 \(svcs.count) 个：" + svcs.joined(separator: "、")))
+        return rows
+    }
+
+    func statusText() -> String {
+        statusRows()
+            .map { $0.0.isEmpty ? "" : "\($0.0)：\($0.1)" }
+            .joined(separator: "\n")
     }
 }

@@ -17,6 +17,8 @@
 |`Sources/ProxyController.swift` |调 `networksetup` / `scutil` 挂载系统代理、改写 `~/.codex/.env`
 |`Sources/RelayServer.swift` |本地免认证中继，监听 `127.0.0.1:7899`，自动注入 `Proxy-Authorization`
 |`Sources/SettingsWindow.swift` |设置窗口（代理地址/端口/账号/密码、VPN 方式、中继端口、直连白名单）
+|`Sources/UIStatus.swift` |菜单与标签里的 SF Symbol 图标（统一画布、内联富文本）
+|`Sources/AlertGrid.swift` |弹窗正文的两列表格（标签右对齐、值左对齐、悬挂缩进）
 |`Sources/LoginItem.swift` |开机自启（`SMAppService`）
 |`Sources/Uninstaller.swift` |卸载清理
 |`Sources/AppDelegate.swift` |菜单栏菜单、状态刷新、开关流程
@@ -24,7 +26,7 @@
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.6.dmg` |成品安装包
+|`dist/公司代理-2.0.7.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,7 +35,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.6.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.7.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
@@ -163,6 +165,30 @@ Clash 等其它代理原样保留。这里刻意不看 `scutil` 的全局代理�
 |===
 
 尺寸集中在 `SettingsWindow.swift` 顶部的 `Metric` 枚举里，想整体再放大只改这一处。
+
+=== 界面：列网格与弹窗（2.0.7 起）
+
+2.0.6 的控件变大了，但表单还是按固定宽度摆的：`代理地址` 只有 210 pt、
+`端口` 85 pt，行尾到卡片右边留出近三分之一空白，两行右边缘也不齐。2.0.7 改成按卡片宽度分配：
+
+[cols="1,1,1",options="header"]
+|===
+|项目 |2.0.6 |2.0.7
+|窗口宽度 |720 |800
+|主控（地址/用户名/白名单） |固定 210 / 540 |伸缩，吃满剩余宽度
+|行尾窄控件（端口/密码） |85 / 210 + 「显示」勾选框 |统一 130，两行右边缘齐平
+|密码可见 |卡片内「显示」勾选框 |输入框行尾的眼睛按钮
+|VPN 说明 |下拉框独占一行，右侧空 |与下拉框同行，占满行尾
+|弹窗正文 |`NSAlert.informativeText`（多行居中） |两列 `AlertGrid`（标签右对齐、值左对齐、换行悬挂缩进）
+|===
+
+要点：`SecretField` 把「输入框 + 眼睛」的总宽固定成 `Metric.trailingW`，
+所以「端口」这一组和「密码」这一组占同样宽度，两行标签列与值列都严格同列。
+
+「代理状态」「连接测试」两个弹窗原来用 `informativeText` 拼字符串，系统会把多行居中，
+长内容（如网络服务清单）换行后完全没对齐。现在改用 `accessoryView` +
+`AlertGrid`（带右制表位与悬挂缩进的富文本），`ProxyController.statusRows()`
+返回结构化的「标签, 值」，标签列右对齐、值列左对齐、值换行后继续对齐值列。
 
 NOTE: 本机系统是 macOS 14，macOS 26/27 的 Liquid Glass 相关 API（`glassEffect`、
 `cornerConfiguration` 等）用不了，所以这里移植的是「更大、更宽松、分组」的观感，
