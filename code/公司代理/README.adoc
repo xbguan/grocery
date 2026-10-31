@@ -26,9 +26,10 @@
 |`Sources/AppDelegate.swift` |菜单内容组装、状态刷新、开关流程
 |`Sources/main.swift` |入口（启动时按配置决定 `regular`（有 Dock 图标）/ `accessory`（仅菜单栏））
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
-|`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
+|`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG（缺架构或版本不符即失败）
+|`AGENTS.md` |项目规约：交付必须出新 DMG、必须 universal2、装机自检清单
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.2.0.dmg` |成品安装包
+|`dist/公司代理-2.2.1.dmg` |成品安装包
 |===
 
 == 构建
@@ -37,7 +38,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.2.0.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.2.1.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
@@ -48,10 +49,34 @@ cd code/公司代理
 * `x86_64` —— Intel Mac 原生运行
 
 脚本对两个架构分别执行 `swiftc -target <arch>-apple-macos13.0`，再用 `lipo -create` 合并，
-因此在 Intel 或 Apple Silicon 任一机器上构建，都能产出两边通用的包。若某个架构编译失败
-（例如精简过的 SDK 缺少对应 slice），脚本会打印警告并降级为单架构，不会中断。
+因此在 Intel 或 Apple Silicon 任一机器上构建，都能产出两边通用的包。
+
+*构建是严格模式*：任一架构编译失败、或 `lipo` 产物缺少某个 slice，脚本立即报错退出，
+不会悄悄降级成单架构。仅本机临时调试时可用 `ALLOW_SINGLE_ARCH=1 ./build.sh` 放行，
+该产物不得对外交付。
 
 签名方式为 ad-hoc（`codesign --sign -`），换机器分发时对方首次打开需右键 →「打开」越过 Gatekeeper。
+
+== 发布规约
+
+一轮任务收尾必须产出**新的 DMG**，不允许只给 `.app` 或沿用旧包。标准动作：
+
+[source,bash]
+----
+# 1. 升 build.sh 里的 VERSION
+# 2. 编译
+./build.sh
+# 3. 装机自检（版本 / 架构 / 中继 / 出口）
+plutil -p "/Applications/公司代理.app/Contents/Info.plist" | grep -i shortversion
+lipo -archs "/Applications/公司代理.app/Contents/MacOS/CorpProxyBar"
+nc -z 127.0.0.1 7899
+curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 -x http://127.0.0.1:7899 https://www.google.com/generate_204
+----
+
+`build.sh` 在最后一步自带交付自检：DMG 必须存在、`Info.plist` 版本必须等于 `VERSION`、
+产物必须同时含 `arm64` 与 `x86_64`，任一不满足即失败。
+
+完整约定（含双架构要求、文件与脚本约定、排查提醒）见根目录 `AGENTS.md`。
 
 == 安装
 

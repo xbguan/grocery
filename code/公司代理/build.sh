@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.2.0"
+VERSION="2.2.1"
 BUNDLE_ID="local.xbguan.corpproxy"
 
 # 构建机自身架构（用于只在构建期运行的辅助工具）
@@ -13,7 +13,10 @@ HOST_ARCH="$(uname -m)"
 case "$HOST_ARCH" in arm64|x86_64) ;; *) HOST_ARCH="x86_64" ;; esac
 
 # 目标架构：同时产出 Intel 与 Apple Silicon，合成通用二进制
+# 项目规约：交付的 .app/.dmg 必须是 universal2，缺任一架构即构建失败。
+# 只有显式声明 ALLOW_SINGLE_ARCH=1 才允许降级为单架构（仅限本地调试）。
 TARGET_ARCHS="arm64 x86_64"
+ALLOW_SINGLE_ARCH="${ALLOW_SINGLE_ARCH:-0}"
 
 rm -rf build/app build/dmg build/slices dist
 mkdir -p "build/app/${APP_NAME}.app/Contents/MacOS" "build/app/${APP_NAME}.app/Contents/Resources" dist build/slices
@@ -30,19 +33,38 @@ cp build/AppIcon.icns "build/app/${APP_NAME}.app/Contents/Resources/AppIcon.icns
 # 2. 可执行文件 —— 逐架构编译后 lipo 合并（Intel + M 芯片通用）
 BIN_OUT="build/app/${APP_NAME}.app/Contents/MacOS/${BIN_NAME}"
 SLICES=""   # 用字符串而非数组：macOS 自带 bash 3.2 下空数组配 set -u 会报错
+BUILT=""
+MISSING=""
 for ARCH in $TARGET_ARCHS; do
   OUT="build/slices/${BIN_NAME}-${ARCH}"
   if swiftc -O -target "${ARCH}-apple-macos13.0" \
       -framework Cocoa -framework SystemConfiguration -framework ServiceManagement \
       -o "$OUT" Sources/*.swift 2>"build/slices/${ARCH}.log"; then
     SLICES="$SLICES $OUT"
+    BUILT="$BUILT $ARCH"
   else
-    echo "⚠️  ${ARCH} 编译失败（可能是本机 SDK 缺少该架构），已跳过："
+    MISSING="$MISSING $ARCH"
+    echo "⚠️  ${ARCH} 编译失败："
     grep -m3 "error:" "build/slices/${ARCH}.log" || tail -3 "build/slices/${ARCH}.log"
   fi
 done
 [ -n "$SLICES" ] || { echo "❌ 没有任何架构编译成功"; exit 1; }
 lipo -create $SLICES -output "$BIN_OUT"
+
+# 规约检查：必须是 universal2（Intel + Apple Silicon 都能原生跑）
+if [ -n "$MISSING" ]; then
+  if [ "$ALLOW_SINGLE_ARCH" = "1" ]; then
+    echo "⚠️  构建为单架构（已显式允许）：$(lipo -archs "$BIN_OUT")，缺 ${MISSING# }"
+  else
+    echo "❌ 缺少架构：${MISSING# }"
+    echo "   交付物必须是 universal2（arm64 + x86_64）。"
+    echo "   若只是本机临时调试，请显式执行：ALLOW_SINGLE_ARCH=1 ./build.sh"
+    exit 1
+  fi
+fi
+for ARCH in $TARGET_ARCHS; do
+  lipo -archs "$BIN_OUT" | grep -qw "$ARCH" || { echo "❌ 产物缺少 ${ARCH} slice"; exit 1; }
+done
 echo "架构: $(lipo -archs "$BIN_OUT")"
 
 # 3. Info.plist
@@ -146,6 +168,15 @@ hdiutil create -quiet -volname "${APP_NAME}" -srcfolder "$STAGE" -fs HFS+ -forma
   -ov "dist/${APP_NAME}-${VERSION}.dmg"
 hdiutil verify "dist/${APP_NAME}-${VERSION}.dmg" >/dev/null
 
+# 6. 交付自检（规约：DMG 存在 + 版本一致 + 双架构）
+DMG="dist/${APP_NAME}-${VERSION}.dmg"
+[ -f "$DMG" ] || { echo "❌ 未生成 ${DMG}"; exit 1; }
+PLIST_VER="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+  "build/app/${APP_NAME}.app/Contents/Info.plist" 2>/dev/null || echo '')"
+[ "$PLIST_VER" = "$VERSION" ] || { echo "❌ 版本不一致：plist=${PLIST_VER} VERSION=${VERSION}"; exit 1; }
+DMG_ARCHS="$(lipo -archs "$BIN_OUT")"
+echo "版本: ${PLIST_VER}    架构: ${DMG_ARCHS}    $(du -h "$DMG" | cut -f1)"
+
 echo
-echo "✅ 完成: dist/${APP_NAME}-${VERSION}.dmg"
-ls -lh "dist/${APP_NAME}-${VERSION}.dmg"
+echo "✅ 完成: ${DMG}"
+ls -lh "$DMG"
