@@ -29,7 +29,7 @@
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG（缺架构或版本不符即失败）
 |`AGENTS.md` |项目规约：交付必须出新 DMG、必须 universal2、装机自检清单
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.3.0.dmg` |成品安装包
+|`dist/公司代理-2.3.1.dmg` |成品安装包
 |===
 
 == 构建
@@ -38,7 +38,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.3.0.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.3.1.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。

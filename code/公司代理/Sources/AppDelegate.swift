@@ -351,21 +351,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 没填账号密码就挂代理，公司 3proxy 会回 407，浏览器会不停弹认证框 —— 先问一句
         var allowEmpty = false
         if !cfg.hasCredentials {
-            NSApp.activate(ignoringOtherApps: true)
-            let a = NSAlert()
-            a.messageText = "还没有填写代理账号/密码"
-            a.informativeText = """
-            公司 3proxy 需要认证。空凭据启用后，浏览器会反复弹出「输入代理用户名和密码」。
-
-            建议先到「设置…」里填写，再启用。
-            """
-            a.alertStyle = .warning
-            a.addButton(withTitle: "去设置…")
-            a.addButton(withTitle: "仍然启用")
-            a.addButton(withTitle: "取消")
-            switch a.runModal() {
-            case .alertFirstButtonReturn: openSettings(); return
-            case .alertSecondButtonReturn: allowEmpty = true
+            let choice = InfoCard.ask(InfoCardModel(
+                tone: .warn,
+                glyph: "person.badge.key",
+                title: "还没填代理账号/密码",
+                subtitle: "公司 3proxy 需要认证，空凭据启用后浏览器会反复弹出登录框",
+                facts: [
+                    InfoFact("gearshape", "建议先去「设置…」填好账号密码，再回来启用"),
+                    InfoFact("exclamationmark.triangle", "若仍然启用，浏览器与命令行都会收到 407",
+                             tint: .systemOrange),
+                ],
+                actions: [
+                    InfoCardAction(title: "取消", style: .plain),
+                    InfoCardAction(title: "仍然启用", style: .secondary),
+                    InfoCardAction(title: "去设置…", style: .primary),
+                ]))
+            switch choice {
+            case 2: openSettings(); return
+            case 1: allowEmpty = true
             default: return
             }
         }
@@ -378,7 +381,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .success(let s): return (s, true)
             case .failure(let f): return (f.message, false)
             }
-        }, done: { text, ok in self.show(ok ? "已启用公司代理" : "启用失败", text) })
+        }, done: { text, ok in
+            self.presentResult(ok ? "已启用公司代理" : "启用失败", text, ok: ok, glyph: "checkmark")
+        })
     }
 
     @objc private func turnOff() {
@@ -387,7 +392,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .success(let s): return (s, true)
             case .failure(let f): return (f.message, false)
             }
-        }, done: { text, ok in self.show(ok ? "已关闭代理" : "操作失败", text) })
+        }, done: { text, ok in
+            self.presentResult(ok ? "已关闭代理（直连）" : "关闭失败", text, ok: ok,
+                               glyph: "bolt.slash.fill",
+                               tone: ok ? .neutral : nil,
+                               subtitle: ok ? "系统代理已摘除，浏览器与命令行回到直连" : nil)
+        })
     }
 
     @objc private func quickTest() {
@@ -669,7 +679,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .success(let s): return ("配置已保存并重新应用。\n\n" + s, true)
             case .failure(let f): return (f.message, false)
             }
-        }, done: { text, ok in self.show(ok ? "设置已生效" : "已保存，但应用失败", text) })
+        }, done: { text, ok in
+            self.presentResult(ok ? "设置已生效" : "已保存，但应用失败", text, ok: ok, glyph: "checkmark")
+        })
     }
 
     // MARK: 卸载
@@ -730,14 +742,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: 弹窗
 
+    /// 播报式卡片：不拦流程，点外部 / Esc / 回车都收起
     private func show(_ title: String, _ body: String) {
-        NSApp.activate(ignoringOtherApps: true)
-        let a = NSAlert()
-        a.messageText = title
-        a.informativeText = body.isEmpty ? "（无输出）" : body
-        a.alertStyle = .informational
-        a.addButton(withTitle: "好")
-        a.runModal()
+        let rows = body.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let bad = title.contains("失败") || title.contains("无法") || title.contains("没")
+        let facts = rows.map { InfoFact("info.circle", $0) }
+        InfoCard.present(InfoCardModel(
+            tone: bad ? .warn : .neutral,
+            glyph: bad ? "exclamationmark" : "info.circle.fill",
+            title: title,
+            facts: facts))
+    }
+
+    /// 操作结果卡片：把「标签：值」的输出逐行摊成陈述句，读起来不像表单
+    private func presentResult(_ title: String, _ body: String, ok: Bool,
+                               glyph: String? = nil,
+                               tone: InfoTone? = nil,
+                               subtitle: String? = nil) {
+        var facts: [InfoFact] = []
+        for raw in body.split(separator: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { continue }
+            facts.append(Self.fact(for: line))
+        }
+        InfoCard.present(InfoCardModel(
+            tone: tone ?? (ok ? .ok : .warn),
+            glyph: ok ? glyph : "xmark",
+            title: title,
+            subtitle: ok ? subtitle : "本次操作没有完全成功，下面是具体原因",
+            facts: facts))
+    }
+
+    /// 一行「⚠︎ 出口验证：…」或「接入方式：…」→ 一条整句陈述（不分列，不做表单）
+    private static func fact(for line: String) -> InfoFact {
+        if line.hasPrefix("⚠") {
+            var body = line
+            body.removeFirst()                                   // 去掉告警符
+            body = body.trimmingCharacters(in: .whitespaces)
+            return InfoFact("exclamationmark.triangle.fill", body, tint: .systemOrange)
+        }
+        return InfoFact(icon(for: line), line, tint: tint(for: line))
+    }
+
+    private static func icon(for line: String) -> String {
+        if line.contains("接入")     { return "antenna.radiowaves.left.and.right" }
+        if line.contains("代理地址") { return "server.rack" }
+        if line.contains("网络服务") { return "network" }
+        if line.contains("Codex")    { return "terminal" }
+        if line.contains("生效")     { return "checkmark.shield" }
+        if line.contains("出口")     { return "paperplane" }
+        return "info.circle"
+    }
+
+    private static func tint(for value: String) -> NSColor {
+        if value.contains("异常") || value.contains("000") { return .systemOrange }
+        if value.contains("正常") || value.contains("401") { return .systemGreen }
+        return .secondaryLabelColor
     }
 
     // MARK: 退出

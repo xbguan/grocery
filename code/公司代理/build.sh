@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.3.0"
+VERSION="2.3.1"
 BUNDLE_ID="local.xbguan.corpproxy"
 
 # 构建机自身架构（用于只在构建期运行的辅助工具）

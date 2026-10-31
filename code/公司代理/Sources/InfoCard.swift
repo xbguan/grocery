@@ -28,6 +28,26 @@ struct InfoFact {
     }
 }
 
+/// 卡片底部的一颗按钮。
+/// 顺序即从左到右的显示顺序，最右那颗通常给推荐动作（macOS 默认按钮习惯）。
+struct InfoCardAction {
+    enum Style {
+        case primary      // 实心强调色
+        case secondary    // 淡强调色
+        case plain        // 纯文字
+    }
+
+    var title: String
+    var style: Style
+    var handler: (() -> Void)?
+
+    init(title: String, style: Style = .primary, handler: (() -> Void)? = nil) {
+        self.title = title
+        self.style = style
+        self.handler = handler
+    }
+}
+
 /// 卡片顶部的语义基调：决定大图标、配色
 enum InfoTone {
     case ok, warn, neutral
@@ -51,24 +71,32 @@ enum InfoTone {
 
 struct InfoCardModel {
     var tone: InfoTone
+    /// 覆盖基调自带的图标（比如「关闭代理」想用 bolt.slash 而不是 pause）
+    var glyph: String?
     var title: String
     var subtitle: String?
     var chips: [InfoChip]
     var facts: [InfoFact]
     var footnote: String?
+    /// 底部按钮；留空时由 showButton 决定是否补一颗「好」
+    var actions: [InfoCardAction]
 
     init(tone: InfoTone,
+         glyph: String? = nil,
          title: String,
          subtitle: String? = nil,
          chips: [InfoChip] = [],
          facts: [InfoFact] = [],
-         footnote: String? = nil) {
+         footnote: String? = nil,
+         actions: [InfoCardAction] = []) {
         self.tone = tone
+        self.glyph = glyph
         self.title = title
         self.subtitle = subtitle
         self.chips = chips
         self.facts = facts
         self.footnote = footnote
+        self.actions = actions
     }
 }
 
@@ -121,6 +149,7 @@ private enum C {
     static let btnH: CGFloat = 31
     static let btnW: CGFloat = 84
     static let btnGap: CGFloat = 18
+    static let btnGapH: CGFloat = 10
 }
 
 // MARK: - 翻转容器
@@ -199,13 +228,14 @@ enum InfoCardBody {
         }
 
         // 5. 高度：上内边距 + 各块 + 块间距 + 按钮区 + 下内边距
+        let buttons = effectiveActions(m, showButton: showButton, onClose: onClose)
         var contentH: CGFloat = 0
         for (i, b) in blocks.enumerated() {
             contentH += b.1
             if i < blocks.count - 1 { contentH += C.blockGap }
         }
         var total = C.padV + ceil(contentH) + C.padV
-        if showButton { total += C.btnGap + C.btnH }
+        if !buttons.isEmpty { total += C.btnGap + C.btnH }
 
         let root = Flipped(frame: NSRect(x: 0, y: 0, width: width, height: total))
         var y: CGFloat = C.padV
@@ -215,15 +245,39 @@ enum InfoCardBody {
             y += b.1 + C.blockGap
         }
 
-        if showButton {
-            let btn = CardButton(title: "好", onTap: onClose)
-            btn.frame = NSRect(x: width - C.padH - C.btnW,
-                               y: total - C.padV - C.btnH,
-                               width: C.btnW, height: C.btnH)
-            root.addSubview(btn)
+        // 6. 按钮：靠右一字排开，最右那颗是推荐动作
+        if !buttons.isEmpty {
+            var x = width - C.padH
+            let lastIndex = buttons.count - 1
+            // Esc 落在纯文字那颗（通常是「取消」），回车落在最右那颗（推荐动作）
+            let escIndex = buttons.firstIndex { $0.style == .plain }
+            for (i, a) in buttons.enumerated().reversed() {
+                let w = CardButton.width(for: a.title)
+                let btn = CardButton(action: a)
+                btn.frame = NSRect(x: x - w, y: total - C.padV - C.btnH,
+                                   width: w, height: C.btnH)
+                if i == lastIndex && i != escIndex {
+                    btn.keyEquivalent = "\r"
+                    btn.keyEquivalentModifierMask = []
+                }
+                if i == escIndex {
+                    btn.keyEquivalent = "\u{1b}"
+                    btn.keyEquivalentModifierMask = []
+                }
+                root.addSubview(btn)
+                x -= w + C.btnGapH
+            }
         }
 
         return (root, NSSize(width: width, height: total))
+    }
+
+    /// 显式给了 actions 就用它；否则按 showButton 补一颗「好」
+    private static func effectiveActions(_ m: InfoCardModel, showButton: Bool,
+                                         onClose: (() -> Void)?) -> [InfoCardAction] {
+        if !m.actions.isEmpty { return m.actions }
+        guard showButton else { return [] }
+        return [InfoCardAction(title: "好", style: .primary, handler: onClose)]
     }
 
     // MARK: 顶部
@@ -238,7 +292,7 @@ enum InfoCardBody {
         badge.layer?.backgroundColor = tone.tint.withAlphaComponent(0.14).cgColor
 
         let icon = NSImageView(frame: NSRect(origin: .zero, size: NSSize(width: 22, height: 22)))
-        icon.image = UIStatus.image(tone.glyph, color: tone.tint, size: 19)
+        icon.image = UIStatus.image(m.glyph ?? tone.glyph, color: tone.tint, size: 19)
         icon.imageScaling = .scaleNone
         icon.imageAlignment = .alignCenter
         icon.frame.origin = NSPoint(x: (C.badge - 22) / 2, y: (C.badge - 22) / 2)
@@ -343,14 +397,20 @@ enum InfoCardBody {
         let textFont = NSFont.systemFont(ofSize: 13, weight: .medium)
         let detailFont = NSFont.systemFont(ofSize: 12.5)
 
+        // 前缀宽度即悬挂缩进：换行后的文字正好挂在正文左边缘，不会跑到图标下面
+        let prefix = UIStatus.inline(f.icon, color: f.tint, font: font, size: 12)
+        let gap = NSAttributedString(string: "  ", attributes: [.font: font])
+        let headIndent = ceil(prefix.size().width + gap.size().width)
+
         let p = NSMutableParagraphStyle()
         p.lineSpacing = 2.5
-        p.headIndent = 19          // 换行后挂在图标右侧，读起来不会断列
+        p.headIndent = headIndent
         p.firstLineHeadIndent = 0
 
         let s = NSMutableAttributedString()
-        s.append(UIStatus.inline(f.icon, color: f.tint, font: font, size: 12))
-        s.append(NSAttributedString(string: "  " + f.text,
+        s.append(prefix)
+        s.append(gap)
+        s.append(NSAttributedString(string: f.text,
                                     attributes: [.font: textFont, .foregroundColor: NSColor.labelColor]))
         if let d = f.detail, !d.isEmpty {
             s.append(NSAttributedString(string: "　" + d,
@@ -437,42 +497,66 @@ private final class ChipView: NSView {
 
 private final class CardButton: NSButton {
 
-    private let label: String
-    private let onTap: (() -> Void)?
+    private let spec: InfoCardAction
+    private var label: String { spec.title }
 
-    init(title: String, onTap: (() -> Void)?) {
-        self.label = title
-        self.onTap = onTap
+    init(action: InfoCardAction) {
+        self.spec = action
         super.init(frame: .zero)
         isBordered = false
         bezelStyle = .regularSquare
         focusRingType = .none
         target = self
-        action = #selector(tap)
+        self.action = #selector(tap)
         setButtonType(.momentaryChange)
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
+    /// 按文字宽度给按钮定宽，三颗按钮才不会挤在一起或留白过多
+    static func width(for title: String) -> CGFloat {
+        let w = (title as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: 13, weight: .semibold)]).width
+        return max(58, ceil(w) + 28)
+    }
+
     override var isHighlighted: Bool {
         didSet { needsDisplay = true }
     }
 
-    @objc private func tap() { onTap?() }
+    @objc private func tap() { spec.handler?() }
 
     override func draw(_ dirtyRect: NSRect) {
         let r = bounds
         let path = NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
-        var fill = NSColor.controlAccentColor
-        if isHighlighted {
-            fill = fill.blended(withFraction: 0.16, of: .black) ?? fill
+
+        var textColor: NSColor = .white
+        effectiveAppearance.performAsCurrentDrawingAppearance { [self] in
+            switch spec.style {
+            case .primary:
+                var fill = NSColor.controlAccentColor
+                if isHighlighted { fill = fill.blended(withFraction: 0.16, of: .black) ?? fill }
+                fill.setFill()
+                path.fill()
+                textColor = .white
+            case .secondary:
+                var fill = NSColor.controlAccentColor.withAlphaComponent(isHighlighted ? 0.24 : 0.14)
+                if isHighlighted { fill = fill.blended(withFraction: 0.1, of: .black) ?? fill }
+                fill.setFill()
+                path.fill()
+                textColor = NSColor.controlAccentColor
+            case .plain:
+                if isHighlighted {
+                    NSColor.labelColor.withAlphaComponent(0.08).setFill()
+                    path.fill()
+                }
+                textColor = NSColor.secondaryLabelColor
+            }
         }
-        fill.setFill()
-        path.fill()
 
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: textColor,
         ]
         let size = label.size(withAttributes: attrs)
         label.draw(at: NSPoint(x: (r.width - size.width) / 2,
@@ -494,7 +578,12 @@ final class InfoCard: NSObject {
     private var panel: CardPanel?
     private var localMon: Any?
     private var globalMon: Any?
+    private var modalIndex: Int = -1
+    private var isModal = false
 
+    // MARK: 两种用法
+
+    /// 播报式：不拦流程，点外部 / Esc / 回车都收起
     static func present(_ model: InfoCardModel) {
         // 同一时刻只留一张，避免连点叠窗
         current?.dismiss()
@@ -503,34 +592,37 @@ final class InfoCard: NSObject {
         card.show(model)
     }
 
+    /// 询问式：阻塞到用户点某颗按钮，返回下标；Esc / 关闭返回 -1
+    static func ask(_ model: InfoCardModel) -> Int {
+        current?.dismiss()
+        let card = InfoCard()
+        current = card
+        return card.runModal(model)
+    }
+
+    // MARK: 播报
+
     private func show(_ model: InfoCardModel) {
         NSApp.activate(ignoringOtherApps: true)
 
-        let width = InfoCardBody.preferredWidth
-        let size = InfoCardBody.size(model, width: width, showButton: true)
-        let content = InfoCardBody.view(model, width: width, showButton: true) { [weak self] in
-            self?.dismiss()
+        var m = model
+        if m.actions.isEmpty {
+            m.actions = [InfoCardAction(title: "好", style: .primary) { [weak self] in
+                self?.dismiss()
+            }]
+        } else {
+            // 点完先收起，再跑业务回调
+            m.actions = m.actions.map { a in
+                InfoCardAction(title: a.title, style: a.style) { [weak self] in
+                    self?.dismiss()
+                    a.handler?()
+                }
+            }
         }
 
-        let surface = CardSurface(frame: NSRect(origin: .zero, size: size))
-        surface.addSubview(content)
-        content.frame = surface.bounds
-
-        let p = CardPanel(contentRect: NSRect(origin: .zero, size: size),
-                          styleMask: [.borderless], backing: .buffered, defer: false)
-        p.isOpaque = false
-        p.backgroundColor = .clear
-        p.hasShadow = true
-        p.level = .floating
-        p.isMovableByWindowBackground = true
-        p.contentView = surface
-        p.onKey = { [weak self] _ in self?.dismiss() }
-
-        if let screen = NSScreen.main {
-            let vf = screen.visibleFrame
-            p.setFrameOrigin(NSPoint(x: vf.midX - size.width / 2,
-                                     y: vf.midY - size.height / 2 + 40))
-        }
+        let p = makePanel(m)
+        p.onEsc = { [weak self] in self?.dismiss() }
+        p.onReturn = { [weak self] in self?.dismiss() }
 
         p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
@@ -553,6 +645,80 @@ final class InfoCard: NSObject {
                 self?.dismiss()
             }
         }
+    }
+
+    // MARK: 询问
+
+    private func runModal(_ model: InfoCardModel) -> Int {
+        NSApp.activate(ignoringOtherApps: true)
+        modalIndex = -1
+        isModal = true
+
+        var m = model
+        m.actions = model.actions.enumerated().map { idx, a in
+            InfoCardAction(title: a.title, style: a.style) { [weak self] in
+                guard let self else { return }
+                self.modalIndex = idx
+                self.endModal()
+            }
+        }
+
+        let p = makePanel(m)
+        p.onEsc = { [weak self] in
+            guard let self else { return }
+            self.modalIndex = -1
+            self.endModal()
+        }
+        // 回车落到最右那颗（推荐动作），删号键之类的不会误触
+        p.onReturn = { [weak self] in
+            guard let self, let last = m.actions.indices.last else { return }
+            self.modalIndex = last
+            self.endModal()
+        }
+
+        panel = p
+        p.makeKeyAndOrderFront(nil)
+        p.invalidateShadow()
+        NSApp.runModal(for: p)
+        return modalIndex
+    }
+
+    private func endModal() {
+        guard isModal, let p = panel else { return }
+        NSApp.stopModal(withCode: .OK)
+        p.orderOut(nil)
+        isModal = false
+        panel = nil
+        if InfoCard.current === self { InfoCard.current = nil }
+    }
+
+    // MARK: 组装
+
+    private func makePanel(_ m: InfoCardModel) -> CardPanel {
+        let width = InfoCardBody.preferredWidth
+        let size = InfoCardBody.size(m, width: width, showButton: false)
+        let content = InfoCardBody.view(m, width: width, showButton: false)
+        content.frame = NSRect(origin: .zero, size: size)
+
+        let surface = CardSurface(frame: NSRect(origin: .zero, size: size))
+        surface.addSubview(content)
+        content.frame = surface.bounds
+
+        let p = CardPanel(contentRect: NSRect(origin: .zero, size: size),
+                          styleMask: [.borderless], backing: .buffered, defer: false)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.level = .floating
+        p.isMovableByWindowBackground = true
+        p.contentView = surface
+
+        if let screen = NSScreen.main {
+            let vf = screen.visibleFrame
+            p.setFrameOrigin(NSPoint(x: vf.midX - size.width / 2,
+                                     y: vf.midY - size.height / 2 + 40))
+        }
+        return p
     }
 
     private func dismiss() {
@@ -602,17 +768,20 @@ private final class CardSurface: NSView {
 
 private final class CardPanel: NSPanel {
 
-    var onKey: ((UInt16) -> Void)?
+    var onEsc: (() -> Void)?
+    var onReturn: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
     override func keyDown(with event: NSEvent) {
-        // Esc / 回车 / 小键盘回车 都收起
-        if event.keyCode == 53 || event.keyCode == 36 || event.keyCode == 76 {
-            onKey?(event.keyCode)
-            return
+        switch event.keyCode {
+        case 53:                    // Esc
+            onEsc?()
+        case 36, 76:                // 回车 / 小键盘回车
+            onReturn?()
+        default:
+            super.keyDown(with: event)
         }
-        super.keyDown(with: event)
     }
 }
