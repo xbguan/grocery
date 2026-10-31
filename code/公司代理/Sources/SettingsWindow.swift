@@ -412,47 +412,51 @@ final class SettingsWindowController: NSWindowController {
         setResult(running("正在连接 \(c.host):\(c.port) …"), animated: true)
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let reachable = Shell.tcpAlive(c.host, UInt16(c.port), timeout: 3)
-            var sections: [[InfoRow]] = []
-            if reachable {
-                sections.append([InfoRow("server.rack", "代理端口",
-                                         "\(c.host):\(c.port) 可连接",
-                                         valueTint: .labelColor)])
+            let addr = "\(c.host):\(c.port)"
+            let model: InfoCardModel
+
+            if !Shell.tcpAlive(c.host, UInt16(c.port), timeout: 3) {
+                model = InfoCardModel(
+                    tone: .warn, title: "连不上代理端口",
+                    subtitle: "\(addr) 没有响应",
+                    facts: [InfoFact("server.rack", "代理 \(addr)", tint: .systemOrange)],
+                    footnote: "VPN 是否已连接？路由器 L2TP 请确认内网路由。")
             } else {
-                sections.append([InfoRow("exclamationmark.triangle.fill", "代理端口",
-                                         "不可达（VPN 是否已连接？路由器 L2TP 请确认内网路由）",
-                                         tint: .systemOrange, valueTint: .systemOrange)])
-            }
-            if reachable {
                 let t0 = Date()
                 let (_, code) = Shell.run("/usr/bin/curl",
                     ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "15",
                      "-x", c.upstreamURLWithAuth, "https://chatgpt.com/backend-api/me"], timeout: 20)
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
+                let msChip = InfoChip(icon: "clock", tint: .secondaryLabelColor,
+                                      value: "\(ms) ms", caption: "耗时")
+                let facts = [InfoFact("server.rack", "代理 \(addr) 可连接")]
+
                 if v == "401" {
-                    sections.append([
-                        InfoRow("bolt.horizontal", "出口", "chatgpt.com → 401 正常",
-                                tint: .systemGreen, valueTint: .labelColor),
-                        InfoRow("clock", "耗时", "\(ms) ms"),
-                    ])
+                    model = InfoCardModel(
+                        tone: .ok, title: "链路正常",
+                        subtitle: "请求已到达 chatgpt.com，认证与出口都通",
+                        chips: [msChip,
+                                InfoChip(icon: "bolt.horizontal", tint: .systemGreen,
+                                         value: "401", caption: "chatgpt.com")],
+                        facts: facts)
                 } else if v.isEmpty || v == "000" {
-                    sections.append([InfoRow("exclamationmark.triangle.fill", "出口",
-                                             "访问 chatgpt.com 失败（超时或被重置）",
-                                             tint: .systemOrange, valueTint: .systemOrange)])
+                    model = InfoCardModel(
+                        tone: .warn, title: "出口不通",
+                        subtitle: "代理连上了，但 chatgpt.com 没有回应",
+                        chips: [msChip], facts: facts,
+                        footnote: "检查 VPN 是否在线，或公司代理是否允许该出口。")
                 } else {
-                    sections.append([
-                        InfoRow("dot.radiowaves.left.and.right", "出口", "chatgpt.com → HTTP \(v)"),
-                        InfoRow("clock", "耗时", "\(ms) ms"),
-                    ])
+                    model = InfoCardModel(
+                        tone: .warn, title: "链路有响应",
+                        subtitle: "返回 HTTP \(v)，不是预期的 401",
+                        chips: [msChip], facts: facts)
                 }
             }
 
             DispatchQueue.main.async {
                 self.testButton.isEnabled = true
-                // 设置页里合成一整块，不要弹出式的多段分组
-                let merged = [sections.flatMap { $0 }]
-                self.setResult(InfoPanel.view(sections: merged, width: Metric.cardInnerW), animated: false)
+                self.setResult(InfoCardBody.view(model, width: Metric.cardInnerW), animated: false)
             }
         }
     }
@@ -485,7 +489,7 @@ final class SettingsWindowController: NSWindowController {
             sv.removeFromSuperview()
         }
         if let v = view {
-            // InfoPanel 是手写 frame 布局，没有 intrinsic size：
+            // InfoCardBody 是手写 frame 布局，没有 intrinsic size：
             // 交给自动布局前必须把宽高钉死，否则会被压成 0 高、内容溢出
             let size = v.frame.size
             v.translatesAutoresizingMaskIntoConstraints = false

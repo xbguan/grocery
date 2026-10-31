@@ -332,17 +332,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 同上，但结果是一组分组信息行，供 InfoPanel 渲染
-    private func runAsyncSections(_ work: @escaping () -> ([[InfoRow]], Bool),
-                                  done: @escaping ([[InfoRow]], Bool) -> Void) {
+    /// 同上，但结果是卡片模型，供 InfoCard 渲染
+    private func runAsyncCard(_ work: @escaping () -> InfoCardModel,
+                              done: @escaping (InfoCardModel) -> Void) {
         guard !busy else { return }
         busy = true
         DispatchQueue.global(qos: .userInitiated).async {
-            let (rows, ok) = work()
+            let model = work()
             DispatchQueue.main.async {
                 self.busy = false
                 self.refresh()
-                done(rows, ok)
+                done(model)
             }
         }
     }
@@ -394,12 +394,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let viaRelay = relay.isRunning
         let proxy = viaRelay ? cfg.relayURL : cfg.upstreamURLWithAuth
         let addr = "\(cfg.host):\(cfg.port)"
-        let path = viaRelay ? "经本地中继 \(cfg.relayHost):\(cfg.relayPort)" : "直连公司代理"
-        runAsyncSections({ [unowned self] in
+        let route = viaRelay
+            ? "经本地中继 \(cfg.relayHost):\(cfg.relayPort) 转发"
+            : "直连公司代理"
+        let hint = controller.resolvedMode() == .l2tp
+            ? "确认路由器 L2TP 已接通，本机在公司内网路由上。"
+            : "确认 HD-VPN 已连接（ppp0 有地址）。"
+
+        runAsyncCard({ [unowned self] in
+            let facts: [InfoFact] = [
+                InfoFact("server.rack", "代理 \(addr)"),
+                InfoFact("point.topleft.down.to.point.bottomright.curvepath", route),
+            ]
             guard Shell.tcpAlive(self.cfg.host, UInt16(self.cfg.port), timeout: 3) else {
-                return ([[InfoRow("server.rack", "代理地址", addr),
-                          InfoRow("exclamationmark.triangle.fill", "端口", "不可达",
-                                  tint: .systemOrange, valueTint: .systemOrange)]], false)
+                return InfoCardModel(tone: .warn, title: "连不上代理端口",
+                                     subtitle: "\(addr) 没有响应",
+                                     facts: facts, footnote: hint)
             }
             let t0 = Date()
             let (_, code) = Shell.run("/usr/bin/curl",
@@ -407,78 +417,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                  "-x", proxy, "https://chatgpt.com/backend-api/me"], timeout: 20)
             let ms = Int(Date().timeIntervalSince(t0) * 1000)
             let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
+            let msChip = InfoChip(icon: "clock", tint: .secondaryLabelColor,
+                                  value: "\(ms) ms", caption: "耗时")
 
-            let link = [InfoRow("server.rack", "代理地址", addr),
-                        InfoRow("arrow.triangle.branch", "路径", path),
-                        InfoRow("clock", "耗时", "\(ms) ms")]
-            let exit: [InfoRow]
-            let ok: Bool
-            if v == "401" {
-                exit = [InfoRow("bolt.horizontal.fill", "出口", "chatgpt.com → 401 正常",
-                                tint: .systemGreen)]
-                ok = true
-            } else if v.isEmpty || v == "000" {
-                exit = [InfoRow("exclamationmark.triangle.fill", "出口",
-                                "chatgpt.com 访问失败（超时或被重置）",
-                                tint: .systemOrange, valueTint: .systemOrange)]
-                ok = false
-            } else {
-                exit = [InfoRow("dot.radiowaves.left.and.right", "出口", "chatgpt.com → HTTP \(v)")]
-                ok = true
+            switch v {
+            case "401":
+                return InfoCardModel(
+                    tone: .ok, title: "链路正常",
+                    subtitle: "请求已到达 chatgpt.com，认证与出口都通",
+                    chips: [msChip,
+                            InfoChip(icon: "bolt.horizontal", tint: .systemGreen,
+                                     value: "401", caption: "chatgpt.com")],
+                    facts: facts)
+            case "", "000":
+                return InfoCardModel(tone: .warn, title: "出口不通",
+                                     subtitle: "代理连上了，但 chatgpt.com 没有回应",
+                                     chips: [msChip],
+                                     facts: facts, footnote: hint)
+            default:
+                return InfoCardModel(tone: .warn, title: "链路有响应",
+                                     subtitle: "返回 HTTP \(v)，不是预期的 401",
+                                     chips: [msChip], facts: facts)
             }
-            return ([link, exit], ok)
-        }, done: { sections, ok in
-            let hint = ok ? nil
-                : (self.controller.resolvedMode() == .l2tp
-                   ? "请确认路由器 L2TP 已接通、本机在公司内网路由上。"
-                   : "请确认 HD-VPN 已连接（ppp0 有地址）。")
-            let head = InfoHeadline(
-                icon: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
-                tint: ok ? .systemGreen : .systemOrange,
-                text: ok ? "链路正常" : "链路中断")
-            self.showInfo(ok ? "连接测试通过" : "连接测试未通过",
-                          headline: head, sections: sections, footnote: hint)
-        })
+        }, done: { InfoCard.present($0) })
     }
 
     @objc private func showStatus() {
         let on = controller.systemProxy().on
-        let head = InfoHeadline(icon: on ? "checkmark.circle.fill" : "pause.circle.fill",
-                                tint: on ? .systemGreen : .secondaryLabelColor,
-                                text: on ? "代理运行中" : "当前直连")
-        let sections = controller.statusSections().map { rows in
-            rows.map { InfoRow(Self.statusIcon($0.0), $0.0, $0.1,
-                               tint: Self.statusIconTint($0.1),
-                               valueTint: Self.statusValueTint($0.1)) }
+        var kv: [String: String] = [:]
+        for sec in controller.statusSections() {
+            for (k, v) in sec { kv[k] = v }
         }
-        showInfo("代理状态", headline: head, sections: sections, footnote: nil)
-    }
 
-    // MARK: 状态行的图标与语义色
+        let iface = kv["主接口"] ?? "—"
+        let access = kv["接入方式"] ?? "—"
+        let tunnel = kv["隧道"] ?? "—"
+        let sysProxy = kv["系统代理"] ?? "—"
+        let relayInfo = kv["本地中继"] ?? "—"
+        let codex = kv["Codex"] ?? "—"
+        let upstream = kv["公司代理"] ?? "—"
+        let user = kv["用户"] ?? "—"
+        let port = kv["中继端口"] ?? "—"
 
-    private static func statusIcon(_ label: String) -> String {
-        switch label {
-        case "主接口":   return "network"
-        case "接入方式": return "arrow.triangle.branch"
-        case "隧道":     return "lock.shield"
-        case "系统代理": return "globe"
-        case "本地中继": return "arrow.triangle.2.circlepath"
-        case "Codex":    return "terminal"
-        case "公司代理": return "server.rack"
-        case "用户":     return "person"
-        case "中继端口": return "number"
-        case "服务":     return "list.bullet"
-        default:         return "circle"
-        }
-    }
+        let bad = ["断开", "不通", "不可达", "已关闭", "未运行", "直连"]
+        func healthy(_ s: String) -> Bool { !bad.contains(where: { s.contains($0) }) }
 
-    private static func statusIconTint(_ value: String) -> NSColor {
-        statusValueTint(value) == .systemOrange ? .systemOrange : .secondaryLabelColor
-    }
+        let tunnelOK = healthy(tunnel)
+        let relayOK = healthy(relayInfo)
+        let codexOK = healthy(codex)
 
-    private static func statusValueTint(_ value: String) -> NSColor {
-        let bad = ["已关闭", "未运行", "断开", "不通", "不可达", "失败"]
-        return bad.contains(where: { value.contains($0) }) ? .systemOrange : .labelColor
+        let chips = [
+            InfoChip(icon: "network", tint: tunnelOK ? .systemGreen : .systemOrange,
+                     value: iface, caption: "主接口"),
+            InfoChip(icon: "bolt.horizontal.fill", tint: relayOK ? .systemGreen : .systemOrange,
+                     value: port, caption: "中继"),
+            InfoChip(icon: "list.bullet", tint: .secondaryLabelColor,
+                     value: "\(controller.servicesToSet().count)", caption: "网络服务"),
+        ]
+
+        let facts = [
+            InfoFact("lock.shield", "接入 \(access)", detail: tunnel,
+                     tint: tunnelOK ? .systemGreen : .systemOrange),
+            InfoFact("globe", "系统代理\(sysProxy)",
+                     tint: on ? .systemGreen : .systemOrange),
+            InfoFact("arrow.triangle.2.circlepath", "本地中继 \(relayInfo)",
+                     tint: relayOK ? .systemGreen : .systemOrange),
+            InfoFact("terminal", "Codex \(codex)",
+                     tint: codexOK ? .systemGreen : .secondaryLabelColor),
+            InfoFact("server.rack", "公司代理 \(upstream)", detail: "账号 \(user)"),
+        ]
+
+        InfoCard.present(InfoCardModel(
+            tone: on ? .ok : .neutral,
+            title: on ? "代理运行中" : "当前直连",
+            subtitle: on
+                ? (codexOK ? "系统代理与 Codex 都指向公司线路" : "系统代理已启用，Codex 仍为直连")
+                : "系统代理未开启，全部走本地网络",
+            chips: chips, facts: facts,
+            footnote: "覆盖 \(controller.servicesToSet().count) 个网络服务："
+                + controller.servicesToSet().joined(separator: "、")))
     }
 
     @objc private func toggleAutoStart() {
@@ -720,18 +737,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         a.informativeText = body.isEmpty ? "（无输出）" : body
         a.alertStyle = .informational
         a.addButton(withTitle: "好")
-        a.runModal()
-    }
-
-    /// 分组信息弹窗：顶部一行总状态 + 若干圆角分组，每行「图标 / 标签 / 值」
-    private func showInfo(_ title: String, headline: InfoHeadline? = nil,
-                          sections: [[InfoRow]], footnote: String? = nil) {
-        NSApp.activate(ignoringOtherApps: true)
-        let a = NSAlert()
-        a.messageText = title
-        a.alertStyle = .informational
-        a.addButton(withTitle: "好")
-        a.accessoryView = InfoPanel.view(headline: headline, sections: sections, footnote: footnote)
         a.runModal()
     }
 
