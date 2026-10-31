@@ -160,21 +160,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let (on, addr) = controller.systemProxy()
         let mode = controller.resolvedMode()
         // 顶部表头：图标走菜单项 image（与下方图标列对齐），文字分「状态 / 详情」两列
-        let headFont = NSFont.menuFont(ofSize: 0)
-        let subFont = NSFont.systemFont(ofSize: 11.5)
+        let headFont = NSFont.menuFont(ofSize: 14)
+        let subFont = NSFont.systemFont(ofSize: 12.5)
         let directUpstream = on && addr == "\(cfg.host):\(cfg.port)"
         if on && directUpstream {
             statusLine.image = UIStatus.image("exclamationmark.triangle.fill", color: .systemOrange, size: 11)
             statusLine.image = UIStatus.paddedImage("exclamationmark.triangle.fill",
-                                                    color: .systemOrange, glyph: 11)
+                                                    color: .systemOrange, glyph: 12.5)
             statusLine.attributedTitle = UIStatus.statusHead(
                 state: "已启用", detail: "\(addr)（直连上游，会弹认证框）", font: headFont)
         } else if on {
-            statusLine.image = UIStatus.paddedImage("circle.fill", color: .systemGreen, glyph: 9)
+            statusLine.image = UIStatus.paddedImage("circle.fill", color: .systemGreen, glyph: 10)
             statusLine.attributedTitle = UIStatus.statusHead(
                 state: "已启用", detail: addr, font: headFont)
         } else {
-            statusLine.image = UIStatus.paddedImage("circle", color: .secondaryLabelColor, glyph: 9)
+            statusLine.image = UIStatus.paddedImage("circle", color: .secondaryLabelColor, glyph: 10)
             statusLine.attributedTitle = UIStatus.statusHead(
                 state: "已关闭", detail: cfg.hasCredentials ? "直连" : "未填代理账号", font: headFont)
         }
@@ -193,7 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let tunnelOK = (mode == .l2tp) || controller.ppp0Up()
         infoLine.image = UIStatus.paddedImage("network",
                                               color: tunnelOK ? .systemGreen : .systemOrange,
-                                              glyph: 11)
+                                              glyph: 12.5)
         var sub: [UIStatus.Piece] = [.text("\(controller.primaryIface()) · \(tunnel)")]
         sub.append(.text("    "))
         sub.append(.tinted(relay.isRunning ? "bolt.horizontal.fill" : "bolt.slash.fill",
@@ -206,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let n = note, let t = noteAt, Date().timeIntervalSince(t) < 180 {
             sub.append(.text("    ⓘ \(n)"))
         }
-        infoLine.attributedTitle = UIStatus.subLine(sub, font: subFont, iconSize: 11)
+        infoLine.attributedTitle = UIStatus.subLine(sub, font: subFont, iconSize: 12.5)
 
         let symbol = on ? "building.2.fill" : "building.2"
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "公司代理")

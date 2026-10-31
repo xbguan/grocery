@@ -36,7 +36,7 @@ enum UIStatus {
     }
 
     /// 普通菜单项左侧的单色模板图标（跟随菜单明暗/选中状态）
-    static func menuImage(_ name: String, size: CGFloat = 13) -> NSImage? {
+    static func menuImage(_ name: String, size: CGFloat = 14) -> NSImage? {
         let conf = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
         let img = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(conf)
@@ -60,7 +60,7 @@ enum UIStatus {
     /// 图标不放在文字里，而是用菜单项自己的 `image`，
     /// 这样它能和下方各菜单项的图标严格同列。
     static func statusHead(state: String, detail: String,
-                           font: NSFont, detailColumn: CGFloat = 46) -> NSAttributedString {
+                           font: NSFont, detailColumn: CGFloat = 52) -> NSAttributedString {
         let s = NSMutableAttributedString(string: state)
         s.append(NSAttributedString(
             string: "\t" + detail,
@@ -73,7 +73,7 @@ enum UIStatus {
     /// 固定画布的彩色图标：菜单项 image 的宽度会推移标题起点，
     /// 顶部两行必须用同一画布宽度，文字列才会严格对齐。
     static func paddedImage(_ name: String, color: NSColor,
-                            glyph: CGFloat, canvas: CGFloat = 13) -> NSImage? {
+                            glyph: CGFloat, canvas: CGFloat = 15) -> NSImage? {
         guard let g = image(name, color: color, size: glyph) else { return nil }
         let out = NSImage(size: NSSize(width: canvas, height: canvas))
         out.lockFocus()

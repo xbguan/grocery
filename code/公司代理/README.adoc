@@ -24,7 +24,7 @@
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.0.5.dmg` |成品安装包
+|`dist/公司代理-2.0.6.dmg` |成品安装包
 |===
 
 == 构建
@@ -33,7 +33,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.0.5.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.0.6.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
@@ -145,6 +145,28 @@ Clash 等其它代理原样保留。这里刻意不看 `scutil` 的全局代理�
 全局状态反映不到物理网卡上的设置，会导致漏清。
 
 行为可以在菜单里用「退出时关闭代理」开关（默认开）关掉；关闭后退出只停中继、保留代理设置。
+
+=== 界面（2.0.6 起）
+
+设置窗口按新版 macOS 的观感重做：分组卡片、更大的控件、更宽松的留白。
+
+[cols="1,1,1",options="header"]
+|===
+|项目 |2.0.5 |2.0.6
+|窗口尺寸 |600×500 固定 |720 宽、高度按内容自适应
+|正文字号 |13 pt |14 pt
+|次要文字 |11 pt |12 pt
+|输入框高度 |24 pt |30 pt（`controlSize = .large`）
+|布局 |扁平表单 |四张圆角卡片（半径 10，带描边）
+|按钮 |常规尺寸 |`.large` 按钮
+|菜单状态行 |13 / 11.5 pt |14 / 12.5 pt，图标 13→14
+|===
+
+尺寸集中在 `SettingsWindow.swift` 顶部的 `Metric` 枚举里，想整体再放大只改这一处。
+
+NOTE: 本机系统是 macOS 14，macOS 26/27 的 Liquid Glass 相关 API（`glassEffect`、
+`cornerConfiguration` 等）用不了，所以这里移植的是「更大、更宽松、分组」的观感，
+窗口材质仍是系统标准样式，不是真正的液态玻璃。
 
 === 为什么需要本地中继
 
