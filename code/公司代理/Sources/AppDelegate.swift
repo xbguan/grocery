@@ -24,12 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 信号源要保活，否则会被释放掉
     private var signalSources: [DispatchSourceSignal] = []
 
-    private let statusLine = NSMenuItem(title: "检测中…", action: nil, keyEquivalent: "")
-    private let infoLine = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let autoStartItem = NSMenuItem(title: "开机自动启动", action: nil, keyEquivalent: "")
-    private let autoOffItem = NSMenuItem(title: "退出时关闭代理", action: nil, keyEquivalent: "")
-    private let dockItem = NSMenuItem(title: "在程序坞显示", action: nil, keyEquivalent: "")
-    private let toggleItem = NSMenuItem(title: "启用公司代理", action: nil, keyEquivalent: "")
+    /// 主菜单是自绘的玻璃浮层（系统 NSMenu 的外观无法改）
+    private let menuPanel = MenuPanelController()
+    /// 上次送进面板的内容签名，避免定时刷新时无谓重建
+    private var menuVersion = ""
 
     // MARK: 启动
 
@@ -104,54 +102,133 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func buildMenu() {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        let menu = NSMenu()
-        statusLine.isEnabled = false
-        infoLine.isEnabled = false
-
-        menu.addItem(statusLine)
-        menu.addItem(infoLine)
-        menu.addItem(.separator())
-
-        toggleItem.target = self
-        toggleItem.action = #selector(toggleProxy)
-        menu.addItem(toggleItem)
-        menu.addItem(make("关闭代理（直连）", #selector(turnOff), icon: "bolt.slash.fill"))
-        menu.addItem(.separator())
-
-        menu.addItem(make("设置…", #selector(openSettings), key: ",", icon: "gearshape"))
-        menu.addItem(make("测试连接", #selector(quickTest), icon: "dot.radiowaves.left.and.right"))
-        menu.addItem(make("查看详细状态…", #selector(showStatus), icon: "list.bullet.rectangle"))
-        menu.addItem(.separator())
-
-        autoStartItem.target = self
-        autoStartItem.action = #selector(toggleAutoStart)
-        autoStartItem.image = UIStatus.menuImage("power")
-        menu.addItem(autoStartItem)
-
-        autoOffItem.target = self
-        autoOffItem.action = #selector(toggleAutoOffOnQuit)
-        autoOffItem.image = UIStatus.menuImage("door.left.hand.open")
-        menu.addItem(autoOffItem)
-
-        dockItem.target = self
-        dockItem.action = #selector(toggleDockIcon)
-        dockItem.image = UIStatus.menuImage("dock.rectangle")
-        menu.addItem(dockItem)
-
-        menu.addItem(.separator())
-        menu.addItem(make("卸载公司代理…", #selector(uninstall), icon: "trash"))
-        let quit = NSMenuItem(title: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quit.image = UIStatus.menuImage("rectangle.portrait.and.arrow.right")
-        menu.addItem(quit)
-
-        item.menu = menu
+        guard let button = item.button else { return }
+        button.target = self
+        button.action = #selector(statusItemClicked)
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
 
-    private func make(_ title: String, _ sel: Selector, key: String = "", icon: String? = nil) -> NSMenuItem {
-        let mi = NSMenuItem(title: title, action: sel, keyEquivalent: key)
-        mi.target = self
-        if let icon { mi.image = UIStatus.menuImage(icon) }
-        return mi
+    @objc private func statusItemClicked() {
+        guard let button = item.button else { return }
+        let anchor = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
+        menuPanel.toggle(anchor: anchor, model: buildMenuModel())
+    }
+
+    /// 组装菜单内容。每次都重新读状态：面板开着时定时刷新也能反映最新值。
+    private func buildMenuModel() -> MenuModel {
+        let (on, addr) = controller.systemProxy()
+        let mode = controller.resolvedMode()
+        let directUpstream = on && addr == "\(cfg.host):\(cfg.port)"
+
+        var title = "已关闭"
+        var detail = cfg.hasCredentials ? "直连" : "未填代理账号"
+        var warn = false
+        if on && directUpstream {
+            title = "已启用"
+            detail = "\(addr) · 直连上游"
+            warn = true
+        } else if on {
+            title = "已启用"
+            detail = addr
+        }
+
+        let tunnel: String
+        switch mode {
+        case .hdvpn: tunnel = "HD-VPN \(controller.ppp0Up() ? "在线" : "断开")"
+        case .l2tp:  tunnel = "路由器 L2TP"
+        case .auto:  tunnel = "自动选择"
+        }
+        let tunnelOK = (mode == .l2tp) || controller.ppp0Up()
+
+        let pills = [
+            MenuPill(icon: "network", text: "\(controller.primaryIface()) · \(tunnel)",
+                     tint: tunnelOK ? .systemGreen : .systemOrange),
+            MenuPill(icon: relay.isRunning ? "bolt.horizontal.fill" : "bolt.slash.fill",
+                     text: "中继", tint: relay.isRunning ? .systemGreen : .systemOrange),
+            MenuPill(icon: "power", text: "自启",
+                     tint: LoginItem.isEnabled ? .systemGreen : .tertiaryLabelColor),
+        ]
+        let freshNote: String? = {
+            guard let n = note, let t = noteAt,
+                  Date().timeIntervalSince(t) < 180 else { return nil }
+            return n
+        }()
+
+        let header = MenuHeader(on: on, title: title, detail: detail,
+                                pills: pills, note: freshNote, warn: warn)
+
+        let normal = MenuTheme.normalTint
+
+        let toggle = MenuEntry(
+            id: on ? "reapply" : "turnon",
+            title: on ? "重新应用代理" : "启用公司代理",
+            icon: on ? "arrow.triangle.2.circlepath" : "bolt.fill",
+            tint: .controlAccentColor) { [weak self] in
+                guard let self else { return }
+                self.menuPanel.hide()
+                self.toggleProxy()
+            }
+
+        var off = MenuEntry(id: "turnoff", title: "关闭代理（直连）",
+                            icon: "bolt.slash.fill", tint: .systemOrange) { [weak self] in
+            guard let self else { return }
+            self.menuPanel.hide()
+            self.turnOff()
+        }
+        off.enabled = on
+
+        let settings = MenuEntry(id: "settings", title: "设置…", icon: "gearshape",
+                                 tint: normal, key: "⌘,") { [weak self] in
+            self?.menuPanel.hide()
+            self?.openSettings()
+        }
+        let test = MenuEntry(id: "test", title: "测试连接",
+                             icon: "dot.radiowaves.left.and.right", tint: normal) { [weak self] in
+            self?.menuPanel.hide()
+            self?.quickTest()
+        }
+        let status = MenuEntry(id: "status", title: "查看详细状态…",
+                               icon: "list.bullet.rectangle", tint: normal) { [weak self] in
+            self?.menuPanel.hide()
+            self?.showStatus()
+        }
+
+        let autoStart = MenuEntry(id: "autostart", title: "开机自动启动", icon: "power",
+                                  tint: normal, checked: LoginItem.isEnabled) { [weak self] in
+            self?.menuPanel.hide()
+            self?.toggleAutoStart()
+        }
+        let autoOff = MenuEntry(id: "autooff", title: "退出时关闭代理",
+                                icon: "door.left.hand.open", tint: normal,
+                                checked: Self.autoOffOnQuit) { [weak self] in
+            self?.menuPanel.hide()
+            self?.toggleAutoOffOnQuit()
+        }
+        let dock = MenuEntry(id: "dock", title: "在程序坞显示", icon: "dock.rectangle",
+                             tint: normal, checked: cfg.showInDock) { [weak self] in
+            self?.menuPanel.hide()
+            self?.toggleDockIcon()
+        }
+
+        let uninstall = MenuEntry(id: "uninstall", title: "卸载公司代理…", icon: "trash",
+                                  tint: .systemRed) { [weak self] in
+            self?.menuPanel.hide()
+            self?.uninstall()
+        }
+        let quit = MenuEntry(id: "quit", title: "退出", icon: "rectangle.portrait.and.arrow.right",
+                             tint: normal, key: "⌘Q") { [weak self] in
+            self?.menuPanel.hide()
+            NSApp.terminate(nil)
+        }
+
+        let groups = [[toggle, off], [settings, test, status], [autoStart, autoOff, dock], [uninstall, quit]]
+
+        let version = [
+            on ? "1" : "0", addr, title, detail, tunnel, "\(relay.isRunning)", "\(LoginItem.isEnabled)",
+            "\(Self.autoOffOnQuit)", "\(cfg.showInDock)", freshNote ?? "",
+        ].joined(separator: "|")
+
+        return MenuModel(header: header, groups: groups, version: version)
     }
 
     // MARK: 刷新界面
@@ -159,54 +236,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refresh() {
         let (on, addr) = controller.systemProxy()
         let mode = controller.resolvedMode()
-        // 顶部表头：图标走菜单项 image（与下方图标列对齐），文字分「状态 / 详情」两列
-        let headFont = NSFont.menuFont(ofSize: 14)
-        let subFont = NSFont.systemFont(ofSize: 12.5)
-        let directUpstream = on && addr == "\(cfg.host):\(cfg.port)"
-        if on && directUpstream {
-            statusLine.image = UIStatus.image("exclamationmark.triangle.fill", color: .systemOrange, size: 11)
-            statusLine.image = UIStatus.paddedImage("exclamationmark.triangle.fill",
-                                                    color: .systemOrange, glyph: 12.5)
-            statusLine.attributedTitle = UIStatus.statusHead(
-                state: "已启用", detail: "\(addr)（直连上游，会弹认证框）", font: headFont)
-        } else if on {
-            statusLine.image = UIStatus.paddedImage("circle.fill", color: .systemGreen, glyph: 10)
-            statusLine.attributedTitle = UIStatus.statusHead(
-                state: "已启用", detail: addr, font: headFont)
-        } else {
-            statusLine.image = UIStatus.paddedImage("circle", color: .secondaryLabelColor, glyph: 10)
-            statusLine.attributedTitle = UIStatus.statusHead(
-                state: "已关闭", detail: cfg.hasCredentials ? "直连" : "未填代理账号", font: headFont)
-        }
-        toggleItem.title = on ? "重新应用代理" : "启用公司代理"
-        toggleItem.image = UIStatus.menuImage(on ? "arrow.triangle.2.circlepath" : "bolt.fill")
-
-        let tunnel: String
-        switch mode {
-        case .hdvpn: tunnel = "HD-VPN \(controller.ppp0Up() ? "在线" : "断开")"
-        case .l2tp:  tunnel = "L2TP 路由"
-        case .auto:  tunnel = "自动"
-        }
-
-        // 第二行三组状态各带一个图标：隧道接入（行首）/ 本地中继 / 开机自启。
-        // 行首图标走菜单项 image，且与第一行同画布宽度，两行文字才会对齐。
-        let tunnelOK = (mode == .l2tp) || controller.ppp0Up()
-        infoLine.image = UIStatus.paddedImage("network",
-                                              color: tunnelOK ? .systemGreen : .systemOrange,
-                                              glyph: 12.5)
-        var sub: [UIStatus.Piece] = [.text("\(controller.primaryIface()) · \(tunnel)")]
-        sub.append(.text("    "))
-        sub.append(.tinted(relay.isRunning ? "bolt.horizontal.fill" : "bolt.slash.fill",
-                           relay.isRunning ? .systemGreen : .systemOrange))
-        sub.append(.text(" 中继"))
-        sub.append(.text("    "))
-        sub.append(.tinted("power",
-                           LoginItem.isEnabled ? .systemGreen : .secondaryLabelColor))
-        sub.append(.text(" 自启"))
-        if let n = note, let t = noteAt, Date().timeIntervalSince(t) < 180 {
-            sub.append(.text("    ⓘ \(n)"))
-        }
-        infoLine.attributedTitle = UIStatus.subLine(sub, font: subFont, iconSize: 12.5)
 
         let symbol = on ? "building.2.fill" : "building.2"
         let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "公司代理")
@@ -217,9 +246,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ? "公司代理：已启用 \(addr)（\(mode.shortTitle)）"
             : "公司代理：已关闭"
 
-        autoStartItem.state = LoginItem.isEnabled ? .on : .off
-        autoOffItem.state = Self.autoOffOnQuit ? .on : .off
-        dockItem.state = cfg.showInDock ? .on : .off
+        // 面板开着时同步最新状态；内容没变就不重建，避免每 5 秒抖一下
+        let model = buildMenuModel()
+        if model.version != menuVersion {
+            menuVersion = model.version
+            if menuPanel.isVisible { menuPanel.update(model) }
+        }
 
         if !relay.isRunning {
             DispatchQueue.global(qos: .utility).async { [weak self] in self?.startRelay() }
@@ -473,7 +505,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.accessory)
             NSApp.mainMenu = nil
         }
-        dockItem.state = cfg.showInDock ? .on : .off
     }
 
     @objc private func toggleDockIcon() {
@@ -557,8 +588,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 以菜单栏图标为锚点弹出主菜单（与鼠标直接点图标视觉一致）
     private func popUpStatusMenu() {
-        guard let button = item.button, let menu = item.menu else { return }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: button)
+        guard let button = item.button else { return }
+        let anchor = button.window?.convertToScreen(button.convert(button.bounds, to: nil)) ?? .zero
+        menuPanel.show(anchor: anchor, model: buildMenuModel())
     }
 
     // 右键 Dock 图标
@@ -713,7 +745,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func toggleAutoOffOnQuit() {
         Self.autoOffOnQuit = !Self.autoOffOnQuit
-        autoOffItem.state = Self.autoOffOnQuit ? .on : .off
+        menuVersion = ""
+        refresh()
     }
 
     /// 注册所有能捕获到的退出入口。

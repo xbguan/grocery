@@ -22,12 +22,13 @@
 |`Sources/InfoPanel.swift` |状态/测试弹窗的分组信息面板（图标 + 标签 + 值，值换行按列坐标）
 |`Sources/LoginItem.swift` |开机自启（`SMAppService`）
 |`Sources/Uninstaller.swift` |卸载清理
-|`Sources/AppDelegate.swift` |菜单栏菜单、状态刷新、开关流程
+|`Sources/MenuPanel.swift` |主菜单自绘浮层（圆角面板、彩色图标、胶囊选中、键盘导航）
+|`Sources/AppDelegate.swift` |菜单内容组装、状态刷新、开关流程
 |`Sources/main.swift` |入口（启动时按配置决定 `regular`（有 Dock 图标）/ `accessory`（仅菜单栏））
 |`IconGen.swift` |用 Cocoa 画图生成 AppIcon.iconset
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.1.0.dmg` |成品安装包
+|`dist/公司代理-2.2.0.dmg` |成品安装包
 |===
 
 == 构建
@@ -36,7 +37,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.1.0.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.2.0.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。

@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.1.0"
+VERSION="2.2.0"
 BUNDLE_ID="local.xbguan.corpproxy"
 
 # 构建机自身架构（用于只在构建期运行的辅助工具）
@@ -66,9 +66,9 @@ cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>2.1.0</string>
+	<string>__VERSION__</string>
 	<key>CFBundleVersion</key>
-	<string>2.1.0</string>
+	<string>__VERSION__</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>LSMinimumSystemVersion</key>
@@ -82,6 +82,9 @@ cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+# heredoc 不展开变量，版本号用占位符回填
+sed -i '' "s/__VERSION__/${VERSION}/g" "build/app/${APP_NAME}.app/Contents/Info.plist"
 
 # 4. ad-hoc 签名
 xattr -cr "build/app/${APP_NAME}.app" 2>/dev/null || true
