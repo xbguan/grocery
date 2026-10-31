@@ -95,6 +95,17 @@ echo "==> 校验镜像"
 hdiutil verify "$OUT" 2>&1 | tail -2 | sed 's/^/    /'
 
 echo ""
+echo "==> 清理历史版本（dist/ 只保留最新 DMG）"
+KEEP="${DIST}/$(basename "$OUT")"
+for f in "${DIST}"/*.dmg; do
+  [[ -e "$f" ]] || continue
+  [[ "$f" == "$KEEP" ]] && continue
+  echo "    删除: $(basename "$f")"
+  rm -f "$f"
+done
+[[ -e "${DIST}/rw.dmg" ]] && rm -f "${DIST}/rw.dmg"
+
+echo ""
 echo "完成: $(pwd)/${OUT}"
 echo "大小: $(du -h "$OUT" | cut -f1)"
 echo "App 架构: $(lipo -archs "${BUILT_APP}/Contents/MacOS/${EXEC_NAME}")"

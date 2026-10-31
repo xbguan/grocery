@@ -10,6 +10,10 @@ struct AppConfig: Codable {
     /// 是否启用「实时余额」：用平台登录态读取，需用户显式打开
     var showCredit: Bool = false
 
+    /// 是否成功读到过余额。用来区分「从未登录」和「登录已失效」两种界面，
+    /// 两者的动作相同（重新登录），但文案不能一样，否则用户不知道自己是哪种情况。
+    var hasConnectedCredit: Bool = false
+
     /// 仅存在于内存，永远不会被写入磁盘
     var adminKey: String = ""
 
@@ -21,6 +25,7 @@ struct AppConfig: Codable {
         case refreshMinutes
         case accountLabel
         case showCredit
+        case hasConnectedCredit
         case legacyPlaintextKey = "adminKey"
     }
 
@@ -33,6 +38,7 @@ struct AppConfig: Codable {
         refreshMinutes = try c.decodeIfPresent(Int.self, forKey: .refreshMinutes) ?? 5
         accountLabel = try c.decodeIfPresent(String.self, forKey: .accountLabel) ?? ""
         showCredit = try c.decodeIfPresent(Bool.self, forKey: .showCredit) ?? false
+        hasConnectedCredit = try c.decodeIfPresent(Bool.self, forKey: .hasConnectedCredit) ?? false
         legacyPlaintextKey = try c.decodeIfPresent(String.self, forKey: .legacyPlaintextKey)
     }
 

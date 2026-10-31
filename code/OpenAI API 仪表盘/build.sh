@@ -66,9 +66,18 @@ cp Resources/Info.plist "${BUNDLE_DIR}/Contents/Info.plist"
 cp Resources/AppIcon.icns "${BUNDLE_DIR}/Contents/Resources/AppIcon.icns"
 printf 'APPL????' > "${BUNDLE_DIR}/Contents/PkgInfo"
 
-echo "==> Ad-hoc 签名"
-xattr -cr "$BUNDLE_DIR" 2>/dev/null || true
-codesign --force --deep --sign - "$BUNDLE_DIR" 2>&1 | sed 's/^/    /'
+echo "==> 稳定证书签名（本地自签名，避免 ad-hoc 每次签名身份变化导致钥匙串反复弹窗）"
+# 用固定的自签名代码签名证书，而不是 ad-hoc（--sign -）。
+# ad-hoc 没有稳定身份，钥匙串的「始终允许」无法持久绑定，每次启动都重新弹授权框。
+SIGN_ID="OpenAIBar Local Signing"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGN_ID"; then
+  xattr -cr "$BUNDLE_DIR" 2>/dev/null || true
+  codesign --force --deep --sign "$SIGN_ID" "$BUNDLE_DIR" 2>&1 | sed 's/^/    /'
+else
+  echo "!! 未找到签名证书「$SIGN_ID」，回退 ad-hoc（会导致钥匙串反复弹窗）" >&2
+  xattr -cr "$BUNDLE_DIR" 2>/dev/null || true
+  codesign --force --deep --sign - "$BUNDLE_DIR" 2>&1 | sed 's/^/    /'
+fi
 
 echo "==> 校验"
 codesign --verify --verbose=2 "$BUNDLE_DIR" 2>&1 | sed 's/^/    /'

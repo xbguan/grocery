@@ -37,27 +37,39 @@ final class CreditBridge: NSObject {
     private(set) var used: Double?
     private(set) var updatedAt: Date? { didSet { if updatedAt != oldValue { onChange?() } } }
 
+    /// 最近一次成功读到的值。**只用于「上次读到 X」这类文案**，不参与现值渲染：
+    /// 否则会话过期后会一直拿旧数字当当前余额显示（1.3.1 之前就是这个 bug）。
+    private(set) var lastKnown: (available: Double, granted: Double?, used: Double?, at: Date)?
+
     /// 平台账单页：这个页面自己会请求 credit_grants
     static let pageURL = URL(string: "https://platform.openai.com/settings/organization/billing/overview")!
 
     private var webView: WKWebView?
     private var hostWindow: NSWindow?
     private var timeoutTimer: Timer?
+    private var settleTimer: Timer?
     private var lastLoadAt: Date?
     private var hasStarted = false
+    /// 世代号：每次 start()/stop() 递增。异步回调（clearSession）凭它判断
+    /// 「在我等待期间世界是不是已经变了」，变了就作废，避免把当前状态改乱。
+    private var generation = 0
 
     // MARK: 生命周期
 
     func start() {
         guard !hasStarted else { return }
         hasStarted = true
+        generation += 1
         state = .idle
         load()
     }
 
     func stop() {
+        generation += 1
         timeoutTimer?.invalidate()
         timeoutTimer = nil
+        settleTimer?.invalidate()
+        settleTimer = nil
         hostWindow?.orderOut(nil)
         hostWindow?.contentView = nil
         hostWindow = nil
@@ -75,8 +87,18 @@ final class CreditBridge: NSObject {
     func refresh(stale seconds: TimeInterval = 900) {
         guard hasStarted else { return }
         if state == .loading { return }
-        if let last = lastLoadAt, Date().timeIntervalSince(last) < seconds, available != nil { return }
+        // 有值：按 stale 走；没值（上次失败）：至少隔 60s 再试，否则每次刷新都重来一遍，
+        // 面板会不停在「正在读取 → 失败 → 正在读取」之间跳。
+        let floor: TimeInterval = available == nil ? 60 : seconds
+        if let last = lastLoadAt, Date().timeIntervalSince(last) < floor { return }
         load()
+    }
+
+    /// 面板每次打开时叫一下：如果卡在 loading 太久（菜单弹出期间 run loop 处于跟踪模式，
+    /// 定时器可能迟迟不跑），主动重来一次，别让它一直转圈。
+    func recoverIfStuck(_ seconds: TimeInterval = 45) {
+        guard hasStarted, state == .loading, let last = lastLoadAt else { return }
+        if Date().timeIntervalSince(last) > seconds { load() }
     }
 
     /// 强制重载（用户点「重试」）
@@ -94,12 +116,17 @@ final class CreditBridge: NSObject {
         view.load(URLRequest(url: Self.pageURL))
 
         timeoutTimer?.invalidate()
-        timeoutTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+        settleTimer?.invalidate()
+        // 必须显式加进 .common 模式：菜单栏面板展开时 run loop 在 eventTracking 模式，
+        // scheduledTimer 默认只进 .default，超时永远不会触发 → 界面永久停在「正在读取」。
+        let t = Timer(timeInterval: 30, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.state == .loading else { return }
                 self.state = .failed("读取超时")
             }
         }
+        RunLoop.main.add(t, forMode: .common)
+        timeoutTimer = t
     }
 
     private func ensureWebView() -> WKWebView {
@@ -135,33 +162,48 @@ final class CreditBridge: NSObject {
         used = summary.totalUsed
         available = summary.totalAvailable
         updatedAt = .now
+        if let a = summary.totalAvailable {
+            lastKnown = (a, summary.totalGranted, summary.totalUsed, .now)
+        }
         state = .ready
         timeoutTimer?.invalidate()
         timeoutTimer = nil
+        settleTimer?.invalidate()
+        settleTimer = nil
         NSLog("OpenAIBar: credit \(summary.totalAvailable) via \(url)")
     }
 
     private func apply(domValue: Double) {
         available = domValue
         updatedAt = .now
+        lastKnown = (domValue, nil, nil, .now)
         state = .ready
         timeoutTimer?.invalidate()
         timeoutTimer = nil
+        settleTimer?.invalidate()
+        settleTimer = nil
     }
 
     /// 登录态清除（设置里「退出登录」）
     func clearSession(_ done: (() -> Void)? = nil) {
+        let gen = generation
         let store = WKWebsiteDataStore.default()
         let types = WKWebsiteDataStore.allWebsiteDataTypes()
         store.removeData(ofTypes: types, modifiedSince: .distantPast) { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                // 清理期间发生过 stop()/start()（比如用户「关掉又马上打开」）：
+                // 本次清理结果作废，别把正在进行的加载状态改乱。
+                guard self.generation == gen else { return }
                 self.available = nil
                 self.granted = nil
                 self.used = nil
                 self.updatedAt = nil
+                self.lastKnown = nil
                 self.lastLoadAt = nil
-                self.state = self.hasStarted ? .idle : .off
+                // 开关仍开着（= 在设置里点「退出登录」而不是关开关）→ 回到「需要登录」，
+                // 否则会停在 .idle，界面永远显示「正在读取余额…」。
+                if self.hasStarted { self.state = .needsLogin }
                 done?()
             }
         }
@@ -191,7 +233,7 @@ final class CreditBridge: NSObject {
           if (isCreditURL(u)) {
             p.then(function(r){
               try {
-                r.clone().text().then(function(t){ send({url: u, body: String(t).slice(0, 6000)}); })
+                r.clone().text().then(function(t){ send({url: u, status: r.status, body: String(t).slice(0, 6000)}); })
                              .catch(function(){});
               } catch (e) {}
             }).catch(function(){});
@@ -211,7 +253,7 @@ final class CreditBridge: NSObject {
         var self = this;
         this.addEventListener('load', function(){
           if (isCreditURL(self.__oaiURL)) {
-            send({url: String(self.__oaiURL), body: String(self.responseText || '').slice(0, 6000)});
+            send({url: String(self.__oaiURL), status: self.status, body: String(self.responseText || '').slice(0, 6000)});
           }
         });
         return origSend.apply(this, arguments);
@@ -245,6 +287,18 @@ extension CreditBridge: WKScriptMessageHandler {
             if let v = Double(body) { apply(domValue: v) }
             return
         }
+        // 会话过期最常见的形态不是整页跳登录页，而是页面正常、只有余额接口 401/403。
+        // 这种情况以前只能等 30s 超时 → 被误报成「读取超时」，现在直接判为需要重新登录。
+        let status = dict["status"] as? Int ?? 0
+        if status == 401 || status == 403 {
+            timeoutTimer?.invalidate()
+            timeoutTimer = nil
+            settleTimer?.invalidate()
+            settleTimer = nil
+            state = .needsLogin
+            NSLog("OpenAIBar: credit session expired (HTTP \(status))")
+            return
+        }
         guard let data = body.data(using: .utf8),
               let summary = try? JSONDecoder().decode(CreditSummary.self, from: data) else { return }
         apply(summary: summary, from: url)
@@ -253,21 +307,54 @@ extension CreditBridge: WKScriptMessageHandler {
 
 extension CreditBridge: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // 已经拿到数据或已判定登录失效，就不再往下走
+        guard state == .loading else { return }
         let href = webView.url?.absoluteString ?? ""
         if href.contains("/login") || href.contains("auth.openai.com") {
             state = .needsLogin
             timeoutTimer?.invalidate()
             timeoutTimer = nil
+            settleTimer?.invalidate()
+            settleTimer = nil
+            return
         }
+        // 页面加载完成但还没截到 credit_grants：给页面 JS 几秒发请求，
+        // 若仍无数据则判为「需要登录」。否则未登录 / 会话失效时页面可能
+        // 停在中间态，既不跳登录页也不发余额请求，界面会永远卡在「正在读取」。
+        scheduleSettle()
+    }
+
+    /// 页面加载完后给一个「数据落定」宽限期：几秒内没拿到余额就判需要登录。
+    private func scheduleSettle() {
+        settleTimer?.invalidate()
+        let t = Timer(timeInterval: 5, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.state == .loading else { return }
+                self.state = .needsLogin
+                self.timeoutTimer?.invalidate()
+                self.timeoutTimer = nil
+                NSLog("OpenAIBar: credit no data after page load -> needsLogin")
+            }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        settleTimer = t
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        timeoutTimer?.invalidate()
+        timeoutTimer = nil
+        settleTimer?.invalidate()
+        settleTimer = nil
         state = .failed(error.localizedDescription)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         // 用户在登录窗口里操作时，这里失败不应打断整页加载
         if (error as NSError).code == NSURLErrorCancelled { return }
+        timeoutTimer?.invalidate()
+        timeoutTimer = nil
+        settleTimer?.invalidate()
+        settleTimer = nil
         state = .failed(error.localizedDescription)
     }
 }
@@ -325,11 +412,12 @@ enum CreditLoginWindow {
             onFinished()
         }
         view.navigationDelegate = w
-        w.onClosed = { [weak window] in
-            // 用户手动关窗（没登录成功）也收尾，避免残留引用
-            guard let window, !window.isVisible else { return }
+        window.delegate = w
+        w.onClosed = {
+            // 用户手动关窗（windowWillClose 触发，且没走到登录成功）：清引用 + 重查一次
             retained = nil
             watcher = nil
+            onFinished()
         }
         watcher = w
         retained = window
@@ -346,24 +434,48 @@ enum CreditLoginWindow {
 }
 
 @MainActor
-final class LoginWatcher: NSObject, WKNavigationDelegate {
+final class LoginWatcher: NSObject, WKNavigationDelegate, NSWindowDelegate {
     private let onSuccess: () -> Void
     var onClosed: (() -> Void)?
-    private var fired = false
+    private(set) var fired = false
+
+    /// 是否真的经过登录页（auth.openai.com / /login）。
+    ///
+    /// 这个标记是 1.3.8 修 bug 的关键：未登录时打开账单页，SPA 会先完成一次
+    /// platform.openai.com 的加载、再由 JS 跳到 auth.openai.com。只看「当前是 platform 域名」
+    /// 会把这次初次加载当成登录成功，窗口 1.2 秒后自己关掉 —— 用户根本没机会登录。
+    private var sawAuth = false
 
     init(onSuccess: @escaping () -> Void) {
         self.onSuccess = onSuccess
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        guard !fired else { return }
-        let href = webView.url?.absoluteString ?? ""
-        // 回到平台内部且不是登录页 → 说明已经登录成功
-        if href.hasPrefix("https://platform.openai.com"),
-           !href.contains("/login"),
-           !href.contains("/auth/") {
-            fired = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.onSuccess() }
+        guard !fired, let url = webView.url else { return }
+        let href = url.absoluteString
+        let path = url.path
+
+        // 1) 见到登录页 → 记下「用户确实需要登录」，继续等他登完
+        if href.contains("auth.openai.com")
+            || path.hasPrefix("/login") || path.hasPrefix("/log-in")
+            || path.contains("/auth/") || path.contains("/authorize") {
+            sawAuth = true
+            return
         }
+
+        // 2) 必须落在平台内部，且此前经过登录页，才算登录完成
+        guard href.hasPrefix("https://platform.openai.com"), sawAuth else { return }
+
+        // 3) OAuth 回调中转页还没走完，再等等
+        if let q = url.query, q.contains("callback") || q.contains("redirect") { return }
+
+        fired = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.onSuccess() }
+    }
+
+    /// 用户手动点关闭（没走到登录成功的 onSuccess）也要收尾：
+    /// 之前 onClosed 闭包被赋值却从没人调用，等于手动关窗后残留引用、也不触发重查。
+    func windowWillClose(_ notification: Notification) {
+        if !fired { onClosed?() }
     }
 }

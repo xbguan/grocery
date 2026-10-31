@@ -17,7 +17,16 @@
    - `CFBundleVersion`（构建号）每次都必须 +1，只增不减
 2. 执行 `./make-dmg.sh --rebuild`
 3. 校验：`hdiutil verify` 通过、`codesign --verify` 通过、架构含 `x86_64` 与 `arm64`
-4. 产物必须留在 `dist/`，历史版本不删除
+4. 产物必须留在 `dist/`，**且 `dist/` 里只保留最新版本的那一个 DMG**（见下条）
+
+### 1.1 DMG 保留策略：只留最新版
+
+**`dist/` 目录只允许存在当前最新版本的 DMG，不保留任何历史版本。**
+
+- 新包生成后，旧版本 DMG 一律删除；不留 `-1.3.4`、`-1.3.5` 这类归档
+- `make-dmg.sh` 已内置清理：打包成功后自动删除 `dist/` 下其它 `*.dmg`
+- 需要回退旧版本时靠 git 历史 + 重新打包，不靠留文件
+- 交付时要能一句话说清「当前最新 = `dist/<名字>-<版本>.dmg`」
 
 ## 2. 架构规约：必须同时支持 Intel 与 M 芯片
 
@@ -91,8 +100,32 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 
 ## 7. 签名与分发
 
-- 本机只有 ad-hoc 签名（`codesign --sign -`），无 Apple 开发者证书，做不了公证
-- 用户首次打开需右键 → 打开，或 `xattr -cr "/Applications/OpenAI API 仪表盘.app"`
+- **签名用本地自签名证书 `OpenAIBar Local Signing`，不用 ad-hoc**（v1.4.3 起）。
+  - 原因：ad-hoc 没有稳定签名身份，钥匙串对 Admin Key 的「始终允许」只能按 cdhash 绑定，而每次重新打包 cdhash 都变 → 用户每次启动都弹钥匙串授权框。稳定证书签名后，ACL 按「证书 + bundle id」持久绑定，点一次「始终允许」永久生效。
+  - `build.sh` 已自动检测：找到证书就用它签名，找不到则回退 ad-hoc 并在 stderr 告警。
+  - 证书存于本机登录钥匙串，10 年有效（codeSigning EKU）。**换机器 / 重装系统需重建**：
+    ```bash
+    # 生成自签名证书并导入（-T 预授权 codesign 访问私钥）
+    openssl req -x509 -newkey rsa:2048 -keyout /tmp/oai-key.pem -out /tmp/oai-cert.pem \
+      -days 3650 -nodes -config <(cat <<'EOF'
+    [req]
+    distinguished_name = dn
+    x509_extensions = v3_req
+    prompt = no
+    [dn]
+    CN = OpenAIBar Local Signing
+    [v3_req]
+    keyUsage = digitalSignature
+    extendedKeyUsage = codeSigning
+    basicConstraints = CA:false
+    EOF
+    )
+    openssl pkcs12 -export -out /tmp/oai-sign.p12 -inkey /tmp/oai-key.pem -in /tmp/oai-cert.pem -passout pass:oai-local -name "OpenAIBar Local Signing"
+    security import /tmp/oai-sign.p12 -k ~/Library/Keychains/login.keychain-db -P oai-local -T /usr/bin/codesign
+    security add-trusted-cert -d -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db /tmp/oai-cert.pem
+    ```
+  - ⚠️ **证书签名必须前台 + 沙箱外跑 `make-dmg.sh`**：codesign 要访问钥匙串，沙箱内会报 `errSecInternalComponent`（`login.keychain-db file-delete` 被拦）。后台任务（run_in_background）里沙箱绕过不生效。
+- 本机无 Apple 开发者证书，做不了公证。用户首次打开需右键 → 打开，或 `xattr -cr "/Applications/OpenAI API 仪表盘.app"`
 - 这段说明已印在 DMG 背景图底部，无需额外告知
 
 ## 8. 余额读取（平台登录态）

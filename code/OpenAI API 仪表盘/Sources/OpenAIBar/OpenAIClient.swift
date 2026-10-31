@@ -14,6 +14,25 @@ struct ItemCost: Identifiable {
     let name: String
     let cost: Double
     let tokens: Int
+    let requests: Int
+}
+
+/// 单个模型的 token 细分（与 costs 接口的 line_item 类别一一对应）。
+struct ModelTokenBreakdown {
+    var output = 0
+    var cachedInput = 0
+    var cacheWrite = 0          // 30 分钟内缓存写入
+    var cacheWrite12h = 0       // 12 小时缓存写入
+    var uncachedInput = 0
+}
+
+/// 「花费来源」按时间范围的三组 Top 榜（今日 / 近 7 天 / 近 30 天）。
+struct CostBreakdown {
+    var today: [ItemCost] = []
+    var last7: [ItemCost] = []
+    var last30: [ItemCost] = []
+
+    var isEmpty: Bool { today.isEmpty && last7.isEmpty && last30.isEmpty }
 }
 
 struct BalanceInfo {
@@ -38,7 +57,7 @@ struct Snapshot {
     var todayRequests: Int = 0
     var requests7: Int = 0
     var daily: [DayPoint] = []
-    var topItems: [ItemCost] = []
+    var costBreakdown: CostBreakdown = CostBreakdown()
     var balance: BalanceInfo?
     var balanceNote: String?
     var fetchedAt: Date = .now
@@ -134,7 +153,7 @@ struct OpenAIClient {
     // MARK: 用量 / 成本
 
     /// 拉取最近 30 天（UTC 日对齐）的成本与用量
-    func fetchUsageAndCost(days: Int = 30) async throws -> (daily: [DayPoint], topItems: [ItemCost]) {
+    func fetchUsageAndCost(days: Int = 30) async throws -> (daily: [DayPoint], breakdown: CostBreakdown) {
         let cal = Self.utcCalendar
         let todayStart = cal.startOfDay(for: .now)
         let span = max(1, min(days, 30))
@@ -171,29 +190,26 @@ struct OpenAIClient {
         let costs = try await costsResp
         let usage = try await usageResp
 
-        // 成本：按天累计 + 按服务项累计（只统计最近 7 天用于 Top 榜）
-        let sevenDaysAgo = cal.date(byAdding: .day, value: -6, to: todayStart) ?? todayStart
-
+        // 成本：按天 × line_item 明细（costs 接口按 line_item 分组）
         var costByDay: [Date: Double] = [:]
-        var itemsByDay: [String: (cost: Double, tokens: Int)] = [:]
+        var costByDayAndItem: [Date: [String: Double]] = [:]
 
         for bucket in costs.data {
             let day = Date(timeIntervalSince1970: TimeInterval(bucket.startTime))
-            let dayCost = bucket.results.reduce(0.0) { $0 + $1.amount.value }
-            costByDay[day, default: 0] += dayCost
-            guard day >= sevenDaysAgo else { continue }
             for r in bucket.results {
                 let name = (r.lineItem?.isEmpty == false ? r.lineItem! : "其他")
-                var entry = itemsByDay[name] ?? (0, 0)
-                entry.cost += r.amount.value
-                itemsByDay[name] = entry
+                costByDayAndItem[day, default: [:]][name, default: 0] += r.amount.value
+                costByDay[day, default: 0] += r.amount.value
             }
         }
 
-        // 用量：按天累计 token / 请求数
+        // 用量：按天累计 token / 请求数；同时按「天 × 模型」记细分 token，
+        // 供「花费来源」按时间范围聚合。usage 接口只支持按 model 分组（不支持 line_item），
+        // 所以 token 先按模型存，聚合时再按 line_item 的「模型前缀 + 类别」反查。
         var tokensByDay: [Date: Int] = [:]
         var requestsByDay: [Date: Int] = [:]
-        var tokensByModel: [String: Int] = [:]
+        var tokenByDayAndModel: [Date: [String: ModelTokenBreakdown]] = [:]
+        var requestsByDayAndModel: [Date: [String: Int]] = [:]
 
         for bucket in usage.data {
             let day = Date(timeIntervalSince1970: TimeInterval(bucket.startTime))
@@ -201,8 +217,15 @@ struct OpenAIClient {
                 let t = (r.inputTokens ?? 0) + (r.outputTokens ?? 0)
                 tokensByDay[day, default: 0] += t
                 requestsByDay[day, default: 0] += (r.numModelRequests ?? 0)
-                if day >= sevenDaysAgo, let model = r.model, !model.isEmpty {
-                    tokensByModel[model, default: 0] += t
+                if let model = r.model, !model.isEmpty {
+                    var b = tokenByDayAndModel[day, default: [:]][model] ?? ModelTokenBreakdown()
+                    b.output += (r.outputTokens ?? 0)
+                    b.cachedInput += (r.inputCachedTokens ?? 0)
+                    b.cacheWrite += (r.inputCacheWriteTokens ?? 0)
+                    b.cacheWrite12h += (r.inputCacheWrite12hTokens ?? 0)
+                    b.uncachedInput += (r.inputUncachedTokens ?? 0)
+                    tokenByDayAndModel[day, default: [:]][model] = b
+                    requestsByDayAndModel[day, default: [:]][model, default: 0] += (r.numModelRequests ?? 0)
                 }
             }
         }
@@ -217,19 +240,65 @@ struct OpenAIClient {
                                   requests: requestsByDay[day] ?? 0))
         }
 
-        // Top 花费项：合并 token 数，按金额降序
-        var topItems = itemsByDay.map { name, value -> ItemCost in
-            ItemCost(id: name, name: name, cost: value.cost, tokens: 0)
+        // 给定日期范围，聚合出该范围内的 Top 花费项（按 line_item，金额降序取前 5）。
+        func aggregate(_ days: [Date]) -> [ItemCost] {
+            var cost: [String: Double] = [:]
+            var modelTok: [String: ModelTokenBreakdown] = [:]
+            var modelReq: [String: Int] = [:]
+            for day in days {
+                for (name, c) in costByDayAndItem[day] ?? [:] {
+                    cost[name, default: 0] += c
+                }
+                for (model, b) in tokenByDayAndModel[day] ?? [:] {
+                    var m = modelTok[model] ?? ModelTokenBreakdown()
+                    m.output += b.output
+                    m.cachedInput += b.cachedInput
+                    m.cacheWrite += b.cacheWrite
+                    m.cacheWrite12h += b.cacheWrite12h
+                    m.uncachedInput += b.uncachedInput
+                    modelTok[model] = m
+                }
+                for (model, r) in requestsByDayAndModel[day] ?? [:] {
+                    modelReq[model, default: 0] += r
+                }
+            }
+            let items = cost.map { name, c -> ItemCost in
+                let (model, category) = Self.splitLineItem(name)
+                let tokens = modelTok[model].map { Self.categoryTokens(category, breakdown: $0) } ?? 0
+                return ItemCost(id: name, name: name, cost: c,
+                                tokens: tokens, requests: modelReq[model] ?? 0)
+            }
+            return Array(items.sorted { $0.cost > $1.cost }.prefix(5))
         }
-        for i in topItems.indices {
-            topItems[i] = ItemCost(id: topItems[i].id,
-                                   name: topItems[i].name,
-                                   cost: topItems[i].cost,
-                                   tokens: tokensByModel[topItems[i].name] ?? 0)
-        }
-        topItems.sort { $0.cost > $1.cost }
 
-        return (daily, Array(topItems.prefix(5)))
+        let todayOnly = [todayStart]
+        let last7Days = (0..<7).compactMap { cal.date(byAdding: .day, value: -$0, to: todayStart) }
+        let allDays = (0..<span).compactMap { cal.date(byAdding: .day, value: -$0, to: todayStart) }
+
+        var breakdown = CostBreakdown()
+        breakdown.today = aggregate(todayOnly)
+        breakdown.last7 = aggregate(last7Days)
+        breakdown.last30 = aggregate(allDays)
+
+        return (daily, breakdown)
+    }
+
+    /// 把 line_item 名（"模型, 类别"）拆成模型名 + 类别。
+    private static func splitLineItem(_ lineItem: String) -> (model: String, category: String) {
+        let parts = lineItem.split(separator: ",", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+        return (parts.first ?? "", parts.count >= 2 ? parts[1].lowercased() : "")
+    }
+
+    /// 某类别的 token 数（对应 ModelTokenBreakdown 的一个细分字段）。
+    private static func categoryTokens(_ category: String, breakdown: ModelTokenBreakdown) -> Int {
+        switch category {
+        case "output": return breakdown.output
+        case "cached input": return breakdown.cachedInput
+        case "cache writes": return breakdown.cacheWrite
+        case "cache writes - 12hr": return breakdown.cacheWrite12h
+        case "input": return breakdown.uncachedInput
+        default: return 0
+        }
     }
 
     // MARK: 余额（best-effort）
@@ -351,12 +420,20 @@ private struct UsageResponse: Decodable {
         struct Item: Decodable {
             let inputTokens: Int?
             let outputTokens: Int?
+            let inputCachedTokens: Int?
+            let inputCacheWriteTokens: Int?
+            let inputCacheWrite12hTokens: Int?
+            let inputUncachedTokens: Int?
             let numModelRequests: Int?
             let model: String?
 
             enum CodingKeys: String, CodingKey {
                 case inputTokens = "input_tokens"
                 case outputTokens = "output_tokens"
+                case inputCachedTokens = "input_cached_tokens"
+                case inputCacheWriteTokens = "input_cache_write_tokens"
+                case inputCacheWrite12hTokens = "input_cache_write_12h_tokens"
+                case inputUncachedTokens = "input_uncached_tokens"
                 case numModelRequests = "num_model_requests"
                 case model
             }

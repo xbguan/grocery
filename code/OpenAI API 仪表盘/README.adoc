@@ -12,7 +12,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI API 仪表盘-1.3.0.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI API 仪表盘-1.3.6.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -144,7 +144,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI API 仪表盘-1.3.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI API 仪表盘-1.3.6.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
@@ -201,7 +201,7 @@ cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
 
 发布相关的两条硬性约定，写在 `AGENTS.md`：
 
-. *每次改动都要出新版本 DMG*：先改 `Resources/Info.plist` 的版本号（修 bug 末位 +1，新功能次位 +1，`CFBundleVersion` 每次 +1），再 `./make-dmg.sh --rebuild`，产物留 `dist/`
+. *每次改动都要出新版本 DMG*：先改 `Resources/Info.plist` 的版本号（修 bug 末位 +1，新功能次位 +1，`CFBundleVersion` 每次 +1），再 `./make-dmg.sh --rebuild`，产物留 `dist/`，且 `dist/` 只保留最新版本的一个 DMG（旧的删掉）
 . *必须同时支持 Intel 与 M 芯片*：DMG 内 App 必须是 `x86_64 + arm64` 通用二进制，不依赖 Rosetta；两个架构由 `--triple` 分别交叉编译后 `lipo` 合并，打包后要核对 `lipo -archs`
 
 注：本机只有 Command Line Tools、没有完整 Xcode，因此有几处绕行：

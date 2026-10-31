@@ -14,6 +14,12 @@ enum UI {
     static let cardRadius: CGFloat = 24
     static let gap: CGFloat = 9
 
+    /// 「正在读取余额…」这一行很矮（≈40pt），而正常余额卡（标题+进度条+脚注）
+    /// 约 100pt。读取态如果不撑高，加载结束切到余额卡时下方内容会突然上移一下。
+    /// 这里给「读取中 / 读取失败」两张临时卡一个最小高度，和正常余额卡对齐；
+    /// 正常余额卡、关闭态说明卡保持自然高度，不再被强行撑高，避免卡片底部多出空档。
+    static let creditMinHeight: CGFloat = 104
+
     /// 头部与底栏的固定高度，用于给中间内容算可用空间
     static let headerHeight: CGFloat = 58
     static let footerHeight: CGFloat = 44
@@ -209,6 +215,13 @@ struct CircleIconButton: View {
 }
 
 /// 小圆角标签（UTC、估算等）
+/// 花费来源的时间范围切换
+enum CostRange: String, CaseIterable {
+    case today = "今日"
+    case last7 = "近 7 天"
+    case last30 = "近 30 天"
+}
+
 private struct Chip: View {
     let text: String
     var tint: Color? = nil
@@ -261,6 +274,7 @@ struct MenuContentView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
     @State private var bodyHeight: CGFloat = 0
+    @State private var costRange: CostRange = .last7
 
     var body: some View {
         ZStack {
@@ -274,8 +288,25 @@ struct MenuContentView: View {
         }
         .frame(width: UI.panelWidth)
         .tint(Color.brand(scheme))
-        .onPreferenceChange(BodyHeightKey.self) { bodyHeight = $0 }
-        .onAppear { SettingsWindow.close() }
+        .onPreferenceChange(BodyHeightKey.self) { h in
+            // 定高策略：只认第一次有效测量，定下来之后再也不跟内容走。
+            //
+            // 原因：MenuBarExtra 的窗口高度只能取整，而内容测量值常带小数；
+            // 如果把测量值持续喂回 .frame(height:)，窗口与布局就会在取整之间
+            // 反复拉锯，面板 1px 级持续抖动（上半区/下半区都可能，取决于哪块在变）。
+            // 冻结后，内容再多也只会在滚动区内滚动，窗口尺寸恒定 → 结构上不可能抖。
+            guard bodyHeight < 60, h > 120 else { return }
+            bodyHeight = min(h.rounded(.up), UI.maxBodyHeight.rounded(.down))
+        }
+        .onChange(of: model.snapshot == nil) { _, _ in
+            // 只有在「有数据 ↔ 无数据」这种离散切换时才重新定一次高度
+            bodyHeight = 0
+        }
+        .transaction { $0.animation = nil }
+        .onAppear {
+            SettingsWindow.close()
+            model.refreshCreditOnPanelOpen()
+        }
     }
 
     /// 中间区域：内容自然撑开；超出屏幕可视高度时自己变成可滚动，
@@ -291,8 +322,8 @@ struct MenuContentView: View {
                         trend(snap)
                         kpis(snap)
                         balanceSection(snap)
-                        if !snap.topItems.isEmpty {
-                            topItems(snap.topItems)
+                        if !snap.costBreakdown.isEmpty {
+                            topItems(snap.costBreakdown, range: $costRange)
                         }
                     }
                     .padding(.horizontal, UI.hPad)
@@ -307,7 +338,7 @@ struct MenuContentView: View {
                 }
             )
         }
-        .frame(height: min(max(bodyHeight, 160), UI.maxBodyHeight))
+        .frame(height: min(max(bodyHeight, 160), UI.maxBodyHeight.rounded(.down)))
     }
 
     // MARK: 头部
@@ -461,27 +492,104 @@ struct MenuContentView: View {
 
     // MARK: 额度
 
-    /// 余额有多种来源，优先级：平台会话实时 > 需要登录 > 读取中 > 失败 > 估算
+    /// 余额有五态，优先级：
+    /// 有现值 > 开关关闭(未开启/刚关闭) > 登录已失效 > 从未登录 > 刷新失败 > 读取中
     @ViewBuilder
     private func balanceSection(_ snap: Snapshot) -> some View {
-        if let lc = model.liveCredit {
-            balanceCard(BalanceInfo(limit: lc.granted,
-                                    used: lc.used,
-                                    available: lc.available,
-                                    source: "OpenAI 平台会话 · 实时，\(Fmt.updatedLabel(lc.at))",
-                                    isExact: true),
-                        title: "API 余额")
-        } else if model.config.showCredit, model.creditState == .needsLogin {
-            creditLoginCard
-        } else if model.config.showCredit, model.creditState == .loading {
-            creditLoadingCard
-        } else if model.config.showCredit, case .failed(let msg) = model.creditState {
-            creditFailedCard(msg)
-        } else if let balance = snap.balance {
-            balanceCard(balance)
-        } else if let note = snap.balanceNote {
-            balanceNote(note)
+        Group {
+            if let lc = model.liveCredit {
+                balanceCard(liveInfo(lc), title: "API 余额")
+            } else if !model.config.showCredit {
+                // 状态 1（从未开启）与状态 2（从开启切回关闭）共用这张卡：
+                // 关闭开关会同时清掉登录态，所以两者界面必须一致，不能残留上次读数。
+                creditOffCard(snap)
+            } else if model.creditState == .needsLogin {
+                // 读到过 = 登录过期；从没读到 = 从未登录。动作相同，文案必须分开
+                if model.config.hasConnectedCredit, let last = model.lastKnownCredit {
+                    creditExpiredCard(last)
+                } else {
+                    creditLoginCard
+                }
+            } else if case .failed(let msg) = model.creditState {
+                if let last = model.lastKnownCredit {
+                    balanceCard(lastInfo(last), title: "API 余额", retry: true)
+                } else {
+                    creditFailedCard(msg)
+                }
+            } else {
+                // showCredit 为真但状态还没落定：.off / .idle / .loading 都按读取中处理
+                creditLoadingCard
+            }
         }
+    }
+
+    /// 状态 1 / 2：开关关闭。说清「为什么 Key 拿不到余额」并给出唯一正确动作。
+    private func creditOffCard(_ snap: Snapshot) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 6) {
+                Text("API 余额")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Chip(text: "未开启")
+                Spacer()
+            }
+            Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。如需此功能，请到设置中开启「显示真实余额」，并登录 OpenAI 平台。")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            creditLink("去设置开启", icon: "chevron.right") { openSettings() }
+            if let b = snap.balance, let available = b.available {
+                Text("估算额度：剩余 \(Fmt.money(available))" +
+                     (b.limit.map { " / 上限 \(Fmt.money($0))" } ?? "") +
+                     "（计费上限 − 本月已用，仅供参考）")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .glassCard()
+    }
+
+    /// 余额区统一的无边框动作按钮：只有文字 + 细箭头，无底色、无描边。
+    /// 这块是「说明 + 一个动作」的结构，胶囊按钮太抢眼，会把说明压成配角。
+    private func creditLink(_ title: String, icon: String? = nil,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                Text(title)
+                    .font(.system(size: 10.5, weight: .medium))
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 8, weight: .bold))
+                }
+            }
+            .foregroundStyle(Color.brand(scheme))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func liveInfo(_ lc: LiveCredit) -> BalanceInfo {
+        BalanceInfo(limit: lc.granted, used: lc.used, available: lc.available,
+                    source: liveCreditSource(lc), isExact: true)
+    }
+
+    /// 刷新失败时的上次读数：数字照旧，但脚注说清是旧值，并给「重试」
+    private func lastInfo(_ last: LiveCredit) -> BalanceInfo {
+        BalanceInfo(limit: last.granted, used: last.used, available: last.available,
+                    source: "OpenAI 平台会话 · 上次读数 \(Fmt.updatedLabel(last.at))（本次刷新失败）",
+                    isExact: true)
+    }
+
+    /// 实时余额的说明行。刷新失败时保留上次读到的数字，但必须说明它已经旧了，
+    /// 免得把一个几小时前的读数当成当前余额。
+    private func liveCreditSource(_ lc: LiveCredit) -> String {
+        let base = "OpenAI 平台会话 · 实时，\(Fmt.updatedLabel(lc.at))"
+        if case .failed = model.creditState {
+            return base + "（本次刷新失败，显示上次读数）"
+        }
+        return base
     }
 
     private var creditLoginCard: some View {
@@ -492,12 +600,31 @@ struct MenuContentView: View {
                 Chip(text: "需要登录", tint: .orange)
                 Spacer()
             }
-            Text("余额接口只接受平台登录态，任何 API Key 都会被拒。登录一次后即可显示真实余额，登录态只存在本机。")
-                .font(.system(size: 11.5))
+            Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。登录一次 OpenAI 平台即可显示真实余额；登录态只存在本机，App 不保存密码，也不保存 cookie 明文。")
+                .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("登录 OpenAI 平台") { model.loginForCredit() }
-                .buttonStyle(GlassPillStyle(compact: true))
+            creditLink("登录 OpenAI 平台", icon: "chevron.right") { model.loginForCredit() }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .glassCard()
+    }
+
+    /// 登录过期：和「从未登录」必须长得不一样，否则用户不知道自己属于哪种
+    private func creditExpiredCard(_ last: LiveCredit) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 6) {
+                Text("API 余额")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Chip(text: "登录已失效", tint: .orange)
+                Spacer()
+            }
+            Text("平台登录态已过期，重新登录即可恢复。上次读到 \(Fmt.money(last.available)) · \(Fmt.updatedLabel(last.at))。")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            creditLink("重新登录", icon: "chevron.right") { model.loginForCredit() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
@@ -508,10 +635,12 @@ struct MenuContentView: View {
         HStack(spacing: 9) {
             ProgressView().controlSize(.small).scaleEffect(0.8)
             Text("正在读取余额…")
-                .font(.system(size: 11.5))
+                .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
             Spacer()
         }
+        // 撑到和其它余额卡一样高并垂直居中，避免 loading 态只有一行、切状态时高度突变
+        .frame(maxWidth: .infinity, minHeight: UI.creditMinHeight - 24, alignment: .center)
         .padding(12)
         .glassCard(radius: 20)
     }
@@ -523,18 +652,19 @@ struct MenuContentView: View {
                 .foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 6) {
                 Text("余额读取失败：\(message)")
-                    .font(.system(size: 11.5))
+                    .font(.system(size: 10.5))
                     .fixedSize(horizontal: false, vertical: true)
-                Button("重试") { model.retryCredit() }
-                    .buttonStyle(GlassPillStyle(compact: true))
+                creditLink("重试", icon: "arrow.clockwise") { model.retryCredit() }
             }
             Spacer(minLength: 0)
         }
+        // 与「读取中」一样，撑到和正常余额卡接近的高度，避免状态切换时下方内容跳动
+        .frame(maxWidth: .infinity, minHeight: UI.creditMinHeight - 24, alignment: .center)
         .padding(12)
         .glassCard(radius: 20)
     }
 
-    private func balanceCard(_ balance: BalanceInfo, title: String = "API 额度") -> some View {
+    private func balanceCard(_ balance: BalanceInfo, title: String = "API 额度", optIn: Bool = false, retry: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(title)
@@ -573,6 +703,26 @@ struct MenuContentView: View {
                 .foregroundStyle(.secondary)
             }
 
+            if optIn {
+                HStack(spacing: 8) {
+                    creditLink("读取真实余额", icon: "chevron.right") { model.loginForCredit() }
+                    Text("需登录平台账号一次")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
+                }
+            }
+
+            if retry {
+                HStack(spacing: 8) {
+                    creditLink("重试", icon: "arrow.clockwise") { model.retryCredit() }
+                    Text("上次读数仅供参照")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
+                }
+            }
+
             Text(balance.source)
                 .font(.system(size: 10.5))
                 .foregroundStyle(.tertiary)
@@ -581,66 +731,112 @@ struct MenuContentView: View {
         .glassCard()
     }
 
-    private func balanceNote(_ note: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "info.circle")
-                .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
-            Text(note)
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .glassCard(radius: 20)
-    }
-
     // MARK: 花费来源
 
-    private func topItems(_ items: [ItemCost]) -> some View {
+    private func topItems(_ breakdown: CostBreakdown, range: Binding<CostRange>) -> some View {
+        let items: [ItemCost] = {
+            switch range.wrappedValue {
+            case .today: return breakdown.today
+            case .last7: return breakdown.last7
+            case .last30: return breakdown.last30
+            }
+        }()
         let total = max(items.reduce(0) { $0 + $1.cost }, 0.0001)
+        // 进度条按「相对最大项」铺开：最大项填满轨道，其余按比例，避免按总和算时
+        // 每条都只占轨道一小截、后半段空跑显得拖沓。
+        let maxCost = items.first?.cost ?? total
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
+            // 标题行：标题 + 无边框时间切换 + 合计（前 5 项之和）
+            HStack(alignment: .center, spacing: 12) {
                 Text("花费来源")
                     .font(.system(size: 12.5, weight: .semibold))
-                Chip(text: "近 7 天")
+                HStack(spacing: 10) {
+                    ForEach(CostRange.allCases, id: \.self) { r in
+                        rangeChip(r, selected: range.wrappedValue == r) {
+                            range.wrappedValue = r
+                        }
+                    }
+                }
                 Spacer()
                 Text(Fmt.money(total))
                     .font(.system(size: 11.5, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
-            VStack(spacing: 9) {
-                ForEach(items) { item in
-                    VStack(spacing: 5) {
-                        HStack(spacing: 8) {
-                            Text(item.name)
-                                .font(.system(size: 12.5))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer(minLength: 6)
-                            Text(Fmt.money(item.cost))
-                                .font(.system(size: 12.5, weight: .medium).monospacedDigit())
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Glass.inset(scheme))
-                                Capsule()
-                                    .fill(LinearGradient(
-                                        colors: [Color.brand(scheme).opacity(0.85),
-                                                 Color.brand(scheme).opacity(0.42)],
-                                        startPoint: .leading, endPoint: .trailing))
-                                    .frame(width: max(3, geo.size.width * item.cost / total))
+            if items.isEmpty {
+                Text("该时间段暂无花费")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 9) {
+                    ForEach(items) { item in
+                        VStack(spacing: 5) {
+                            HStack(spacing: 8) {
+                                Text(item.name)
+                                    .font(.system(size: 12.5))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer(minLength: 6)
+                                Text(Fmt.money(item.cost))
+                                    .font(.system(size: 12.5, weight: .medium).monospacedDigit())
                             }
+                            // 进度条与 token/请求数同一行：轨道占满 token 左侧空间、顶到数字前，
+                            // 右侧不再空跑。填充按「相对最大项」比例，用内层 GeometryReader 量轨道实际宽度。
+                            HStack(spacing: 8) {
+                                ZStack(alignment: .leading) {
+                                    Capsule().fill(Glass.inset(scheme))
+                                    GeometryReader { barGeo in
+                                        Capsule()
+                                            .fill(LinearGradient(
+                                                colors: [Color.brand(scheme).opacity(0.85),
+                                                         Color.brand(scheme).opacity(0.42)],
+                                                startPoint: .leading, endPoint: .trailing))
+                                            .frame(width: max(3, barGeo.size.width * item.cost / maxCost))
+                                    }
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 4)
+
+                                Text(itemSubtitle(item))
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
+                            .frame(height: 11)
                         }
-                        .frame(height: 4)
                     }
                 }
             }
+
+            // 右上角金额是「前 5 项」之和，不是当前范围全部花费，必须说清楚，
+            // 否则一个数字容易被当成整个范围的总花费。
+            Text("仅显示花费最高的前 5 项，右上角为这 5 项之和")
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
         }
         .padding(14)
         .glassCard()
+    }
+
+    /// 时间范围切换：无边框纯文字，选中品牌色加粗，未选中灰色。
+    private func rangeChip(_ range: CostRange, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(range.rawValue)
+                .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? Color.brand(scheme) : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 每个花费项的次要信息：token 量（K/M/B 缩写）+ 请求数，纯数字、无单位词。
+    /// 图片类模型 token 为 0，只显示请求数。
+    private func itemSubtitle(_ item: ItemCost) -> String {
+        if item.tokens > 0 {
+            return "\(Fmt.tokens(item.tokens)) · \(Fmt.tokens(item.requests))"
+        }
+        return "\(Fmt.tokens(item.requests))"
     }
 
     // MARK: 空 / 错误状态
@@ -776,12 +972,13 @@ struct MenuContentView: View {
                 Button {
                     NSApplication.shared.terminate(nil)
                 } label: {
-                    Image(systemName: "power")
-                        .font(.system(size: 12, weight: .medium))
+                    Label("退出", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 11.5, weight: .medium))
+                        .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("退出")
+                .help("退出 OpenAI API 仪表盘")
             }
             .padding(.horizontal, UI.hPad)
             .padding(.vertical, 11)
@@ -1003,13 +1200,14 @@ struct SettingsView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
-            Text("OpenAI 的余额接口只接受平台登录态，任何 API Key 请求它都返回 403，所以这部分与 Key 无关。开启后 App 用本机登录态读取「剩余额度」；登录态存在 App 自己的 WebKit 容器里，不保存密码、不保存 cookie 明文。")
+            Text("官方暂未开放用 ADMIN KEY 读取余额的接口（任何 Key 请求它都返回 403），所以这部分与 Key 无关：开启后 App 借本机平台登录态读取「剩余额度」，登录态存在 App 自己的 WebKit 容器里，不保存密码、不保存 cookie 明文。\n注意：关闭开关会同时清空本机登录态（等于退出登录），下次开启需要重新登录一次。")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
                 Button(model.liveCredit == nil ? "登录 OpenAI 平台" : "重新登录") {
+                    creditDraft = true
                     model.loginForCredit()
                 }
                 .buttonStyle(GlassPillStyle(compact: true))
@@ -1033,7 +1231,7 @@ struct SettingsView: View {
             return "已读取 \(Fmt.money(lc.available)) · \(Fmt.updatedLabel(lc.at))"
         }
         switch model.creditState {
-        case .needsLogin: return "需要登录"
+        case .needsLogin: return model.config.hasConnectedCredit ? "登录已失效" : "需要登录"
         case .loading:    return "读取中…"
         case .failed(let m): return "失败：\(m)"
         case .ready: return "已读取"

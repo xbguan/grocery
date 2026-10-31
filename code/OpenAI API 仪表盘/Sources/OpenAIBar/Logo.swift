@@ -17,13 +17,20 @@ enum Brand {
 // 保持 OpenAI 那种「几乎全黑白、只留一处色彩」的克制。
 
 enum LogoMark {
+    /// 按尺寸缓存：header 每次 body 求值都会取图，重复生成 NSImage 会造成无谓重绘
+    private static var imageCache: [CGFloat: NSImage] = [:]
+
     /// 供 SwiftUI 使用
+    @MainActor
     static func image(size: CGFloat) -> NSImage {
-        NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+        if let hit = imageCache[size] { return hit }
+        let img = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
             draw(in: ctx, size: rect.width)
             return true
         }
+        imageCache[size] = img
+        return img
     }
 
     /// 导出 PNG（尺寸即像素）

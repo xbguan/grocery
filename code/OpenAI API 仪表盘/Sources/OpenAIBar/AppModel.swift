@@ -31,6 +31,8 @@ final class AppModel: ObservableObject {
     /// 实时余额（需用户开启；官方 API 拿不到，只能走平台登录态）
     let creditBridge = CreditBridge()
     @Published private(set) var liveCredit: LiveCredit?
+    /// 最近一次成功读到的余额。只用于「登录已失效 / 刷新失败」时说明「上次读到多少」，不当作现值
+    @Published private(set) var lastKnownCredit: LiveCredit?
     @Published private(set) var creditState: CreditBridge.State = .off
 
     private var timer: Timer?
@@ -75,12 +77,25 @@ final class AppModel: ObservableObject {
         snap.requests7 = last7.reduce(0) { $0 + $1.requests }
         snap.cost30 = daily.reduce(0) { $0 + $1.cost }
         snap.tokens30 = daily.reduce(0) { $0 + $1.tokens }
-        snap.topItems = [
-            ItemCost(id: "gpt-4o", name: "gpt-4o", cost: 8.42, tokens: 1_240_000),
-            ItemCost(id: "o3", name: "o3", cost: 4.18, tokens: 310_000),
-            ItemCost(id: "gpt-4o-mini", name: "gpt-4o-mini", cost: 1.96, tokens: 2_880_000),
-            ItemCost(id: "text-embedding-3-large", name: "text-embedding-3-large", cost: 0.72, tokens: 940_000),
-            ItemCost(id: "gpt-image-1", name: "gpt-image-1", cost: 0.31, tokens: 0)
+        snap.costBreakdown.today = [
+            ItemCost(id: "gpt-4o", name: "gpt-4o", cost: 1.85, tokens: 210_000, requests: 140),
+            ItemCost(id: "gpt-4o-mini", name: "gpt-4o-mini", cost: 0.42, tokens: 610_000, requests: 900),
+            ItemCost(id: "o3", name: "o3", cost: 0.28, tokens: 22_000, requests: 15),
+            ItemCost(id: "gpt-image-1", name: "gpt-image-1", cost: 0.12, tokens: 0, requests: 6)
+        ]
+        snap.costBreakdown.last7 = [
+            ItemCost(id: "gpt-4o", name: "gpt-4o", cost: 8.42, tokens: 1_240_000, requests: 830),
+            ItemCost(id: "o3", name: "o3", cost: 4.18, tokens: 310_000, requests: 210),
+            ItemCost(id: "gpt-4o-mini", name: "gpt-4o-mini", cost: 1.96, tokens: 2_880_000, requests: 4_100),
+            ItemCost(id: "text-embedding-3-large", name: "text-embedding-3-large", cost: 0.72, tokens: 940_000, requests: 1_200),
+            ItemCost(id: "gpt-image-1", name: "gpt-image-1", cost: 0.31, tokens: 0, requests: 12)
+        ]
+        snap.costBreakdown.last30 = [
+            ItemCost(id: "gpt-4o", name: "gpt-4o", cost: 21.40, tokens: 5_120_000, requests: 3_400),
+            ItemCost(id: "o3", name: "o3", cost: 9.66, tokens: 780_000, requests: 520),
+            ItemCost(id: "gpt-4o-mini", name: "gpt-4o-mini", cost: 4.18, tokens: 6_900_000, requests: 9_800),
+            ItemCost(id: "text-embedding-3-large", name: "text-embedding-3-large", cost: 2.05, tokens: 2_600_000, requests: 3_300),
+            ItemCost(id: "gpt-image-1", name: "gpt-image-1", cost: 0.94, tokens: 0, requests: 38)
         ]
         snap.balance = BalanceInfo(limit: 50, used: 15.62, available: 34.38,
                                    source: "API 计费额度上限 − 本月已用（估算）", isExact: false)
@@ -123,7 +138,20 @@ final class AppModel: ObservableObject {
                 creditBridge.start()
                 creditBridge.refresh(stale: 0)
             } else {
+                // 关闭开关 = 退出登录：停掉读取，并清空 App 自己的 WebKit 容器。
+                // 开关默认关闭是隐私姿态的一部分，留着 cookie 等于「关了但没关」。
                 creditBridge.stop()
+                creditBridge.clearSession { [weak self] in self?.syncCredit() }
+                liveCredit = nil
+                lastKnownCredit = nil
+                // 忘掉「曾经连过」：再开启时回到「从未登录」，而不是「登录已失效」。
+                // 这里要绕过 suppressPersist 直接落盘（外层已保存过一次 config）。
+                if config.hasConnectedCredit {
+                    suppressPersist = true
+                    config.hasConnectedCredit = false
+                    suppressPersist = false
+                    ConfigStore.save(config)
+                }
                 syncCredit()
             }
         }
@@ -157,20 +185,46 @@ final class AppModel: ObservableObject {
 
     private func syncCredit() {
         creditState = creditBridge.state
+
+        // 上次读数：只作文案，任何时候都不参与「当前余额」的判断
+        if let k = creditBridge.lastKnown {
+            lastKnownCredit = LiveCredit(available: k.available, granted: k.granted, used: k.used, at: k.at)
+        } else {
+            lastKnownCredit = nil
+        }
+
+        // 需要重新登录时必须丢掉现值：否则面板会一直显示上一次读到的数字，
+        // 把「登录已失效 / 需要登录」卡片永久盖住。
+        if creditBridge.state == .needsLogin {
+            liveCredit = nil
+            return
+        }
         if let a = creditBridge.available {
             liveCredit = LiveCredit(available: a,
                                     granted: creditBridge.granted,
                                     used: creditBridge.used,
                                     at: creditBridge.updatedAt ?? .now)
+            // 记住「读到过」，用来把「登录已失效」和「从未登录」分开显示
+            if !config.hasConnectedCredit { config.hasConnectedCredit = true }
         } else {
             liveCredit = nil
         }
     }
 
-    /// 打开登录窗口；登录成功后立刻重读余额
+    /// 打开登录窗口；登录成功后立刻重读余额。
+    /// 开关没打开时一并打开（写配置会触发 start + 立即加载），让「登录」成为一步操作。
     func loginForCredit() {
+        if !config.showCredit {
+            config.showCredit = true
+        } else if creditBridge.state == .off {
+            creditBridge.start()
+        }
         CreditLoginWindow.show { [weak self] in
-            self?.creditBridge.forceReload()
+            // 登录窗口刚关，cookie 可能还没完全同步到隐藏 WebView，稍等再重查，
+            // 否则 forceReload 可能又带着旧（无）登录态被判成「需要登录」。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                self?.creditBridge.forceReload()
+            }
         }
     }
 
@@ -178,8 +232,17 @@ final class AppModel: ObservableObject {
         creditBridge.forceReload()
     }
 
+    /// 面板打开时：先把卡死的 loading 救回来，再按 15 分钟节流决定是否重读
+    func refreshCreditOnPanelOpen() {
+        guard config.showCredit else { return }
+        creditBridge.recoverIfStuck()
+        creditBridge.refresh(stale: 900)
+    }
+
     /// 清除平台登录态（只清 App 自己的 WebKit 存储，不影响浏览器）
     func clearCreditLogin() {
+        // 连同「读到过」的标记一起清掉：之后应当回到「从未登录」的界面
+        if config.hasConnectedCredit { config.hasConnectedCredit = false }
         creditBridge.clearSession { [weak self] in
             self?.syncCredit()
         }
@@ -187,14 +250,35 @@ final class AppModel: ObservableObject {
 
     /// 预览用：伪造一条实时余额
     func loadDemoCredit() {
+        demoCreditFlags(hasConnected: true)
         liveCredit = LiveCredit(available: 12.51, granted: 16.0, used: 3.49, at: .now)
+        lastKnownCredit = liveCredit
         creditState = .ready
     }
 
-    /// 预览用：余额需要登录的状态
+    /// 预览用：余额需要登录的状态（从未登录过）
     func loadDemoCreditLogin() {
+        demoCreditFlags(hasConnected: false)
         liveCredit = nil
+        lastKnownCredit = nil
         creditState = .needsLogin
+    }
+
+    /// 预览用：登录已失效（以前读到过，现在会话过期）
+    func loadDemoCreditExpired() {
+        demoCreditFlags(hasConnected: true)
+        liveCredit = nil
+        lastKnownCredit = LiveCredit(available: 12.51, granted: 16.0, used: 3.49,
+                                     at: Date().addingTimeInterval(-3 * 3600))
+        creditState = .needsLogin
+    }
+
+    /// 预览不能写用户的真实配置（demo 只是画界面）
+    private func demoCreditFlags(hasConnected: Bool) {
+        suppressPersist = true
+        config.showCredit = true
+        config.hasConnectedCredit = hasConnected
+        suppressPersist = false
     }
 
     // MARK: 定时刷新
@@ -242,12 +326,12 @@ final class AppModel: ObservableObject {
         do {
             async let core = client.fetchUsageAndCost(days: 30)
             async let balancePair = client.fetchBalance()
-            let (daily, topItems) = try await core
+            let (daily, breakdown) = try await core
             let (balance, note) = await balancePair
 
             var snap = Snapshot()
             snap.daily = daily
-            snap.topItems = topItems
+            snap.costBreakdown = breakdown
 
             let today = daily.last
             snap.todayCost = today?.cost ?? 0

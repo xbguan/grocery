@@ -12,10 +12,8 @@ enum DemoWindow {
         let model = AppModel(demo: true)
         if args.contains("--demo-empty") { model.loadDemoEmpty() }
         if args.contains("--demo-credit") { model.loadDemoCredit() }
-        if args.contains("--demo-credit-login") {
-            model.update { $0.showCredit = true }
-            model.loadDemoCreditLogin()
-        }
+        if args.contains("--demo-credit-login") { model.loadDemoCreditLogin() }
+        if args.contains("--demo-credit-expired") { model.loadDemoCreditExpired() }
 
         let hosting = NSHostingView(rootView: MenuContentView().environmentObject(model))
         let window = NSWindow(
