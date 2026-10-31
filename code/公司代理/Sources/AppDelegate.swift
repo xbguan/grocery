@@ -300,9 +300,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 同上，但结果是一组「标签, 值」，供两列对齐的弹窗使用
-    private func runAsyncRows(_ work: @escaping () -> ([(String, String)], Bool),
-                              done: @escaping ([(String, String)], Bool) -> Void) {
+    /// 同上，但结果是一组分组信息行，供 InfoPanel 渲染
+    private func runAsyncSections(_ work: @escaping () -> ([[InfoRow]], Bool),
+                                  done: @escaping ([[InfoRow]], Bool) -> Void) {
         guard !busy else { return }
         busy = true
         DispatchQueue.global(qos: .userInitiated).async {
@@ -363,9 +363,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let proxy = viaRelay ? cfg.relayURL : cfg.upstreamURLWithAuth
         let addr = "\(cfg.host):\(cfg.port)"
         let path = viaRelay ? "经本地中继 \(cfg.relayHost):\(cfg.relayPort)" : "直连公司代理"
-        runAsyncRows({ [unowned self] in
+        runAsyncSections({ [unowned self] in
             guard Shell.tcpAlive(self.cfg.host, UInt16(self.cfg.port), timeout: 3) else {
-                return ([("代理", addr), ("结果", "端口不可达")], false)
+                return ([[InfoRow("server.rack", "代理地址", addr),
+                          InfoRow("exclamationmark.triangle.fill", "端口", "不可达",
+                                  tint: .systemOrange, valueTint: .systemOrange)]], false)
             }
             let t0 = Date()
             let (_, code) = Shell.run("/usr/bin/curl",
@@ -373,32 +375,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                  "-x", proxy, "https://chatgpt.com/backend-api/me"], timeout: 20)
             let ms = Int(Date().timeIntervalSince(t0) * 1000)
             let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
-            var rows: [(String, String)] = [
-                ("代理", addr),
-                ("路径", path),
-                ("耗时", "\(ms) ms"),
-            ]
+
+            let link = [InfoRow("server.rack", "代理地址", addr),
+                        InfoRow("arrow.triangle.branch", "路径", path),
+                        InfoRow("clock", "耗时", "\(ms) ms")]
+            let exit: [InfoRow]
+            let ok: Bool
             if v == "401" {
-                rows.append(("出口", "chatgpt.com → 401，正常"))
-                return (rows, true)
+                exit = [InfoRow("bolt.horizontal.fill", "出口", "chatgpt.com → 401 正常",
+                                tint: .systemGreen)]
+                ok = true
+            } else if v.isEmpty || v == "000" {
+                exit = [InfoRow("exclamationmark.triangle.fill", "出口",
+                                "chatgpt.com 访问失败（超时或被重置）",
+                                tint: .systemOrange, valueTint: .systemOrange)]
+                ok = false
+            } else {
+                exit = [InfoRow("dot.radiowaves.left.and.right", "出口", "chatgpt.com → HTTP \(v)")]
+                ok = true
             }
-            if v.isEmpty || v == "000" {
-                rows.append(("出口", "chatgpt.com 访问失败（超时或被重置）"))
-                return (rows, false)
-            }
-            rows.append(("出口", "chatgpt.com → HTTP \(v)"))
-            return (rows, true)
-        }, done: { rows, ok in
+            return ([link, exit], ok)
+        }, done: { sections, ok in
             let hint = ok ? nil
                 : (self.controller.resolvedMode() == .l2tp
                    ? "请确认路由器 L2TP 已接通、本机在公司内网路由上。"
                    : "请确认 HD-VPN 已连接（ppp0 有地址）。")
-            self.showGrid(ok ? "连接测试通过" : "连接测试未通过", rows, footnote: hint)
+            let head = InfoHeadline(
+                icon: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill",
+                tint: ok ? .systemGreen : .systemOrange,
+                text: ok ? "链路正常" : "链路中断")
+            self.showInfo(ok ? "连接测试通过" : "连接测试未通过",
+                          headline: head, sections: sections, footnote: hint)
         })
     }
 
     @objc private func showStatus() {
-        showGrid("代理状态", controller.statusRows())
+        let on = controller.systemProxy().on
+        let head = InfoHeadline(icon: on ? "checkmark.circle.fill" : "pause.circle.fill",
+                                tint: on ? .systemGreen : .secondaryLabelColor,
+                                text: on ? "代理运行中" : "当前直连")
+        let sections = controller.statusSections().map { rows in
+            rows.map { InfoRow(Self.statusIcon($0.0), $0.0, $0.1,
+                               tint: Self.statusIconTint($0.1),
+                               valueTint: Self.statusValueTint($0.1)) }
+        }
+        showInfo("代理状态", headline: head, sections: sections, footnote: nil)
+    }
+
+    // MARK: 状态行的图标与语义色
+
+    private static func statusIcon(_ label: String) -> String {
+        switch label {
+        case "主接口":   return "network"
+        case "接入方式": return "arrow.triangle.branch"
+        case "隧道":     return "lock.shield"
+        case "系统代理": return "globe"
+        case "本地中继": return "arrow.triangle.2.circlepath"
+        case "Codex":    return "terminal"
+        case "公司代理": return "server.rack"
+        case "用户":     return "person"
+        case "中继端口": return "number"
+        case "服务":     return "list.bullet"
+        default:         return "circle"
+        }
+    }
+
+    private static func statusIconTint(_ value: String) -> NSColor {
+        statusValueTint(value) == .systemOrange ? .systemOrange : .secondaryLabelColor
+    }
+
+    private static func statusValueTint(_ value: String) -> NSColor {
+        let bad = ["已关闭", "未运行", "断开", "不通", "不可达", "失败"]
+        return bad.contains(where: { value.contains($0) }) ? .systemOrange : .labelColor
     }
 
     @objc private func toggleAutoStart() {
@@ -643,19 +691,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         a.runModal()
     }
 
-    /// 两列对齐的状态 / 测试结果弹窗（标签右对齐、值左对齐，值换行后悬挂缩进）
-    private func showGrid(_ title: String, _ rows: [(String, String)], footnote: String? = nil) {
+    /// 分组信息弹窗：顶部一行总状态 + 若干圆角分组，每行「图标 / 标签 / 值」
+    private func showInfo(_ title: String, headline: InfoHeadline? = nil,
+                          sections: [[InfoRow]], footnote: String? = nil) {
         NSApp.activate(ignoringOtherApps: true)
-        var all = rows
-        if let fn = footnote, !fn.isEmpty {
-            all.append(("", ""))
-            all.append(("", fn))
-        }
         let a = NSAlert()
         a.messageText = title
         a.alertStyle = .informational
         a.addButton(withTitle: "好")
-        a.accessoryView = AlertGrid.view(all)
+        a.accessoryView = InfoPanel.view(headline: headline, sections: sections, footnote: footnote)
         a.runModal()
     }
 

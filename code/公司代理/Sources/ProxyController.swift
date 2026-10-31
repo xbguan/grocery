@@ -326,38 +326,49 @@ final class ProxyController {
 
     // MARK: 状态文本
 
-    /// 状态明细：(标签, 值)。标签为空表示分组之间的空行。
-    /// 用结构化的行而不是拼好的字符串，弹窗才能按两列对齐渲染。
-    func statusRows() -> [(String, String)] {
+    /// 状态明细，按「运行链路 / 代理与中继 / 目标」分成三组。
+    /// 用结构化的行而不是拼好的字符串，弹窗才能按图标列、标签列、值列渲染。
+    func statusSections() -> [[(String, String)]] {
         let mode = resolvedMode()
         let st = systemProxy()
-        var rows: [(String, String)] = []
 
-        rows.append(("主接口", primaryIface()))
-        rows.append(("接入方式", "\(mode.shortTitle)（配置为 \(cfg.vpnMode.shortTitle)）"))
+        var link: [(String, String)] = []
+        link.append(("主接口", primaryIface()))
+        link.append(("接入方式", "\(mode.shortTitle)（配置为 \(cfg.vpnMode.shortTitle)）"))
         switch mode {
         case .hdvpn, .auto:
-            rows.append(("隧道", "ppp0 \(ppp0Up() ? "在线" : "断开")"))
+            link.append(("隧道", "ppp0 \(ppp0Up() ? "在线" : "断开")"))
         case .l2tp:
             let ok = Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
-            rows.append(("隧道", "路由器 L2TP（\(ok ? "内网可达" : "内网不可达")）"))
+            link.append(("隧道", "路由器 L2TP（\(ok ? "内网可达" : "内网不可达")）"))
         }
 
-        rows.append(("", ""))
-        rows.append(("系统代理", st.on ? "已开启 → \(st.address)" : "已关闭"))
-        rows.append(("本地中继", relayRunning() ? "\(cfg.relayHost):\(cfg.relayPort) 运行中" : "未运行"))
+        var relay: [(String, String)] = []
+        relay.append(("系统代理", st.on ? "已开启 → \(st.address)" : "已关闭"))
+        relay.append(("本地中继", relayRunning() ? "\(cfg.relayHost):\(cfg.relayPort) 运行中" : "未运行"))
         let envOn = (try? String(contentsOfFile: NSString(string: "~/.codex/.env").expandingTildeInPath, encoding: .utf8))?
             .contains("HTTPS_PROXY=http://") ?? false
-        rows.append(("Codex", envOn ? "指向代理（~/.codex/.env）" : "直连"))
+        relay.append(("Codex", envOn ? "指向代理（~/.codex/.env）" : "直连"))
 
-        rows.append(("", ""))
         let reachable = Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
-        rows.append(("公司代理", "\(cfg.host):\(cfg.port)（\(reachable ? "可连接" : "不通")）"))
-        rows.append(("用户", cfg.user))
-        rows.append(("中继端口", "\(cfg.relayPort)"))
         let svcs = servicesToSet()
-        rows.append(("服务", "共 \(svcs.count) 个：" + svcs.joined(separator: "、")))
-        return rows
+        let target: [(String, String)] = [
+            ("公司代理", "\(cfg.host):\(cfg.port)（\(reachable ? "可连接" : "不通")）"),
+            ("用户", cfg.user),
+            ("中继端口", "\(cfg.relayPort)"),
+            ("服务", "共 \(svcs.count) 个：" + svcs.joined(separator: "、")),
+        ]
+        return [link, relay, target]
+    }
+
+    /// 纯文本版（日志 / 复制用），空标签表示分组空行
+    func statusRows() -> [(String, String)] {
+        var out: [(String, String)] = []
+        for (i, s) in statusSections().enumerated() {
+            if i > 0 { out.append(("", "")) }
+            out.append(contentsOf: s)
+        }
+        return out
     }
 
     func statusText() -> String {

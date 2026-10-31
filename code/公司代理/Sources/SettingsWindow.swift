@@ -4,24 +4,34 @@ import Cocoa
 //
 // 统一在这里调：整体观感对标 macOS 26/27 的「更大控件 + 更宽松留白」，
 // 但不依赖 macOS 26 才有的 Liquid Glass API（本机 14.x 无法使用）。
+//
+// 列宽口径：所有卡片的行都按同一套列坐标排版 ——
+//   标签 96 | 主控件 300 | 小标签 44 | 小控件 124 | 说明 200（共 804）
+// 每一行的起点、每一列的分界线在所有卡片里都严格对齐。
 
 enum Metric {
-    /// 正文字号（原 13）
+    /// 正文字号
     static let body: CGFloat = 14
-    /// 说明/次要文字（原 11）
+    /// 说明/次要文字
     static let small: CGFloat = 12
     /// 区块标题
     static let section: CGFloat = 12
-    /// 输入框高度（原 24）
+    /// 输入框高度
     static let fieldH: CGFloat = 30
-    /// 左侧标签列宽
-    static let labelW: CGFloat = 92
+    /// 左侧标签列
+    static let labelW: CGFloat = 96
+    /// 主控件列（输入框 / 下拉框 / 复选框）
+    static let controlW: CGFloat = 300
     /// 行内小标签（端口 / 密码）
-    static let miniLabelW: CGFloat = 40
-    /// 行尾窄控件（端口 / 密码）的统一宽度，保证两行右边缘齐平
-    static let trailingW: CGFloat = 130
+    static let miniLabelW: CGFloat = 44
+    /// 行内小控件
+    static let miniFieldW: CGFloat = 124
+    /// 列间距
+    static let gap: CGFloat = 10
+    /// 主控件 + 小控件占满整段（白名单这种长文本用）
+    static var controlSpanW: CGFloat { controlW + gap + miniLabelW + gap + miniFieldW }
     /// 窗口内容宽度
-    static let windowW: CGFloat = 800
+    static let windowW: CGFloat = 880
     /// 卡片内边距
     static let cardPad: CGFloat = 14
     /// 卡片圆角
@@ -32,6 +42,10 @@ enum Metric {
     static let rowGap: CGFloat = 10
     /// 卡片之间的空隙
     static let cardGap: CGFloat = 14
+    /// 卡片内部可用宽度
+    static var cardInnerW: CGFloat { windowW - margin * 2 - cardPad * 2 }
+    /// 说明列（吃掉剩余宽度）
+    static var noteW: CGFloat { cardInnerW - labelW - gap - controlSpanW - gap }
 }
 
 // MARK: - 分组卡片
@@ -42,6 +56,7 @@ final class CardView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.cornerRadius = Metric.cardRadius
+        layer?.cornerCurve = .continuous
         layer?.borderWidth = 1
         content.translatesAutoresizingMaskIntoConstraints = false
         addSubview(content)
@@ -70,106 +85,30 @@ final class CardView: NSView {
     }
 }
 
-// MARK: - 密码框（可切换可见）
-
-final class SecretField: NSView {
-    private let secure = NSSecureTextField()
-    private let plain = NSTextField()
-    private let eye = NSButton()
-    private(set) var revealed = false
-
-    var stringValue: String {
-        get { revealed ? plain.stringValue : secure.stringValue }
-        set { secure.stringValue = newValue; plain.stringValue = newValue }
-    }
-
-    init(width: CGFloat) {
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: Metric.fieldH))
-
-        // 眼睛按钮占在行尾，输入框让出它的宽度；总宽仍等于 trailingW，
-        // 这样「密码」这一组和上一行的「端口」右边缘严格齐平
-        let eyeW: CGFloat = 20
-        let gap: CGFloat = 6
-        let fieldW = width - eyeW - gap
-
-        for f in [secure, plain] as [NSTextField] {
-            f.translatesAutoresizingMaskIntoConstraints = false
-            f.controlSize = .large
-            f.font = .systemFont(ofSize: Metric.body)
-            f.placeholderString = "公司代理密码"
-            addSubview(f)
-            NSLayoutConstraint.activate([
-                f.leadingAnchor.constraint(equalTo: leadingAnchor),
-                f.widthAnchor.constraint(equalToConstant: fieldW),
-                f.centerYAnchor.constraint(equalTo: centerYAnchor),
-                f.heightAnchor.constraint(equalToConstant: Metric.fieldH),
-            ])
-        }
-        plain.isHidden = true
-
-        let conf = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-        eye.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "显示密码")?
-            .withSymbolConfiguration(conf)
-        eye.imagePosition = .imageOnly
-        eye.isBordered = false
-        eye.bezelStyle = .regularSquare
-        eye.contentTintColor = .secondaryLabelColor
-        eye.target = self
-        eye.action = #selector(toggle)
-        eye.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(eye)
-
-        translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            eye.trailingAnchor.constraint(equalTo: trailingAnchor),
-            eye.centerYAnchor.constraint(equalTo: centerYAnchor),
-            eye.widthAnchor.constraint(equalToConstant: eyeW),
-            eye.heightAnchor.constraint(equalToConstant: 22),
-            widthAnchor.constraint(equalToConstant: width),
-            heightAnchor.constraint(equalToConstant: Metric.fieldH),
-        ])
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    @objc func toggle() {
-        let v = stringValue
-        revealed.toggle()
-        secure.isHidden = revealed
-        plain.isHidden = !revealed
-        stringValue = v
-        let conf = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
-        let name = revealed ? "eye.slash" : "eye"
-        eye.image = NSImage(systemSymbolName: name,
-                            accessibilityDescription: revealed ? "隐藏密码" : "显示密码")?
-            .withSymbolConfiguration(conf)
-        window?.makeFirstResponder(revealed ? plain : secure)
-    }
-}
-
 // MARK: - 设置窗口
 
-final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
+final class SettingsWindowController: NSWindowController {
 
     private var cfg: Config
     private let onSave: (Config) -> Void
 
-    private let hostField = NSTextField()
-    private let portField = NSTextField()
-    private let userField = NSTextField()
-    private let passField = SecretField(width: Metric.trailingW)
-    private let relayPortField = NSTextField()
-    private let bypassField = NSTextField()
-    private let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let modeHint = NSTextField(labelWithString: "")
-    private let dockCheck = NSButton(checkboxWithTitle: "在程序坞显示", target: nil, action: nil)
-    private let resultLabel = NSTextField(wrappingLabelWithString: "")
+    private let hostBox = FieldBox()
+    private let portBox = FieldBox()
+    private let userBox = FieldBox()
+    private let passBox = PasswordBox()
+    private let relayBox = FieldBox()
+    private let bypassBox = FieldBox(font: .systemFont(ofSize: Metric.small), lines: 2)
+    private let modeField = SelectBox()
+    private let dockSwitch = NSSwitch()
     private let testButton = NSButton(title: "测试连接", target: nil, action: nil)
+
+    private let mainStack = NSStackView()
+    private let resultHolder = NSStackView()
 
     init(cfg: Config, onSave: @escaping (Config) -> Void) {
         self.cfg = cfg
         self.onSave = onSave
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Metric.windowW, height: 660),
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: Metric.windowW, height: 600),
                            styleMask: [.titled, .closable],
                            backing: .buffered, defer: false)
         win.title = "公司代理 · 设置"
@@ -182,38 +121,34 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
     required init?(coder: NSCoder) { fatalError() }
 
-    // MARK: 构建界面
+    // MARK: 构件
 
     private func label(_ text: String, width: CGFloat = Metric.labelW) -> NSTextField {
         let l = NSTextField(labelWithString: text)
         l.alignment = .right
         l.font = .systemFont(ofSize: Metric.body)
         l.translatesAutoresizingMaskIntoConstraints = false
+        l.setContentHuggingPriority(.required, for: .horizontal)
+        l.setContentCompressionResistancePriority(.required, for: .horizontal)
         l.widthAnchor.constraint(equalToConstant: width).isActive = true
         return l
     }
 
-    /// 固定宽度的输入框
-    private func field(_ f: NSTextField, width: CGFloat) {
-        styleField(f)
-        f.widthAnchor.constraint(equalToConstant: width).isActive = true
+    private func noteLabel(_ text: String) -> NSTextField {
+        let l = NSTextField(wrappingLabelWithString: text)
+        l.font = .systemFont(ofSize: Metric.small)
+        l.textColor = .secondaryLabelColor
+        l.isSelectable = false
+        l.maximumNumberOfLines = 0
+        l.lineBreakMode = .byWordWrapping
+        l.preferredMaxLayoutWidth = Metric.noteW
+        l.translatesAutoresizingMaskIntoConstraints = false
+        l.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+        l.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        l.widthAnchor.constraint(equalToConstant: Metric.noteW).isActive = true
+        return l
     }
 
-    /// 撑满剩余宽度的输入框：列宽由卡片宽度决定，右侧不再留一块空白
-    private func flexField(_ f: NSTextField) {
-        styleField(f)
-        f.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
-        f.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-    }
-
-    private func styleField(_ f: NSTextField) {
-        f.controlSize = .large
-        f.font = .systemFont(ofSize: Metric.body)
-        f.translatesAutoresizingMaskIntoConstraints = false
-        f.heightAnchor.constraint(equalToConstant: Metric.fieldH).isActive = true
-    }
-
-    /// 卡片上方的分组标题（不再自成一行 stack，方便和卡片左对齐）
     private func section(_ title: String) -> NSTextField {
         let t = NSTextField(labelWithString: title)
         t.font = .systemFont(ofSize: Metric.section, weight: .semibold)
@@ -225,7 +160,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     private func row(_ views: [NSView]) -> NSStackView {
         let s = NSStackView(views: views)
         s.orientation = .horizontal
-        s.spacing = Metric.rowGap
+        s.spacing = Metric.gap
         s.alignment = .centerY
         return s
     }
@@ -233,7 +168,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     private func column(_ views: [NSView], spacing: CGFloat = Metric.rowGap) -> NSStackView {
         let s = NSStackView(views: views)
         s.orientation = .vertical
-        s.alignment = .width            // 每行撑满卡片内宽，行与行右边缘才齐
+        s.alignment = .width
         s.spacing = spacing
         return s
     }
@@ -249,64 +184,64 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         return v
     }
 
-    private func dimLabel(_ text: String) -> NSTextField {
-        let l = NSTextField(labelWithString: text)
-        l.font = .systemFont(ofSize: Metric.small)
-        l.textColor = .secondaryLabelColor
-        return l
+    /// 把控件放进固定宽度的列里：左对齐，输入框类撑满列宽，
+    /// 开关这类固定尺寸的控件保持原宽度（否则 NSSwitch 会被拉伸后画在列中央）
+    private func columnize(_ control: NSView, width: CGFloat) -> NSView {
+        let box = NSView()
+        box.translatesAutoresizingMaskIntoConstraints = false
+        box.widthAnchor.constraint(equalToConstant: width).isActive = true
+        control.translatesAutoresizingMaskIntoConstraints = false
+        box.addSubview(control)
+
+        var rules: [NSLayoutConstraint] = [
+            control.leadingAnchor.constraint(equalTo: box.leadingAnchor),
+            control.centerYAnchor.constraint(equalTo: box.centerYAnchor),
+            control.topAnchor.constraint(greaterThanOrEqualTo: box.topAnchor),
+            control.bottomAnchor.constraint(lessThanOrEqualTo: box.bottomAnchor),
+        ]
+        if !(control is NSSwitch) && !(control is NSButton) {
+            rules.append(control.widthAnchor.constraint(equalTo: box.widthAnchor))
+        }
+        NSLayoutConstraint.activate(rules)
+        return box
     }
 
-    /// 可伸缩的说明文字：占满行尾剩余宽度，避免右侧空一大块
-    private func dimFlex(_ text: String) -> NSTextField {
-        let l = dimLabel(text)
-        l.translatesAutoresizingMaskIntoConstraints = false
-        l.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
-        l.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        l.lineBreakMode = .byTruncatingTail
-        return l
+    /// 一行表单：所有行列宽固定，说明列吃掉剩余宽度
+    private func formRow(_ labelText: String,
+                         control: NSView,
+                         controlWidth: CGFloat = Metric.controlW,
+                         miniLabel: String? = nil,
+                         miniControl: NSView? = nil,
+                         note: String = "") -> NSStackView {
+        var cells: [NSView] = [label(labelText), columnize(control, width: controlWidth)]
+        if controlWidth < Metric.controlSpanW {
+            cells.append(miniLabel.map { label($0, width: Metric.miniLabelW) } ?? spacer(Metric.miniLabelW))
+            if let mc = miniControl {
+                cells.append(columnize(mc, width: Metric.miniFieldW))
+            } else {
+                cells.append(spacer(Metric.miniFieldW))
+            }
+        }
+        cells.append(noteLabel(note))
+        return row(cells)
     }
+
+    // MARK: 构建界面
 
     private func build() {
         guard let content = window?.contentView else { return }
 
-        hostField.placeholderString = "172.17.2.15 或域名"
-        portField.placeholderString = "7887"
-        userField.placeholderString = "admin"
-        relayPortField.placeholderString = "7899"
-        bypassField.placeholderString = "空格分隔，如 *.hd123.com"
+        hostBox.placeholder = "172.17.2.15 或域名"
+        portBox.placeholder = "7887"
+        userBox.placeholder = "admin"
+        relayBox.placeholder = "7899"
+        bypassBox.placeholder = "空格分隔，如 *.hd123.com"
 
-        flexField(hostField)
-        field(portField, width: Metric.trailingW)
-        flexField(userField)
-        field(relayPortField, width: Metric.trailingW)
-        flexField(bypassField)
-        bypassField.font = .systemFont(ofSize: Metric.small)
+        modeField.setItems(VPNMode.allCases.map { $0.title })
+        modeField.onChange = { [weak self] _ in self?.modeChanged() }
 
-        modePopup.removeAllItems()
-        for m in VPNMode.allCases { modePopup.addItem(withTitle: m.title) }
-        modePopup.target = self
-        modePopup.action = #selector(modeChanged)
-        modePopup.controlSize = .large
-        modePopup.translatesAutoresizingMaskIntoConstraints = false
-        modePopup.widthAnchor.constraint(equalToConstant: 300).isActive = true
-
-        modeHint.font = .systemFont(ofSize: Metric.small)
-        modeHint.textColor = .secondaryLabelColor
-        modeHint.preferredMaxLayoutWidth = 300
-        modeHint.lineBreakMode = .byWordWrapping
-        modeHint.maximumNumberOfLines = 2
-        modeHint.translatesAutoresizingMaskIntoConstraints = false
-        modeHint.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
-        modeHint.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-
-        dockCheck.font = .systemFont(ofSize: Metric.body)
-        dockCheck.translatesAutoresizingMaskIntoConstraints = false
-
-        resultLabel.font = .systemFont(ofSize: Metric.small)
-        resultLabel.textColor = .secondaryLabelColor
-        resultLabel.alignment = .left
-        resultLabel.preferredMaxLayoutWidth = 640
-        resultLabel.stringValue = ""
+        dockSwitch.controlSize = .regular
+        dockSwitch.translatesAutoresizingMaskIntoConstraints = false
 
         testButton.target = self
         testButton.action = #selector(runTest)
@@ -338,119 +273,116 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
             "保存后立即重启本地中继并按新参数重挂系统代理；「卸载公司代理…」会连同配置、日志、开机自启一并清除。")
         note.font = .systemFont(ofSize: Metric.small)
         note.textColor = .secondaryLabelColor
-        note.preferredMaxLayoutWidth = 640
+        note.isSelectable = false
+        note.preferredMaxLayoutWidth = Metric.cardInnerW
 
-        // ---- 四个分组卡片 ----
-        // 口径：标签列固定、主控件吃掉剩余宽度、行尾窄控件统一 trailingW，
-        //      因此每一行都从同一处起笔、在同一处收尾。
+        resultHolder.orientation = .vertical
+        resultHolder.alignment = .width
+        resultHolder.spacing = 0
+
         let cardProxy = CardView(column([
-            row([label("代理地址"), hostField,
-                 label("端口", width: Metric.miniLabelW), portField]),
-            row([label("用户名"), userField,
-                 label("密码", width: Metric.miniLabelW), passField]),
+            formRow("代理地址", control: hostBox,
+                    miniLabel: "端口", miniControl: portBox, note: "内网地址或域名"),
+            formRow("用户名", control: userBox,
+                    miniLabel: "密码", miniControl: passBox, note: "为空时浏览器会弹认证"),
         ]))
 
         let cardVPN = CardView(column([
-            row([label("方式"), modePopup, modeHint]),
+            formRow("方式", control: modeField, note: "有 ppp0 走 HD-VPN，否则走路由器 L2TP"),
         ]))
 
         let cardRelay = CardView(column([
-            row([label("中继端口"), relayPortField,
-                 dimFlex("系统代理指向 127.0.0.1:该端口，由 App 代填认证")]),
-            row([label("直连白名单"), bypassField]),
+            formRow("中继端口", control: relayBox, note: "系统代理指向 127.0.0.1:该端口"),
+            formRow("直连白名单", control: bypassBox, controlWidth: Metric.controlSpanW,
+                    note: "空格分隔，如 *.hd123.com"),
         ]))
 
         let cardLook = CardView(column([
-            row([label("程序坞"), dockCheck,
-                 dimFlex("勾选后可常驻程序坞，右键图标可快速开关代理")]),
+            formRow("在程序坞显示", control: dockSwitch, note: "开启后常驻程序坞，右键图标可快速开关代理"),
         ]))
 
-        let stack = NSStackView(views: [
-            section("公司 3proxy 代理"), cardProxy,
-            section("VPN 接入方式"), cardVPN,
-            section("本地中继与白名单"), cardRelay,
-            section("外观"), cardLook,
-            spacer(h: 4),
-            resultLabel,
-            buttons,
-            note,
-        ])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.setCustomSpacing(Metric.cardGap + 6, after: cardProxy)
-        stack.setCustomSpacing(Metric.cardGap + 6, after: cardVPN)
-        stack.setCustomSpacing(Metric.cardGap + 6, after: cardRelay)
-        stack.setCustomSpacing(12, after: cardLook)
+        mainStack.orientation = .vertical
+        mainStack.alignment = .leading
+        mainStack.spacing = 8
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        for v in [section("公司 3proxy 代理"), cardProxy,
+                  section("VPN 接入方式"), cardVPN,
+                  section("本地中继与白名单"), cardRelay,
+                  section("外观"), cardLook,
+                  resultHolder,
+                  buttons, note] as [NSView] {
+            mainStack.addArrangedSubview(v)
+        }
+        mainStack.setCustomSpacing(Metric.cardGap + 6, after: cardProxy)
+        mainStack.setCustomSpacing(Metric.cardGap + 6, after: cardVPN)
+        mainStack.setCustomSpacing(Metric.cardGap + 6, after: cardRelay)
+        mainStack.setCustomSpacing(12, after: cardLook)
+        mainStack.setCustomSpacing(10, after: resultHolder)
 
-        content.addSubview(stack)
+        content.addSubview(mainStack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: Metric.margin),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -Metric.margin),
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: Metric.margin),
+            mainStack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: Metric.margin),
+            mainStack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -Metric.margin),
+            mainStack.topAnchor.constraint(equalTo: content.topAnchor, constant: Metric.margin),
         ])
 
-        // 卡片、按钮行、说明都撑满内容宽度
-        for v in [cardProxy, cardVPN, cardRelay, cardLook, buttons, resultLabel, note] as [NSView] {
+        for v in [cardProxy, cardVPN, cardRelay, cardLook, buttons, note, resultHolder] as [NSView] {
             v.translatesAutoresizingMaskIntoConstraints = false
-            v.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+            v.widthAnchor.constraint(equalTo: mainStack.widthAnchor).isActive = true
         }
 
-        // 高度按内容自适应，避免写死造成留白或裁切
+        resizeToFit()
+    }
+
+    /// 内容变化后重算窗口高度（保持顶边不动）
+    private func resizeToFit() {
+        guard let win = window, let content = win.contentView else { return }
         content.layoutSubtreeIfNeeded()
-        let need = stack.fittingSize.height + Metric.margin * 2
-        window?.setContentSize(NSSize(width: Metric.windowW, height: max(need, 560)))
-        window?.center()
+        mainStack.layoutSubtreeIfNeeded()
+        let need = ceil(mainStack.fittingSize.height) + Metric.margin * 2
+        let h = max(need, 460)
+        let current = win.contentRect(forFrameRect: win.frame).height
+        guard abs(current - h) > 0.5 else { return }
+        let top = win.frame.maxY
+        win.setContentSize(NSSize(width: Metric.windowW, height: h))
+        win.setFrameOrigin(NSPoint(x: win.frame.minX, y: top - win.frame.height))
     }
 
     // MARK: 数据绑定
 
     private func load() {
-        hostField.stringValue = cfg.host
-        portField.stringValue = String(cfg.port)
-        userField.stringValue = cfg.user
-        passField.stringValue = cfg.pass
-        relayPortField.stringValue = String(cfg.relayPort)
-        bypassField.stringValue = cfg.bypass
-        modePopup.selectItem(at: VPNMode.allCases.firstIndex(of: cfg.vpnMode) ?? 0)
-        dockCheck.state = cfg.showInDock ? .on : .off
-        updateModeHint()
+        hostBox.stringValue = cfg.host
+        portBox.stringValue = String(cfg.port)
+        userBox.stringValue = cfg.user
+        passBox.stringValue = cfg.pass
+        relayBox.stringValue = String(cfg.relayPort)
+        bypassBox.stringValue = cfg.bypass
+        modeField.selectItem(at: VPNMode.allCases.firstIndex(of: cfg.vpnMode) ?? 0)
+        dockSwitch.state = cfg.showInDock ? .on : .off
     }
 
-    @objc private func modeChanged() { updateModeHint() }
+    @objc private func modeChanged() {}
 
-    private func updateModeHint() {
-        let m = VPNMode.allCases[max(0, modePopup.indexOfSelectedItem)]
-        switch m {
-        case .auto:
-            modeHint.stringValue = "有 ppp0 地址走 HD-VPN，否则走路由器 L2TP"
-        case .hdvpn:
-            modeHint.stringValue = "本机拨号：系统代理同时挂「VPN」服务"
-        case .l2tp:
-            modeHint.stringValue = "路由器拨号：只挂物理网卡"
-        }
-    }
-
-    @objc private func toggleReveal() { passField.toggle() }
-
-    private func collect() -> Config? {        var c = cfg
-        let host = hostField.stringValue.trimmingCharacters(in: .whitespaces)
+    private func collect() -> Config? {
+        var c = cfg
+        let host = hostBox.stringValue.trimmingCharacters(in: .whitespaces)
         guard !host.isEmpty else { bad("代理地址不能为空"); return nil }
-        guard let port = Int(portField.stringValue.trimmingCharacters(in: .whitespaces)), (1...65535).contains(port) else {
+        guard let port = Int(portBox.stringValue.trimmingCharacters(in: .whitespaces)),
+              (1...65535).contains(port) else {
             bad("代理端口需为 1–65535"); return nil
         }
-        guard let rport = Int(relayPortField.stringValue.trimmingCharacters(in: .whitespaces)), (1024...65535).contains(rport) else {
+        guard let rport = Int(relayBox.stringValue.trimmingCharacters(in: .whitespaces)),
+              (1024...65535).contains(rport) else {
             bad("中继端口需为 1024–65535"); return nil
         }
         c.host = host
         c.port = port
-        c.user = userField.stringValue.trimmingCharacters(in: .whitespaces)
-        c.pass = passField.stringValue
+        c.user = userBox.stringValue.trimmingCharacters(in: .whitespaces)
+        c.pass = passBox.stringValue
         c.relayPort = rport
-        c.bypass = bypassField.stringValue.trimmingCharacters(in: .whitespaces)
-        c.vpnMode = VPNMode.allCases[max(0, modePopup.indexOfSelectedItem)]
-        c.showInDock = dockCheck.state == .on
+        c.bypass = bypassBox.stringValue.trimmingCharacters(in: .whitespaces)
+        c.vpnMode = VPNMode.allCases[max(0, modeField.selectedIndex)]
+        c.showInDock = dockSwitch.state == .on
         return c
     }
 
@@ -472,20 +404,24 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
     @objc private func cancel() { close() }
 
+    // MARK: 连接测试
+
     @objc private func runTest() {
         guard let c = collect() else { return }
         testButton.isEnabled = false
-        resultLabel.stringValue = "正在测试 \(c.host):\(c.port) …"
-        resultLabel.textColor = .secondaryLabelColor
+        setResult(running("正在连接 \(c.host):\(c.port) …"), animated: true)
 
         DispatchQueue.global(qos: .userInitiated).async {
             let reachable = Shell.tcpAlive(c.host, UInt16(c.port), timeout: 3)
-            var rows: [(String, NSColor, String)] = []
+            var sections: [[InfoRow]] = []
             if reachable {
-                rows.append(("circle.fill", .systemGreen, "代理端口 \(c.host):\(c.port) 可连接"))
+                sections.append([InfoRow("server.rack", "代理端口",
+                                         "\(c.host):\(c.port) 可连接",
+                                         valueTint: .labelColor)])
             } else {
-                rows.append(("exclamationmark.triangle.fill", .systemOrange,
-                             "代理端口不可达（VPN 是否已连接？若为路由器 L2TP，请确认内网路由）"))
+                sections.append([InfoRow("exclamationmark.triangle.fill", "代理端口",
+                                         "不可达（VPN 是否已连接？路由器 L2TP 请确认内网路由）",
+                                         tint: .systemOrange, valueTint: .systemOrange)])
             }
             if reachable {
                 let t0 = Date()
@@ -495,36 +431,70 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
                 if v == "401" {
-                    rows.append(("bolt.horizontal.fill", .systemGreen,
-                                 "出口正常 chatgpt.com → 401（\(ms) ms）"))
+                    sections.append([
+                        InfoRow("bolt.horizontal", "出口", "chatgpt.com → 401 正常",
+                                tint: .systemGreen, valueTint: .labelColor),
+                        InfoRow("clock", "耗时", "\(ms) ms"),
+                    ])
                 } else if v.isEmpty || v == "000" {
-                    rows.append(("exclamationmark.triangle.fill", .systemOrange,
-                                 "通过代理访问 chatgpt.com 失败（超时或被重置）"))
+                    sections.append([InfoRow("exclamationmark.triangle.fill", "出口",
+                                             "访问 chatgpt.com 失败（超时或被重置）",
+                                             tint: .systemOrange, valueTint: .systemOrange)])
                 } else {
-                    rows.append(("dot.radiowaves.left.and.right", .secondaryLabelColor,
-                                 "通过代理访问 chatgpt.com → HTTP \(v)（\(ms) ms）"))
+                    sections.append([
+                        InfoRow("dot.radiowaves.left.and.right", "出口", "chatgpt.com → HTTP \(v)"),
+                        InfoRow("clock", "耗时", "\(ms) ms"),
+                    ])
                 }
             }
-            let att = Self.testResult(rows)
+
             DispatchQueue.main.async {
-                self.resultLabel.attributedStringValue = att
                 self.testButton.isEnabled = true
+                // 设置页里合成一整块，不要弹出式的多段分组
+                let merged = [sections.flatMap { $0 }]
+                self.setResult(InfoPanel.view(sections: merged, width: Metric.cardInnerW), animated: false)
             }
         }
     }
 
-    /// 测试结果里「图标 + 文字」的组装，替代原来的 ✓ / ✗ 字符
-    private static func testResult(_ rows: [(String, NSColor, String)]) -> NSAttributedString {
-        let font = NSFont.systemFont(ofSize: Metric.small)
-        let out = NSMutableAttributedString()
-        for (i, r) in rows.enumerated() {
-            if i > 0 { out.append(NSAttributedString(string: "\n")) }
-            out.append(UIStatus.inline(r.0, color: r.1, font: font))
-            out.append(NSAttributedString(string: " " + r.2, attributes: [
-                .font: font,
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ]))
+    /// 测试中的转圈提示
+    private func running(_ text: String) -> NSView {
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.isIndeterminate = true
+        spinner.startAnimation(nil)
+        spinner.translatesAutoresizingMaskIntoConstraints = false
+        spinner.widthAnchor.constraint(equalToConstant: 14).isActive = true
+        spinner.heightAnchor.constraint(equalToConstant: 14).isActive = true
+
+        let l = NSTextField(labelWithString: text)
+        l.font = .systemFont(ofSize: Metric.small)
+        l.textColor = .secondaryLabelColor
+
+        let s = NSStackView(views: [spinner, l])
+        s.orientation = .horizontal
+        s.spacing = 8
+        s.alignment = .centerY
+        return CardView(s)
+    }
+
+    private func setResult(_ view: NSView?, animated: Bool) {
+        for sv in resultHolder.arrangedSubviews {
+            resultHolder.removeArrangedSubview(sv)
+            sv.removeFromSuperview()
         }
-        return out
+        if let v = view {
+            // InfoPanel 是手写 frame 布局，没有 intrinsic size：
+            // 交给自动布局前必须把宽高钉死，否则会被压成 0 高、内容溢出
+            let size = v.frame.size
+            v.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                v.widthAnchor.constraint(equalToConstant: size.width),
+                v.heightAnchor.constraint(equalToConstant: size.height),
+            ])
+            resultHolder.addArrangedSubview(v)
+        }
+        resizeToFit()
     }
 }
