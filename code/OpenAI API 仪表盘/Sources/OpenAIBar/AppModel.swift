@@ -8,6 +8,14 @@ enum ErrorKind {
     case other      // 网络等 → 重试
 }
 
+/// 实时余额（来自平台登录态）
+struct LiveCredit {
+    var available: Double
+    var granted: Double?
+    var used: Double?
+    var at: Date
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var config: AppConfig {
@@ -20,10 +28,17 @@ final class AppModel: ObservableObject {
     @Published private(set) var errorKind: ErrorKind?
     @Published private(set) var hasLoadedOnce = false
 
+    /// 实时余额（需用户开启；官方 API 拿不到，只能走平台登录态）
+    let creditBridge = CreditBridge()
+    @Published private(set) var liveCredit: LiveCredit?
+    @Published private(set) var creditState: CreditBridge.State = .off
+
     private var timer: Timer?
 
     init() {
         self.config = ConfigStore.load()
+        creditBridge.onChange = { [weak self] in self?.syncCredit() }
+        if config.showCredit { creditBridge.start() }
         startAutoRefresh()
         Task { await refresh() }
     }
@@ -103,6 +118,15 @@ final class AppModel: ObservableObject {
 
         ConfigStore.save(config)
         if old.refreshMinutes != config.refreshMinutes { startAutoRefresh() }
+        if old.showCredit != config.showCredit {
+            if config.showCredit {
+                creditBridge.start()
+                creditBridge.refresh(stale: 0)
+            } else {
+                creditBridge.stop()
+                syncCredit()
+            }
+        }
         if keyChanged || projectChanged {
             snapshot = nil
             hasLoadedOnce = false
@@ -111,8 +135,7 @@ final class AppModel: ObservableObject {
     }
 
     /// 彻底清除已保存的 Key
-    func clearKey() {
-        KeyStore.delete()
+    func clearKey() {        KeyStore.delete()
         suppressPersist = true
         config.adminKey = ""
         suppressPersist = false
@@ -128,6 +151,50 @@ final class AppModel: ObservableObject {
         var copy = config
         mutate(&copy)
         config = copy
+    }
+
+    // MARK: 实时余额
+
+    private func syncCredit() {
+        creditState = creditBridge.state
+        if let a = creditBridge.available {
+            liveCredit = LiveCredit(available: a,
+                                    granted: creditBridge.granted,
+                                    used: creditBridge.used,
+                                    at: creditBridge.updatedAt ?? .now)
+        } else {
+            liveCredit = nil
+        }
+    }
+
+    /// 打开登录窗口；登录成功后立刻重读余额
+    func loginForCredit() {
+        CreditLoginWindow.show { [weak self] in
+            self?.creditBridge.forceReload()
+        }
+    }
+
+    func retryCredit() {
+        creditBridge.forceReload()
+    }
+
+    /// 清除平台登录态（只清 App 自己的 WebKit 存储，不影响浏览器）
+    func clearCreditLogin() {
+        creditBridge.clearSession { [weak self] in
+            self?.syncCredit()
+        }
+    }
+
+    /// 预览用：伪造一条实时余额
+    func loadDemoCredit() {
+        liveCredit = LiveCredit(available: 12.51, granted: 16.0, used: 3.49, at: .now)
+        creditState = .ready
+    }
+
+    /// 预览用：余额需要登录的状态
+    func loadDemoCreditLogin() {
+        liveCredit = nil
+        creditState = .needsLogin
     }
 
     // MARK: 定时刷新
@@ -153,6 +220,9 @@ final class AppModel: ObservableObject {
     // MARK: 数据加载
 
     func refresh() async {
+        // 余额与 Key 无关：只要开启了实时余额，就顺带刷一次（15 分钟内不重复整页加载）
+        if config.showCredit { creditBridge.refresh(stale: 900) }
+
         guard config.hasKey else {
             errorText = "还没有配置 Admin Key"
             errorHint = "Admin Key 只能在设置里填入，App 不会内置任何 Key。"

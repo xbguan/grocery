@@ -7,6 +7,9 @@ struct AppConfig: Codable {
     var refreshMinutes: Int = 5
     var accountLabel: String = ""
 
+    /// 是否启用「实时余额」：用平台登录态读取，需用户显式打开
+    var showCredit: Bool = false
+
     /// 仅存在于内存，永远不会被写入磁盘
     var adminKey: String = ""
 
@@ -17,7 +20,20 @@ struct AppConfig: Codable {
         case projectID
         case refreshMinutes
         case accountLabel
+        case showCredit
         case legacyPlaintextKey = "adminKey"
+    }
+
+    init() {}
+
+    /// 手写解码：老版本 config.json 缺少 showCredit 等新字段时不能整份丢弃
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        projectID = try c.decodeIfPresent(String.self, forKey: .projectID) ?? ""
+        refreshMinutes = try c.decodeIfPresent(Int.self, forKey: .refreshMinutes) ?? 5
+        accountLabel = try c.decodeIfPresent(String.self, forKey: .accountLabel) ?? ""
+        showCredit = try c.decodeIfPresent(Bool.self, forKey: .showCredit) ?? false
+        legacyPlaintextKey = try c.decodeIfPresent(String.self, forKey: .legacyPlaintextKey)
     }
 
     var trimmedKey: String {

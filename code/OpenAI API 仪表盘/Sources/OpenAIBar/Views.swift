@@ -290,11 +290,7 @@ struct MenuContentView: View {
                         hero(snap)
                         trend(snap)
                         kpis(snap)
-                        if let balance = snap.balance {
-                            balanceCard(balance)
-                        } else if let note = snap.balanceNote {
-                            balanceNote(note)
-                        }
+                        balanceSection(snap)
                         if !snap.topItems.isEmpty {
                             topItems(snap.topItems)
                         }
@@ -465,10 +461,83 @@ struct MenuContentView: View {
 
     // MARK: 额度
 
-    private func balanceCard(_ balance: BalanceInfo) -> some View {
+    /// 余额有多种来源，优先级：平台会话实时 > 需要登录 > 读取中 > 失败 > 估算
+    @ViewBuilder
+    private func balanceSection(_ snap: Snapshot) -> some View {
+        if let lc = model.liveCredit {
+            balanceCard(BalanceInfo(limit: lc.granted,
+                                    used: lc.used,
+                                    available: lc.available,
+                                    source: "OpenAI 平台会话 · 实时，\(Fmt.updatedLabel(lc.at))",
+                                    isExact: true),
+                        title: "API 余额")
+        } else if model.config.showCredit, model.creditState == .needsLogin {
+            creditLoginCard
+        } else if model.config.showCredit, model.creditState == .loading {
+            creditLoadingCard
+        } else if model.config.showCredit, case .failed(let msg) = model.creditState {
+            creditFailedCard(msg)
+        } else if let balance = snap.balance {
+            balanceCard(balance)
+        } else if let note = snap.balanceNote {
+            balanceNote(note)
+        }
+    }
+
+    private var creditLoginCard: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 6) {
+                Text("API 余额")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Chip(text: "需要登录", tint: .orange)
+                Spacer()
+            }
+            Text("余额接口只接受平台登录态，任何 API Key 都会被拒。登录一次后即可显示真实余额，登录态只存在本机。")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("登录 OpenAI 平台") { model.loginForCredit() }
+                .buttonStyle(GlassPillStyle(compact: true))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .glassCard()
+    }
+
+    private var creditLoadingCard: some View {
+        HStack(spacing: 9) {
+            ProgressView().controlSize(.small).scaleEffect(0.8)
+            Text("正在读取余额…")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(12)
+        .glassCard(radius: 20)
+    }
+
+    private func creditFailedCard(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("余额读取失败：\(message)")
+                    .font(.system(size: 11.5))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("重试") { model.retryCredit() }
+                    .buttonStyle(GlassPillStyle(compact: true))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .glassCard(radius: 20)
+    }
+
+    private func balanceCard(_ balance: BalanceInfo, title: String = "API 额度") -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Text("API 额度")
+                Text(title)
                     .font(.system(size: 12.5, weight: .semibold))
                 if !balance.isExact {
                     Chip(text: "估算", tint: .orange)
@@ -790,6 +859,7 @@ struct SettingsView: View {
     @State private var projectDraft = ""
     @State private var labelDraft = ""
     @State private var refreshDraft = 5
+    @State private var creditDraft = false
     @State private var showKey = false
     @State private var testMessage: String?
     @State private var testOK = false
@@ -809,6 +879,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(spacing: 12) {
                         keySection
+                        creditSection
                         projectSection
                         displaySection
                         aboutSection
@@ -922,6 +993,54 @@ struct SettingsView: View {
         }
     }
 
+    /// 实时余额：官方 API 拿不到，只能借平台登录态
+    private var creditSection: some View {
+        section("API 余额（实时）", icon: "creditcard") {
+            Toggle(isOn: $creditDraft) {
+                Text("显示真实余额")
+                    .font(.system(size: 12))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Text("OpenAI 的余额接口只接受平台登录态，任何 API Key 请求它都返回 403，所以这部分与 Key 无关。开启后 App 用本机登录态读取「剩余额度」；登录态存在 App 自己的 WebKit 容器里，不保存密码、不保存 cookie 明文。")
+                .font(.system(size: 11))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                Button(model.liveCredit == nil ? "登录 OpenAI 平台" : "重新登录") {
+                    model.loginForCredit()
+                }
+                .buttonStyle(GlassPillStyle(compact: true))
+
+                Button("退出登录") { model.clearCreditLogin() }
+                    .buttonStyle(GlassPillStyle(compact: true))
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text(creditStatusText)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private var creditStatusText: String {
+        if let lc = model.liveCredit {
+            return "已读取 \(Fmt.money(lc.available)) · \(Fmt.updatedLabel(lc.at))"
+        }
+        switch model.creditState {
+        case .needsLogin: return "需要登录"
+        case .loading:    return "读取中…"
+        case .failed(let m): return "失败：\(m)"
+        case .ready: return "已读取"
+        case .off, .idle: return "尚未读取"
+        }
+    }
+
     private var projectSection: some View {
         section("项目（可选）", icon: "square.stack.3d.up") {
             TextField("proj_…", text: $projectDraft)
@@ -975,7 +1094,7 @@ struct SettingsView: View {
         section("数据来源", icon: "info.circle") {
             VStack(alignment: .leading, spacing: 5) {
                 Text("· 花费与用量来自 API 平台的 `/v1/organization/*` 组织级接口，按 UTC 自然日统计。")
-                Text("· 余额没有公开接口。App 会尝试旧版账单接口推算「额度上限 − 已用」，失败时只显示用量。")
+                Text("· 余额没有对 API Key 开放的接口（服务器明确要求浏览器会话）。在设置里开启「实时余额」后，App 借本机平台登录态读取，数据不出本机。")
                 Text("· Key 保存在 macOS 钥匙串（「钥匙串访问」搜 OpenAI API 仪表盘），不写入任何文件。")
             }
             .font(.system(size: 11))
@@ -1058,6 +1177,7 @@ struct SettingsView: View {
         projectDraft = model.config.projectID
         labelDraft = model.config.accountLabel
         refreshDraft = model.config.refreshMinutes
+        creditDraft = model.config.showCredit
     }
 
     /// 保存即完成：写配置 → 刷新数据 → 关闭设置窗口
@@ -1067,6 +1187,7 @@ struct SettingsView: View {
             cfg.projectID = projectDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             cfg.accountLabel = labelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             cfg.refreshMinutes = refreshDraft
+            cfg.showCredit = creditDraft
         }
         NSApp.keyWindow?.makeFirstResponder(nil)
         SettingsWindow.close()

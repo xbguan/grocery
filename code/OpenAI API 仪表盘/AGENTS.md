@@ -94,3 +94,36 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 - 本机只有 ad-hoc 签名（`codesign --sign -`），无 Apple 开发者证书，做不了公证
 - 用户首次打开需右键 → 打开，或 `xattr -cr "/Applications/OpenAI API 仪表盘.app"`
 - 这段说明已印在 DMG 背景图底部，无需额外告知
+
+## 8. 余额读取（平台登录态）
+
+余额是这个项目唯一一个「官方不给 API」的数据，实现约束很硬，改动前先读这一节。
+
+**已实测的结论（2026-10-31）**
+
+- `GET /v1/dashboard/billing/credit_grants` 用任何 API Key 都是 403：
+  `must be made with a session key (that is, it can only be made from the browser)`
+- `/v1/organization/credits`、`/v1/credits`、`/v1/organization/billing/credit_grants`、`spend_limits`、`limits` 全部 404
+- 带平台登录态请求同一接口 → 200，返回 `total_granted / total_used / total_available`
+- 结论：*换 key 类型无解*，只能用平台登录态
+
+**实现方式（`Sources/OpenAIBar/CreditBridge.swift`）**
+
+- 隐藏 WKWebView（挂在一个屏幕外的 borderless 窗口里，纯无窗口会被节流）打开 `platform.openai.com/settings/organization/billing/overview`
+- `WKUserScript` 在 `.atDocumentStart` 注入钩子，包住 `fetch` 与 `XMLHttpRequest`，命中 `credit_grants` 就把**响应体**通过 `webkit.messageHandlers.credit` 回传
+- 另有一条 DOM 兜底：正则在页面文字里找 `Credit remaining $12.34`，接口改版时不至于完全失效
+- ⚠️ **不要自己发这个请求**：从页面上下文 fetch `api.openai.com` 会被 CORS 挡掉（实测 `Load failed`）。只能「截」不能「发」
+- 登录由用户在独立窗口里手动完成（`CreditLoginWindow`），App *不接触* 账号密码、验证码、MFA
+
+**存储与隐私**
+
+- 登录态在 `~/Library/WebKit/com.xbguan.openai-api-dashboard`，由 WebKit 管理；App 不读、不导出、不上传
+- 设置里「退出登录」会 `removeData(ofTypes: allWebsiteDataTypes)`；`uninstall.sh` 一并删除该目录
+- 该功能默认关闭（`AppConfig.showCredit = false`），必须用户显式开启
+
+**已知会失效的情形**
+
+- 用户清了登录态 / 会话过期 → 卡片变成「需要登录」，点按钮重登
+- OpenAI 改页面结构 → DOM 兜底失效，但接口钩子通常还在
+- 接口改名 → 两条路同时失效，表现为读取超时（30s），需按新接口名更新 `hookJS` 里的 `isCreditURL`
+

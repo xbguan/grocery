@@ -12,7 +12,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI API 仪表盘-1.2.0.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI API 仪表盘-1.3.0.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -38,6 +38,10 @@ image::preview-dark.png[width=380]
 未配置 Key 时（只有一个按钮，直接带你去填）：
 
 image::preview-empty.png[width=380]
+
+开启「实时余额」后（数字来自平台登录态，与 Key 无关）：
+
+image::preview-credit.png[width=380]
 
 设置窗口：
 
@@ -68,8 +72,11 @@ image::preview-settings.png[width=460]
 |今日 / 7 天 / 30 天
 |三档汇总，每档附请求数或 token 数
 
-|API 额度
-|上限、已用、剩余百分比；带「估算」标记表示非官方精确值
+|API 余额
+|实时余额（`$12.51` 这类真实数字，来自平台登录态）或估算值；带「估算」标记表示非官方精确值
+
+|API 余额 · 需要登录
+|开启实时余额但登录态失效时出现，卡上直接给「登录 OpenAI 平台」按钮
 
 |花费来源（近 7 天）
 |按模型/服务项拆解的前 5 名，带占比条
@@ -110,13 +117,24 @@ image::menubar.png[width=560]
 
 它和 *ChatGPT 订阅*（Plus / Pro / Team 的月费）是两套完全独立的体系，互不影响。App 里显示的「API 额度」指的是 API 账户的计费额度（预充值余额或后付费的月度上限），不是你的 ChatGPT 订阅权益。若你只买了 ChatGPT 订阅、没在 API 平台充值，这里不会有任何可用余量。
 
-余额：*OpenAI 从未开放公开的余额查询接口*。`/v1/dashboard/billing/credit_grants` 只接受浏览器会话 key，普通/Admin key 一律被拒。因此本 App 的做法是：
+余额：*任何 API Key 都读不到余额*，这不是权限问题而是接口限制。实测（2026-10）用 Admin Key 请求：
 
-* 先尝试 `credit_grants`（几乎必然失败）
-* 再尝试 `subscription`（取 API 账户的额度上限）− `usage`（本期已用）推算，界面上标注「估算」
-* 都失败时只显示用量，并说明原因
+[source]
+----
+GET /v1/dashboard/billing/credit_grants  → 403
+{"error":"Your request ... must be made with a session key
+ (that is, it can only be made from the browser).
+ You made it with the following key type: secret."}
+----
 
-若你看到「估算」，说明额度上限来自 API 账户的计费设置、已用来自账单接口，两者口径可能和后台略有出入。
+换任何 key 类型都不行，`/v1/organization/*` 下也没有余额端点（`/credits`、`/organization/credits` 等全部 404）。所以余额只有两条路：
+
+* *实时余额（推荐，需你登录一次）*：设置里打开「显示真实余额」，App 用一个隐藏的 WKWebView 打开平台账单页，页面自己会请求 `credit_grants`，我们在 `documentStart` 注入钩子把**响应体**截下来，解析 `total_available`。登录态存在 App 自己的 WebKit 容器（`~/Library/WebKit/com.xbguan.openai-api-dashboard`），不保存密码、不保存 cookie 明文、不外发。
+* *估算兜底*：未开启实时余额、或实时读取失败时，退回 `subscription`（额度上限）− `usage`（已用）的推算值，界面标注「估算」。
+
+⚠️ 实现上有一条硬约束：*不能自己发这个请求*。从页面上下文 fetch `api.openai.com` 会被 CORS 挡掉（实测 `Load failed`），只能让页面发、我们截。
+
+若你看到「估算」，说明实时余额没读到（未登录 / 登录过期 / 页面改版），点卡片上的「登录」或设置里的「重新登录」即可。
 
 == 刷新
 
@@ -126,7 +144,7 @@ image::menubar.png[width=560]
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI API 仪表盘-1.2.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI API 仪表盘-1.3.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上

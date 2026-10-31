@@ -11,6 +11,11 @@ enum DemoWindow {
         let args = CommandLine.arguments
         let model = AppModel(demo: true)
         if args.contains("--demo-empty") { model.loadDemoEmpty() }
+        if args.contains("--demo-credit") { model.loadDemoCredit() }
+        if args.contains("--demo-credit-login") {
+            model.update { $0.showCredit = true }
+            model.loadDemoCreditLogin()
+        }
 
         let hosting = NSHostingView(rootView: MenuContentView().environmentObject(model))
         let window = NSWindow(

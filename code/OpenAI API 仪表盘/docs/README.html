@@ -506,7 +506,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Bundle ID：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>安装包：<code>dist/OpenAI API 仪表盘-1.2.0.dmg</code>（Intel / Apple 芯片通用）</p>
+<p>安装包：<code>dist/OpenAI API 仪表盘-1.3.0.dmg</code>（Intel / Apple 芯片通用）</p>
 </li>
 </ul>
 </div>
@@ -562,6 +562,14 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="imageblock">
 <div class="content">
 <img src="./preview-empty.png" alt="preview empty" width="380">
+</div>
+</div>
+<div class="paragraph">
+<p>开启「实时余额」后（数字来自平台登录态，与 Key 无关）：</p>
+</div>
+<div class="imageblock">
+<div class="content">
+<img src="./preview-credit.png" alt="preview credit" width="380">
 </div>
 </div>
 <div class="paragraph">
@@ -624,8 +632,12 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <td class="tableblock halign-left valign-top"><p class="tableblock">三档汇总，每档附请求数或 token 数</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">API 额度</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">上限、已用、剩余百分比；带「估算」标记表示非官方精确值</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API 余额</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">实时余额（<code>$12.51</code> 这类真实数字，来自平台登录态）或估算值；带「估算」标记表示非官方精确值</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API 余额 · 需要登录</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">开启实时余额但登录态失效时出现，卡上直接给「登录 OpenAI 平台」按钮</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">花费来源（近 7 天）</p></td>
@@ -702,23 +714,34 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>它和 <strong>ChatGPT 订阅</strong>（Plus / Pro / Team 的月费）是两套完全独立的体系，互不影响。App 里显示的「API 额度」指的是 API 账户的计费额度（预充值余额或后付费的月度上限），不是你的 ChatGPT 订阅权益。若你只买了 ChatGPT 订阅、没在 API 平台充值，这里不会有任何可用余量。</p>
 </div>
 <div class="paragraph">
-<p>余额：<strong>OpenAI 从未开放公开的余额查询接口</strong>。<code>/v1/dashboard/billing/credit_grants</code> 只接受浏览器会话 key，普通/Admin key 一律被拒。因此本 App 的做法是：</p>
+<p>余额：<strong>任何 API Key 都读不到余额</strong>，这不是权限问题而是接口限制。实测（2026-10）用 Admin Key 请求：</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlight"><code>GET /v1/dashboard/billing/credit_grants  → 403
+{"error":"Your request ... must be made with a session key
+ (that is, it can only be made from the browser).
+ You made it with the following key type: secret."}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>换任何 key 类型都不行，<code>/v1/organization/*</code> 下也没有余额端点（<code>/credits</code>、<code>/organization/credits</code> 等全部 404）。所以余额只有两条路：</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>先尝试 <code>credit_grants</code>（几乎必然失败）</p>
+<p><strong>实时余额（推荐，需你登录一次）</strong>：设置里打开「显示真实余额」，App 用一个隐藏的 WKWebView 打开平台账单页，页面自己会请求 <code>credit_grants</code>，我们在 <code>documentStart</code> 注入钩子把<strong>响应体</strong>截下来，解析 <code>total_available</code>。登录态存在 App 自己的 WebKit 容器（<code>~/Library/WebKit/com.xbguan.openai-api-dashboard</code>），不保存密码、不保存 cookie 明文、不外发。</p>
 </li>
 <li>
-<p>再尝试 <code>subscription</code>（取 API 账户的额度上限）− <code>usage</code>（本期已用）推算，界面上标注「估算」</p>
-</li>
-<li>
-<p>都失败时只显示用量，并说明原因</p>
+<p><strong>估算兜底</strong>：未开启实时余额、或实时读取失败时，退回 <code>subscription</code>（额度上限）− <code>usage</code>（已用）的推算值，界面标注「估算」。</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>若你看到「估算」，说明额度上限来自 API 账户的计费设置、已用来自账单接口，两者口径可能和后台略有出入。</p>
+<p>⚠️ 实现上有一条硬约束：<strong>不能自己发这个请求</strong>。从页面上下文 fetch <code>api.openai.com</code> 会被 CORS 挡掉（实测 <code>Load failed</code>），只能让页面发、我们截。</p>
+</div>
+<div class="paragraph">
+<p>若你看到「估算」，说明实时余额没读到（未登录 / 登录过期 / 页面改版），点卡片上的「登录」或设置里的「重新登录」即可。</p>
 </div>
 </div>
 </div>
@@ -740,7 +763,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p><code>dist/OpenAI API 仪表盘-1.2.0.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
+<p><code>dist/OpenAI API 仪表盘-1.3.0.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
 </div>
 <div class="ulist">
 <ul>
@@ -992,7 +1015,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-10-31 22:18:53 +0800
+Last updated 2026-10-31 23:13:13 +0800
 </div>
 </div>
 </body>

@@ -1,8 +1,8 @@
 #!/bin/zsh
 # 彻底卸载「OpenAI API 仪表盘」
 #
-# 只把 App 拖进废纸篓是不够的 —— 钥匙串里的 Admin Key 和配置目录不会跟着走，
-# 这个脚本把它们一起清干净。
+# 只把 App 拖进废纸篓是不够的 —— 钥匙串里的 Admin Key、配置目录、
+# 以及余额功能用到的平台登录态都不会跟着走，这个脚本把它们一起清干净。
 #
 #   ./uninstall.sh              列出将删除的内容，确认后执行
 #   ./uninstall.sh --yes        跳过确认
@@ -15,6 +15,8 @@ BUNDLE_ID="com.xbguan.openai-api-dashboard"
 ACCOUNT="openai-admin-key"
 LEGACY_SERVICE="com.xbguan.openaibar"      # 早期版本用过的服务名
 CONFIG_DIR="${HOME}/Library/Application Support/OpenAIApiDashboard"
+WEBKIT_DIR="${HOME}/Library/WebKit/${BUNDLE_ID}"          # 平台登录态（余额功能）
+CACHES_DIR="${HOME}/Library/Caches/${BUNDLE_ID}"
 TRASH_DIR="${HOME}/.Trash"
 
 ASSUME_YES=0
@@ -58,6 +60,11 @@ if [[ -d "$CONFIG_DIR" ]]; then
   echo "  4) 配置目录 → 删除 ${CONFIG_DIR}"
 else
   echo "  4) 配置目录 → 不存在，跳过"
+fi
+if [[ -d "$WEBKIT_DIR" ]]; then
+  echo "  5) 登录态   → 删除 ${WEBKIT_DIR}（余额功能的平台登录态）"
+else
+  echo "  5) 登录态   → 不存在，跳过"
 fi
 
 if [[ $DRY_RUN -eq 1 ]]; then
@@ -109,6 +116,16 @@ else
   echo "· 配置目录本来就不存在"
 fi
 
+# ---------- 5. 平台登录态 / 缓存 ----------
+for d in "$WEBKIT_DIR" "$CACHES_DIR"; do
+  if [[ -d "$d" ]]; then
+    rm -rf "$d"
+    echo "✓ 已删除: $d"
+  else
+    echo "· 不存在: $d"
+  fi
+done
+
 # ---------- 复查 ----------
 echo ""
 echo "复查："
@@ -121,6 +138,11 @@ if [[ -d "$CONFIG_DIR" ]]; then
   echo "  ✗ 配置目录仍然存在"
 else
   echo "  ✓ 配置：干净"
+fi
+if [[ -d "$WEBKIT_DIR" ]]; then
+  echo "  ✗ 登录态目录仍然存在"
+else
+  echo "  ✓ 登录态：干净"
 fi
 
 remaining=0
