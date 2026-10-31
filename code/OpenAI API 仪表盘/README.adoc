@@ -1,0 +1,273 @@
+= OpenAI API 仪表盘 — macOS 菜单栏 API 用量监控
+:toc: left
+:toclevels: 2
+
+一个原生 SwiftUI 菜单栏小工具，随时查看 OpenAI *API 平台* 组织级的花费、token 用量与额度。
+
+它服务的是 API 平台（platform.openai.com）的管理员视角，与 ChatGPT 订阅是两套体系，详见下文。
+
+== 已安装
+
+* 应用位置：`/Applications/OpenAI API 仪表盘.app`（放 `~/Applications/` 同样能用，卸载脚本两处都会找）
+* 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
+* 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
+* Bundle ID：`com.xbguan.openai-api-dashboard`
+* 安装包：`dist/OpenAI API 仪表盘-1.2.0.dmg`（Intel / Apple 芯片通用）
+
+== 首次使用（必须做一次）
+
+. 点击菜单栏图标 → 面板底部「设置」
+. 填入 *Admin API Key*（`sk-admin-` 开头），点「测试连接」确认
+. 点「保存」→ Key 写入 macOS 钥匙串，面板自动刷新
+
+获取 Admin Key：https://platform.openai.com/settings/organization/api-keys[platform.openai.com → Organization → Admin keys]
+普通项目 Key（`sk-proj-`）读不到组织用量，会报 403。
+
+可选：填 *项目 ID*（`proj_...`）只统计单个项目；填 *菜单栏备注名* 便于区分多个账号。
+
+== 界面预览
+
+浅色模式：
+
+image::preview-light.png[width=380]
+
+深色模式：
+
+image::preview-dark.png[width=380]
+
+未配置 Key 时（只有一个按钮，直接带你去填）：
+
+image::preview-empty.png[width=380]
+
+设置窗口：
+
+image::preview-settings.png[width=460]
+
+=== 视觉与交互
+
+界面按 *Liquid Glass* 材质重做（macOS 26 / iOS 26 起的系统语言）：底色渐变面 + 半透明玻璃卡片（顶部高光描边、底部收紧、柔影分层），不再用分隔线切块。浅色与深色两套 token 都单独调过对比度。
+
+窗口行为：
+
+* 打开设置时 *菜单面板自动收起*，不会两个窗口同时浮着
+* 点菜单栏图标打开面板时，*设置窗口自动关闭*
+* 设置里点 *保存* → 写配置 → 自动关闭设置窗口并刷新数据
+
+== 界面说明
+
+[cols="1,3"]
+|===
+|区域 |含义
+
+|今日花费（UTC）
+|当天累计花费，大字显示；右侧是当天 token 数与近 7 天花费
+
+|近 14 天柱状图
+|每天一根柱，当天用品牌绿高亮；零值日保留淡色底座，14 天的节奏始终可见
+
+|今日 / 7 天 / 30 天
+|三档汇总，每档附请求数或 token 数
+
+|API 额度
+|上限、已用、剩余百分比；带「估算」标记表示非官方精确值
+
+|花费来源（近 7 天）
+|按模型/服务项拆解的前 5 名，带占比条
+
+|菜单栏图标
+|表盘（开口圆环 + 固定指针），右边跟当天花费。指针是标志，不随数字转动 —— 转动的指针在低位时会贴到环端，糊成一块
+
+|=== 
+
+== 图标设计
+
+App 图标由代码绘制（`Sources/OpenAIBar/Logo.swift`），构建时自动生成 `AppIcon.icns`，不需要手工准备素材：
+
+* *深色圆角方块*：自上而下的冷灰渐变 + 顶部柔光，接近 OpenAI 视觉体系的中性冷调
+* *白色表盘弧*：直接对应「仪表盘」这件事
+* *三根递增柱*：用量与花费；只有最高的一根用品牌绿，其余灰阶——保持那种「几乎全黑白、只留一处色彩」的克制
+
+菜单栏图标：*开口圆环 + 指针 + 中心轴点*，18pt 下也能读出「表盘」。早期版本用过三根柱子，在菜单栏尺寸下被读成手机信号格，故弃用。指针不随金额转动 —— 它只是标志，不是读数。
+
+三种状态共用同一套几何，只改指针，不换图形（换形状会让图标在菜单栏上"跳"，早先那版为此显示成警告三角，已废弃）：
+
+* *正常*：指针指向右上 55°
+* *未配置 Key*：不画指针，只剩环与轴点，读作"静止待机"
+* *出错*（Key 无效 / 断网）：指针压到底部 270°，读作"指针掉底了"
+
+
+image::menubar.png[width=560]
+
+刻意 *不* 使用 OpenAI 的六角结商标：自己用无妨，但一旦分发就有商标风险，且 16pt 下会糊成一团。品牌感靠几何语言和那一点绿来暗示。
+
+== 数据来源与限制
+
+花费、用量：`GET /v1/organization/costs` 与 `GET /v1/organization/usage/completions`，官方接口，按 *UTC 自然日* 统计（与 OpenAI 后台一致）。
+
+=== 只针对 API 平台，与 ChatGPT 订阅无关
+
+本 App 只读取 *API 平台（platform.openai.com）组织级* 的数据：按 token 计费的用量与成本，需要 Admin Key。
+
+它和 *ChatGPT 订阅*（Plus / Pro / Team 的月费）是两套完全独立的体系，互不影响。App 里显示的「API 额度」指的是 API 账户的计费额度（预充值余额或后付费的月度上限），不是你的 ChatGPT 订阅权益。若你只买了 ChatGPT 订阅、没在 API 平台充值，这里不会有任何可用余量。
+
+余额：*OpenAI 从未开放公开的余额查询接口*。`/v1/dashboard/billing/credit_grants` 只接受浏览器会话 key，普通/Admin key 一律被拒。因此本 App 的做法是：
+
+* 先尝试 `credit_grants`（几乎必然失败）
+* 再尝试 `subscription`（取 API 账户的额度上限）− `usage`（本期已用）推算，界面上标注「估算」
+* 都失败时只显示用量，并说明原因
+
+若你看到「估算」，说明额度上限来自 API 账户的计费设置、已用来自账单接口，两者口径可能和后台略有出入。
+
+== 刷新
+
+菜单栏默认每 5 分钟自动刷新（设置里可改 1–60 分钟），点面板右上角 `↻` 可手动刷新。
+
+== 安装到另一台 Mac（DMG）
+
+image::dmg-window.png[width=520]
+
+`dist/OpenAI API 仪表盘-1.2.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+
+* *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
+* *系统要求*：macOS 14.0 及以上
+
+=== 首次打开被拦怎么办
+
+本 App 是 *ad-hoc 签名*——没有 Apple 开发者证书，无法做公证。通过 AirDrop、邮件、浏览器等方式传过去的 DMG 会带上"来自互联网"的隔离标记，首次打开时 macOS 会拦下：
+
+[quote]
+____
+"OpenAI API 仪表盘"无法打开，因为无法验证开发者。
+____
+
+两种放行办法，任选其一：
+
+. *右键 → 打开*：在「应用程序」里右键点 App 图标 → 「打开」，弹窗里再点一次「打开」。只需一次，之后正常双击。
+. *命令行*（反复遇到时更省事）：
++
+[source,bash]
+----
+xattr -cr "/Applications/OpenAI API 仪表盘.app"
+----
+
+用 U 盘拷贝一般不带隔离标记，双击即可。若提示的是「App 已损坏，无法打开」，同样是隔离标记作祟，用第 2 条处理。
+
+=== 换机器后要重新填 Key
+
+Admin Key 存在 *那台机器自己的钥匙串* 里，不随安装包走。新机器首次启动会回到"未配置"状态，点「设置」重新填一次即可。两台机器可以各填各的，互不影响。
+
+== 连不上怎么办
+
+面板提示「连不上 api.openai.com」时，先看代理：国内直连这个域名基本不通，需要 Clash / VPN 在跑。代理恢复后点面板里的「重试」即可，不用重启 App。
+
+== 构建
+
+[source,bash]
+----
+cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
+
+./build.sh                 # 只编译本机架构（日常开发，增量几秒）
+./build.sh --universal     # Intel + Apple 芯片通用版本
+./build.sh --install       # 编译通用版并安装到 /Applications
+
+./make-dmg.sh              # 用现有产物打 DMG
+./make-dmg.sh --rebuild    # 先编译通用版再打 DMG（发布用）
+----
+
+产物：
+
+* `.build/bundle/OpenAI API 仪表盘.app` —— 可运行的原件（不再往项目根拷 .app，见下文）
+* `dist/OpenAI API 仪表盘-<版本>.dmg` —— 分发包
+
+=== 项目规约
+
+发布相关的两条硬性约定，写在 `AGENTS.md`：
+
+. *每次改动都要出新版本 DMG*：先改 `Resources/Info.plist` 的版本号（修 bug 末位 +1，新功能次位 +1，`CFBundleVersion` 每次 +1），再 `./make-dmg.sh --rebuild`，产物留 `dist/`
+. *必须同时支持 Intel 与 M 芯片*：DMG 内 App 必须是 `x86_64 + arm64` 通用二进制，不依赖 Rosetta；两个架构由 `--triple` 分别交叉编译后 `lipo` 合并，打包后要核对 `lipo -archs`
+
+注：本机只有 Command Line Tools、没有完整 Xcode，因此有几处绕行：
+
+* 构建走 `swift build --disable-sandbox`（宿主环境不允许 sandbox-exec，否则 manifest 编译阶段就报 `Operation not permitted`）
+* *通用二进制不能用 `--arch a --arch b`*：那条路径依赖 xcbuild，CLT 下不存在。`build.sh` 改为用 `--triple` 分别交叉编译两个架构，再 `lipo -create` 合并
+* DMG 的窗口布局（尺寸、背景图、图标位置）*不走 AppleScript 调 Finder*：本机 osascript 一律返回 `-10004`（自动化权限未授予），`create-dmg` 之类的工具同样依赖 AppleScript 因此不可用。改为直接写 `.DS_Store`（`Tools/dmg-layout.py`，依赖已内嵌在 `Tools/pylib`，不需要 pip 安装任何东西）
+* *不往项目根拷 `.app`*：该路径被宿主安全策略保护，写入一律 `Operation not permitted`。构建产物留在 `.build/bundle/`，安装用 `--install`
+* *拷 App 进 DMG 用 `cp -R` 而非 `ditto`*：ditto 走"写临时文件再 rename"，会被同一条策略拦掉（报 `.BC.T_xxx` 删除失败）
+
+首次全量编译约 2 分钟，之后增量几秒；通用版本要把两个架构各编一遍。
+
+预览 UI（假数据，不联网）：
+
+[source,bash]
+----
+BIN=".build/bundle/OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
+"$BIN" --demo              # 浅色 + 假数据
+"$BIN" --demo --demo-dark  # 深色
+"$BIN" --demo --demo-empty # 未配置 Key 的状态
+"$BIN" --demo --demo-settings  # 只开设置窗口
+----
+
+图标会随构建自动重新生成（`swiftc Logo.swift Tools/icongen` → `iconutil` → `Resources/AppIcon.icns`），不需要手工准备素材。
+
+== 安全说明
+
+Admin Key 保存在 *macOS 钥匙串*，*不写入任何文件*：
+
+* 服务名（service）：`com.xbguan.openai-api-dashboard`
+* 账户名（account）：`openai-admin-key`
+
+钥匙串本身是系统级加密存储，密钥由系统保管、登录密码解锁，别的 App 读取需要你授权。
+
+`config.json` 里只有项目 ID、刷新间隔、备注名这些非敏感设置，文件权限 `600`。所有请求直连 `api.openai.com`，不经过任何第三方服务器。
+
+想更换或删除凭据：设置页点「清除 Key」，或在「钥匙串访问」里搜索 `openai-api-dashboard` 删除。
+
+注意：本 App 是 ad-hoc 签名（本机构建）。如果你重新编译过，首次读取钥匙串时 macOS 可能弹一次授权，点「始终允许」即可。
+
+== 卸载
+
+*只把 App 拖进废纸篓是不够的*——macOS 不会因为 App 被删就去清它的钥匙串和配置目录（所有 App 都这样，不是这一个的问题）。删掉 App 之后还会剩下两样：
+
+[cols="1,2,2"]
+|===
+|残留 |位置 |内容
+
+|钥匙串条目
+|service `com.xbguan.openai-api-dashboard`，account `openai-admin-key`
+|*Admin Key 本体*
+
+|配置文件
+|`~/Library/Application Support/OpenAIApiDashboard/config.json`
+|只有项目 ID、刷新间隔、备注名，*不含 key*
+|===
+
+=== 一条命令搞定
+
+[source,bash]
+----
+cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
+./uninstall.sh              # 列出将删除的内容，确认后执行
+./uninstall.sh --dry-run    # 只看不删
+----
+
+脚本依次做五件事：退出进程 → App 移到废纸篓 → 删钥匙串条目（含早期版本用过的旧服务名）→ 删配置目录 → 复查三处是否真的干净。
+
+=== 手动清理
+
+[source,bash]
+----
+# 1. 删 App
+mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
+
+# 2. 删钥匙串凭据
+security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key"
+
+# 3. 删配置
+rm -rf ~/Library/"Application Support"/OpenAIApiDashboard
+----
+
+也可以在「钥匙串访问」里搜索 `openai-api-dashboard`，右键删除那条「OpenAI API 仪表盘 Admin Key」。
+
+=== 只想换 Key、不卸载
+
+设置页点「清除 Key」即可——只删钥匙串里的凭据，App 和其他设置都保留。注意顺序：*先点这个，再删 App*，反了就会留下本文开头说的那条残留。
