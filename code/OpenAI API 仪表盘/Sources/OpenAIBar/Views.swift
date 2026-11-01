@@ -289,18 +289,21 @@ struct MenuContentView: View {
         .frame(width: UI.panelWidth)
         .tint(Color.brand(scheme))
         .onPreferenceChange(BodyHeightKey.self) { h in
-            // 定高策略：只认第一次有效测量，定下来之后再也不跟内容走。
+            // 定高策略：只在「首次测量」或「内容高度显著变化」时更新，其余时间冻结。
             //
-            // 原因：MenuBarExtra 的窗口高度只能取整，而内容测量值常带小数；
-            // 如果把测量值持续喂回 .frame(height:)，窗口与布局就会在取整之间
-            // 反复拉锯，面板 1px 级持续抖动（上半区/下半区都可能，取决于哪块在变）。
-            // 冻结后，内容再多也只会在滚动区内滚动，窗口尺寸恒定 → 结构上不可能抖。
-            guard bodyHeight < 60, h > 120 else { return }
-            bodyHeight = min(h.rounded(.up), UI.maxBodyHeight.rounded(.down))
-        }
-        .onChange(of: model.snapshot == nil) { _, _ in
-            // 只有在「有数据 ↔ 无数据」这种离散切换时才重新定一次高度
-            bodyHeight = 0
+            // 为什么冻结：MenuBarExtra 的窗口高度只能取整，而内容测量值常带小数；
+            // 若把测量值持续喂回 .frame(height:)，窗口与布局会在取整之间反复拉锯，
+            // 面板 1px 级持续抖动。冻结后，内容再多也只会在滚动区内滚动。
+            //
+            // 为什么允许显著变化：初次运行「未配置 → 填 Key → 有数据」时，内容从空态
+            // （约 300pt）跳到完整内容（约 550pt）。若死守首次测量值，面板会卡在空态
+            // 高度、把底部卡片截断。只有差距超过阈值（80pt）才重新定一次高，
+            // 亚像素级的微抖（1pt 级）不会触发，抖动问题不会复发。
+            let target = min(h.rounded(.up), UI.maxBodyHeight.rounded(.down))
+            guard target > 120 else { return }
+            if bodyHeight < 60 || abs(target - bodyHeight) > 80 {
+                bodyHeight = target
+            }
         }
         .transaction { $0.animation = nil }
         .onAppear {
