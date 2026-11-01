@@ -237,10 +237,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let (on, addr) = controller.systemProxy()
         let mode = controller.resolvedMode()
 
-        let symbol = on ? "building.2.fill" : "building.2"
-        let img = NSImage(systemSymbolName: symbol, accessibilityDescription: "公司代理")
-        img?.isTemplate = true
-        item.button?.image = img
+        // 菜单栏图标：与 App 图标同一份几何（笔记本 + 单向箭头），18pt 模板图
+        item.button?.image = BrandMark.menuImage(height: 18)
         item.button?.alphaValue = on ? 1.0 : 0.42
         item.button?.toolTip = on
             ? "公司代理：已启用 \(addr)（\(mode.shortTitle)）"

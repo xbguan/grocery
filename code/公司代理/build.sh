@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="公司代理"
 BIN_NAME="CorpProxyBar"
-VERSION="2.3.1"
+VERSION="2.4.0"
 BUNDLE_ID="local.xbguan.corpproxy"
 
 # 构建机自身架构（用于只在构建期运行的辅助工具）
@@ -22,9 +22,13 @@ rm -rf build/app build/dmg build/slices dist
 mkdir -p "build/app/${APP_NAME}.app/Contents/MacOS" "build/app/${APP_NAME}.app/Contents/Resources" dist build/slices
 
 # 1. 图标
-if [ ! -f build/AppIcon.icns ]; then
+# 图标源文件比 icns 新时必须重建，否则改了配色还打旧图标
+if [ ! -f build/AppIcon.icns ] || [ IconGen.swift -nt build/AppIcon.icns ] \
+   || [ Sources/BrandMark.swift -nt build/AppIcon.icns ]; then
+  rm -rf build/AppIcon.iconset build/AppIcon.icns
   mkdir -p build/AppIcon.iconset
-  swiftc -O -target "${HOST_ARCH}-apple-macos13.0" -framework Cocoa -o build/icongen IconGen.swift
+  swiftc -O -target "${HOST_ARCH}-apple-macos13.0" -framework Cocoa \
+    -o build/icongen IconGen.swift Sources/BrandMark.swift
   ./build/icongen build/AppIcon.iconset
   iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
 fi
@@ -106,7 +110,11 @@ cat > "build/app/${APP_NAME}.app/Contents/Info.plist" <<'PLIST'
 PLIST
 
 # heredoc 不展开变量，版本号用占位符回填
-sed -i '' "s/__VERSION__/${VERSION}/g" "build/app/${APP_NAME}.app/Contents/Info.plist"
+# 用 -i.bak 而不是 `-i ''`：部分 shell / 包装器会吞掉空参数，导致 sed 把脚本当文件名
+PLIST="build/app/${APP_NAME}.app/Contents/Info.plist"
+sed -i.bak "s/__VERSION__/${VERSION}/g" "$PLIST"
+rm -f "${PLIST}.bak"
+grep -q "__VERSION__" "$PLIST" && { echo "❌ 版本占位符未回填"; exit 1; }
 
 # 4. ad-hoc 签名
 xattr -cr "build/app/${APP_NAME}.app" 2>/dev/null || true
@@ -127,7 +135,7 @@ cat > "$STAGE/安装说明.txt" <<'README'
 安装
 ----
 把「公司代理.app」拖到左侧的 Applications（应用程序）文件夹，然后从「应用程序」打开一次。
-打开后菜单栏会出现一个建筑图标。默认不占程序坞；想常驻程序坞就打开
+打开后菜单栏会出现一个笔记本形状的图标。默认不占程序坞；想常驻程序坞就打开
 「设置…→ 外观 → 在程序坞显示图标」，或点菜单栏图标勾选「在程序坞显示」。
 勾选后：点程序坞图标 = 弹出和顶部图标一样的菜单；右键程序坞图标 = 快速开关代理；
 需要改配置时点菜单里的「设置…」。
