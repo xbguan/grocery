@@ -80,6 +80,8 @@ struct InfoCardModel {
     var footnote: String?
     /// 底部按钮；留空时由 showButton 决定是否补一颗「好」
     var actions: [InfoCardAction]
+    /// 进行中：徽章位置换成转圈，表示结果还没回来
+    var busy: Bool
 
     init(tone: InfoTone,
          glyph: String? = nil,
@@ -88,7 +90,8 @@ struct InfoCardModel {
          chips: [InfoChip] = [],
          facts: [InfoFact] = [],
          footnote: String? = nil,
-         actions: [InfoCardAction] = []) {
+         actions: [InfoCardAction] = [],
+         busy: Bool = false) {
         self.tone = tone
         self.glyph = glyph
         self.title = title
@@ -97,6 +100,7 @@ struct InfoCardModel {
         self.facts = facts
         self.footnote = footnote
         self.actions = actions
+        self.busy = busy
     }
 }
 
@@ -284,12 +288,14 @@ enum InfoCardBody {
 
     private static func heroView(_ m: InfoCardModel, width: CGFloat) -> (NSView, CGFloat) {
         let tone = m.tone
+        // 进行中用强调色，比灰色「暂停」看起来更有在跑的感觉
+        let badgeTint: NSColor = m.busy ? .controlAccentColor : tone.tint
 
         let badge = NSView(frame: NSRect(x: 0, y: 0, width: C.badge, height: C.badge))
         badge.wantsLayer = true
         badge.layer?.cornerRadius = C.badge / 2
         badge.layer?.cornerCurve = .continuous
-        badge.layer?.backgroundColor = tone.tint.withAlphaComponent(0.14).cgColor
+        badge.layer?.backgroundColor = badgeTint.withAlphaComponent(0.14).cgColor
 
         let icon = NSImageView(frame: NSRect(origin: .zero, size: NSSize(width: 22, height: 22)))
         icon.image = UIStatus.image(m.glyph ?? tone.glyph, color: tone.tint, size: 19)
@@ -297,6 +303,20 @@ enum InfoCardBody {
         icon.imageAlignment = .alignCenter
         icon.frame.origin = NSPoint(x: (C.badge - 22) / 2, y: (C.badge - 22) / 2)
         badge.addSubview(icon)
+
+        // 进行中：图标换成转圈，让人一眼看出「还在跑」而不是「没反应」
+        if m.busy {
+            icon.isHidden = true
+            let spin = NSProgressIndicator()
+            spin.style = .spinning
+            spin.controlSize = .regular
+            spin.isIndeterminate = true
+            spin.isDisplayedWhenStopped = true
+            spin.frame = NSRect(x: 0, y: 0, width: 20, height: 20)
+            spin.frame.origin = NSPoint(x: (C.badge - 20) / 2, y: (C.badge - 20) / 2)
+            spin.startAnimation(nil)
+            badge.addSubview(spin)
+        }
 
         let textX = C.badge + C.textGap
         let textW = width - textX
@@ -580,16 +600,21 @@ final class InfoCard: NSObject {
     private var globalMon: Any?
     private var modalIndex: Int = -1
     private var isModal = false
+    /// 内容替换时保持顶边不动（卡片向下长），避免整块跳位
+    private var topEdgeKept: CGFloat?
 
     // MARK: 两种用法
 
     /// 播报式：不拦流程，点外部 / Esc / 回车都收起
-    static func present(_ model: InfoCardModel) {
+    /// - Returns: 卡片句柄，可以先弹一张「进行中」再 `update` 成结果
+    @discardableResult
+    static func present(_ model: InfoCardModel) -> InfoCard {
         // 同一时刻只留一张，避免连点叠窗
         current?.dismiss()
         let card = InfoCard()
         current = card
         card.show(model)
+        return card
     }
 
     /// 询问式：阻塞到用户点某颗按钮，返回下标；Esc / 关闭返回 -1
@@ -624,14 +649,25 @@ final class InfoCard: NSObject {
         p.onEsc = { [weak self] in self?.dismiss() }
         p.onReturn = { [weak self] in self?.dismiss() }
 
+        // 先把窗口摆上去，再请求激活：激活偶尔要等系统协调，
+        // 不能让它挡在「卡片出现」前面。
         p.alphaValue = 0
         p.makeKeyAndOrderFront(nil)
+        if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
+
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.13
             p.animator().alphaValue = 1
         }
+        // 兜底：应用不在前台时这条淡入动画可能不推进，
+        // 窗口会一直停在 alpha 0（看起来就是「点了没反应」）。到点强制收尾。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak p] in
+            guard let p, p.isVisible, p.alphaValue < 1 else { return }
+            p.alphaValue = 1
+        }
         p.invalidateShadow()
         panel = p
+        topEdgeKept = p.frame.maxY
 
         // 点外部收起：稍等一拍再装监听，避免吃掉触发的这次点击
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
@@ -645,6 +681,54 @@ final class InfoCard: NSObject {
                 self?.dismiss()
             }
         }
+    }
+
+    // MARK: 更新
+
+    /// 换成新内容（同一张卡原地替换）。
+    /// 用于「先弹卡 → 后台跑完 → 填结果」，用户不必盯着没有反应的界面等。
+    func update(_ model: InfoCardModel) {
+        guard let p = panel, let surface = p.contentView else { return }
+
+        var m = model
+        if m.actions.isEmpty {
+            m.actions = [InfoCardAction(title: "好", style: .primary) { [weak self] in
+                self?.dismiss()
+            }]
+        } else {
+            m.actions = m.actions.map { a in
+                InfoCardAction(title: a.title, style: a.style) { [weak self] in
+                    self?.dismiss()
+                    a.handler?()
+                }
+            }
+        }
+
+        let width = InfoCardBody.preferredWidth
+        let size = InfoCardBody.size(m, width: width, showButton: false)
+        let content = InfoCardBody.view(m, width: width, showButton: false)
+
+        // 顶边不动，向下（或向上）伸缩，视觉上不跳
+        let top = topEdgeKept ?? p.frame.maxY
+        let keepVisible = NSScreen.main?.visibleFrame ?? .zero
+        var h = size.height
+        var y = top - h
+        if keepVisible.height > 0, y < keepVisible.minY + 8 {
+            // 卡片太长顶到屏幕底：改为底边不动往上长
+            y = keepVisible.minY + 8
+            h = min(h, top - y)
+        }
+
+        surface.subviews.forEach { $0.removeFromSuperview() }
+        p.setFrame(NSRect(x: p.frame.minX, y: y, width: size.width, height: h),
+                   display: false, animate: false)
+        surface.frame = NSRect(origin: .zero, size: NSSize(width: size.width, height: h))
+
+        content.frame = NSRect(origin: .zero, size: size)
+        surface.addSubview(content)
+        surface.needsLayout = true
+        surface.needsDisplay = true
+        p.invalidateShadow()
     }
 
     // MARK: 询问

@@ -6,7 +6,7 @@
 :toclevels: 3
 :icons: font
 
-菜单栏常驻的小工具：把 macOS 系统代理和 Codex CLI 一起切到公司 3proxy，内置本地免认证中继解决浏览器代理认证弹框。纯 Swift 实现，除 Xcode Command Line Tools 外无第三方依赖。
+菜单栏常驻的小工具：把 macOS 系统代理和 Codex CLI 一起切到公司的代理服务，内置本地免认证中继解决浏览器代理认证弹框。纯 Swift 实现，除 Xcode Command Line Tools 外无第三方依赖。
 
 == 目录结构
 
@@ -30,7 +30,7 @@
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG（缺架构或版本不符即失败）
 |`AGENTS.md` |项目规约：交付必须出新 DMG、必须 universal2、装机自检清单
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.4.0.dmg` |成品安装包
+|`dist/公司代理-2.4.1.dmg` |成品安装包
 |===
 
 == 构建
@@ -39,7 +39,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.4.0.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.4.1.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
@@ -98,8 +98,8 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 -x http://127.0.0.1:7899 
 [cols="2,1,3",options="header"]
 |===
 |键 |示例 |说明
-|`CORP_HOST` |`172.17.2.15` |公司 3proxy 地址
-|`CORP_PORT` |`7887` |3proxy HTTP 端口
+|`CORP_HOST` |`172.17.2.15` |代理地址
+|`CORP_PORT` |`7887` |代理 HTTP 端口
 |`CORP_USER` |`admin` |代理用户名
 |`CORP_PASS` |`******` |代理密码
 |`RELAY_PORT` |`7899` |本地中继端口（系统代理指向 `127.0.0.1:该端口`）
@@ -141,7 +141,7 @@ curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 -x http://127.0.0.1:7899 
 
 **永远经本地中继，不再回退到直连公司上游。** 直连时系统代理里存的账号密码 Chromium 不读，页面必然弹「输入代理用户名和密码」。中继没起来就报错，不改系统代理。
 
-**账号或密码为空时拒绝启用。** 公司 3proxy 空凭据回 407，浏览器同样会弹认证框。点「启用」会先弹提示，可「去设置…」，也可明确选「仍然启用」（适用于确实无需认证的代理）。
+**账号或密码为空时拒绝启用。** 空凭据连代理会回 407，浏览器同样会弹认证框。点「启用」会先弹提示，可「去设置…」，也可明确选「仍然启用」（适用于确实无需认证的代理）。
 
 === 启动自检
 
@@ -240,7 +240,7 @@ App 若已进废纸篓，双击 DMG 里的 `卸载公司代理.command` 做同�
 == 已知限制
 
 * 公司出口对 `api.openai.com` 会做 TLS reset（30 次里约 18 次失败）；`chatgpt.com/backend-api` 稳定可用，Codex 走后者，不受影响。
-* 开启系统代理后，iCloud/微信等流量也会经过公司 3proxy，会落在对方 `log D` 日志里。
+* 开启系统代理后，iCloud/微信等流量也会经过公司代理，会落在对方的访问日志里。
 * 不能与 TUN 模式代理同时使用（会与公司 VPN 抢路由）。
 * 被 **SIGKILL** 杀掉（强制退出、崩溃、关机超时被硬杀）时没有机会执行清理，系统代理会残留成
   「指向已停止的中继」→ 表现为全部网络不通。重新打开 App 即可自动修正（见「启动自检」）；

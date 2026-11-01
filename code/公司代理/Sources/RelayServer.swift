@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 /// 本地免认证 HTTP 代理中继
-/// 监听 127.0.0.1:<relayPort>，转发到公司 3proxy 并自动注入 Proxy-Authorization。
+/// 监听 127.0.0.1:<relayPort>，转发到上游代理并自动注入 Proxy-Authorization。
 /// 存在的理由：macOS 系统代理里保存的代理凭据 Chromium 不读，会反复弹「登录以访问此站点」。
 final class RelayServer {
     private var cfg: Config

@@ -305,7 +305,7 @@ final class SettingsWindowController: NSWindowController {
         mainStack.alignment = .leading
         mainStack.spacing = 8
         mainStack.translatesAutoresizingMaskIntoConstraints = false
-        for v in [section("公司 3proxy 代理"), cardProxy,
+        for v in [section("代理服务"), cardProxy,
                   section("VPN 接入方式"), cardVPN,
                   section("本地中继与白名单"), cardRelay,
                   section("外观"), cardLook,

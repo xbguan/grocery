@@ -15,10 +15,17 @@ enum Shell {
         p.standardError = pipe
         do { try p.run() } catch { return (-1, error.localizedDescription) }
 
+        // 超时兜底：networksetup 偶尔会卡在某个半死的服务上，
+        // 没有看门狗的话调用方会一直等下去（弹窗也就一直转圈）。
+        let killer = DispatchWorkItem {
+            if p.isRunning { p.terminate() }
+        }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: killer)
+
         // 边读边等，避免子进程写满管道阻塞
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         p.waitUntilExit()
-        _ = timeout
+        killer.cancel()
         return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
 
@@ -157,10 +164,10 @@ final class ProxyController {
     func turnOn(allowEmptyCredentials: Bool = false) -> Result<String, Failure> {
         let mode = resolvedMode()
 
-        // 1) 凭据检查：空凭据挂上去，公司 3proxy 会回 407，浏览器就会不停弹认证框
+        // 1) 凭据检查：空凭据挂上去，上游会回 407，浏览器就会不停弹认证框
         if !cfg.hasCredentials && !allowEmptyCredentials {
             return .failure(Failure(message:
-                "还没有填写代理用户名/密码。\n\n空凭据连公司 3proxy 会被拒绝（407），浏览器会反复弹「输入代理用户名和密码」。\n请先在「设置…」里填写后再启用。"))
+                "还没有填写代理用户名/密码。\n\n空凭据连代理会被拒绝（407），浏览器会反复弹「输入代理用户名和密码」。\n请先在「设置…」里填写后再启用。"))
         }
 
         // 2) 必须经本地中继。直连公司上游时，系统代理里存的凭据 Chromium 不读，
@@ -328,18 +335,27 @@ final class ProxyController {
 
     /// 状态明细，按「运行链路 / 代理与中继 / 目标」分成三组。
     /// 用结构化的行而不是拼好的字符串，弹窗才能按图标列、标签列、值列渲染。
+    /// 注意：每次调用都会起几次子进程，调用方应放在后台队列。
     func statusSections() -> [[(String, String)]] {
         let mode = resolvedMode()
         let st = systemProxy()
 
+        // 服务列表只取一次：allServices 会起 networksetup，重复调用纯属白等
+        let all = allServices()
+        let svcs = mode == .l2tp ? all.filter { $0 != "VPN" } : all
+
         var link: [(String, String)] = []
         link.append(("主接口", primaryIface()))
         link.append(("接入方式", "\(mode.shortTitle)（配置为 \(cfg.vpnMode.shortTitle)）"))
+
+        // 端口探活只做一次；L2TP 下它同时也是隧道判据
+        var probed: Bool?
         switch mode {
         case .hdvpn, .auto:
             link.append(("隧道", "ppp0 \(ppp0Up() ? "在线" : "断开")"))
         case .l2tp:
             let ok = Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
+            probed = ok
             link.append(("隧道", "路由器 L2TP（\(ok ? "内网可达" : "内网不可达")）"))
         }
 
@@ -350,13 +366,13 @@ final class ProxyController {
             .contains("HTTPS_PROXY=http://") ?? false
         relay.append(("Codex", envOn ? "指向代理（~/.codex/.env）" : "直连"))
 
-        let reachable = Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
-        let svcs = servicesToSet()
+        let reachable = probed ?? Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 2)
         let target: [(String, String)] = [
-            ("公司代理", "\(cfg.host):\(cfg.port)（\(reachable ? "可连接" : "不通")）"),
+            ("代理", "\(cfg.host):\(cfg.port)（\(reachable ? "可连接" : "不通")）"),
             ("用户", cfg.user),
             ("中继端口", "\(cfg.relayPort)"),
-            ("服务", "共 \(svcs.count) 个：" + svcs.joined(separator: "、")),
+            ("服务数", "\(svcs.count)"),
+            ("服务", svcs.joined(separator: "、")),
         ]
         return [link, relay, target]
     }

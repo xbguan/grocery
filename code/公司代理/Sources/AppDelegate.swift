@@ -330,30 +330,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 同上，但结果是卡片模型，供 InfoCard 渲染
-    private func runAsyncCard(_ work: @escaping () -> InfoCardModel,
-                              done: @escaping (InfoCardModel) -> Void) {
-        guard !busy else { return }
-        busy = true
-        DispatchQueue.global(qos: .userInitiated).async {
-            let model = work()
-            DispatchQueue.main.async {
-                self.busy = false
-                self.refresh()
-                done(model)
-            }
-        }
-    }
-
     @objc private func toggleProxy() {
-        // 没填账号密码就挂代理，公司 3proxy 会回 407，浏览器会不停弹认证框 —— 先问一句
+        // 没填账号密码就挂代理，上游会回 407，浏览器会不停弹认证框 —— 先问一句
         var allowEmpty = false
         if !cfg.hasCredentials {
             let choice = InfoCard.ask(InfoCardModel(
                 tone: .warn,
                 glyph: "person.badge.key",
                 title: "还没填代理账号/密码",
-                subtitle: "公司 3proxy 需要认证，空凭据启用后浏览器会反复弹出登录框",
+                subtitle: "该代理需要认证，空凭据启用后浏览器会反复弹出登录框",
                 facts: [
                     InfoFact("gearshape", "建议先去「设置…」填好账号密码，再回来启用"),
                     InfoFact("exclamationmark.triangle", "若仍然启用，浏览器与命令行都会收到 407",
@@ -399,58 +384,104 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quickTest() {
+        let addr = "\(cfg.host):\(cfg.port)"
+
+        // 先把卡弹出来：结果要等端口探测和 curl（最长十几秒），
+        // 不能让人对着没反应的界面等 —— 卡先出，结果回填。
+        let card = InfoCard.present(InfoCardModel(
+            tone: .neutral,
+            glyph: "dot.radiowaves.left.and.right",
+            title: "正在测试连接…",
+            subtitle: "先探代理端口，再经代理请求 chatgpt.com",
+            facts: [InfoFact("server.rack", "代理 \(addr)")],
+            busy: true))
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let model = self.quickTestModel()
+            DispatchQueue.main.async { card.update(model) }
+        }
+    }
+
+    /// 真正干活的部分，跑在后台
+    private func quickTestModel() -> InfoCardModel {
+        let token = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .latencyCritical],
+            reason: "公司代理：测试连接")
+        defer { ProcessInfo.processInfo.endActivity(token) }
+
         let viaRelay = relay.isRunning
         let proxy = viaRelay ? cfg.relayURL : cfg.upstreamURLWithAuth
         let addr = "\(cfg.host):\(cfg.port)"
         let route = viaRelay
             ? "经本地中继 \(cfg.relayHost):\(cfg.relayPort) 转发"
-            : "直连公司代理"
+            : "直连代理"
         let hint = controller.resolvedMode() == .l2tp
             ? "确认路由器 L2TP 已接通，本机在公司内网路由上。"
-            : "确认 HD-VPN 已连接（ppp0 有地址）。"
+            : "确认 VPN 客户端已连接（ppp0 有地址）。"
 
-        runAsyncCard({ [unowned self] in
-            let facts: [InfoFact] = [
-                InfoFact("server.rack", "代理 \(addr)"),
-                InfoFact("point.topleft.down.to.point.bottomright.curvepath", route),
-            ]
-            guard Shell.tcpAlive(self.cfg.host, UInt16(self.cfg.port), timeout: 3) else {
-                return InfoCardModel(tone: .warn, title: "连不上代理端口",
-                                     subtitle: "\(addr) 没有响应",
-                                     facts: facts, footnote: hint)
-            }
-            let t0 = Date()
-            let (_, code) = Shell.run("/usr/bin/curl",
-                ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "15",
-                 "-x", proxy, "https://chatgpt.com/backend-api/me"], timeout: 20)
-            let ms = Int(Date().timeIntervalSince(t0) * 1000)
-            let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
-            let msChip = InfoChip(icon: "clock", tint: .secondaryLabelColor,
-                                  value: "\(ms) ms", caption: "耗时")
+        let facts: [InfoFact] = [
+            InfoFact("server.rack", "代理 \(addr)"),
+            InfoFact("point.topleft.down.to.point.bottomright.curvepath", route),
+        ]
+        guard Shell.tcpAlive(cfg.host, UInt16(cfg.port), timeout: 3) else {
+            return InfoCardModel(tone: .warn, title: "连不上代理端口",
+                                 subtitle: "\(addr) 没有响应",
+                                 facts: facts, footnote: hint)
+        }
+        let t0 = Date()
+        let (_, code) = Shell.run("/usr/bin/curl",
+            ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "15",
+             "-x", proxy, "https://chatgpt.com/backend-api/me"], timeout: 20)
+        let ms = Int(Date().timeIntervalSince(t0) * 1000)
+        let v = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let msChip = InfoChip(icon: "clock", tint: .secondaryLabelColor,
+                              value: "\(ms) ms", caption: "耗时")
 
-            switch v {
-            case "401":
-                return InfoCardModel(
-                    tone: .ok, title: "链路正常",
-                    subtitle: "请求已到达 chatgpt.com，认证与出口都通",
-                    chips: [msChip,
-                            InfoChip(icon: "bolt.horizontal", tint: .systemGreen,
-                                     value: "401", caption: "chatgpt.com")],
-                    facts: facts)
-            case "", "000":
-                return InfoCardModel(tone: .warn, title: "出口不通",
-                                     subtitle: "代理连上了，但 chatgpt.com 没有回应",
-                                     chips: [msChip],
-                                     facts: facts, footnote: hint)
-            default:
-                return InfoCardModel(tone: .warn, title: "链路有响应",
-                                     subtitle: "返回 HTTP \(v)，不是预期的 401",
-                                     chips: [msChip], facts: facts)
-            }
-        }, done: { InfoCard.present($0) })
+        switch v {
+        case "401":
+            return InfoCardModel(
+                tone: .ok, title: "链路正常",
+                subtitle: "请求已到达 chatgpt.com，认证与出口都通",
+                chips: [msChip,
+                        InfoChip(icon: "bolt.horizontal", tint: .systemGreen,
+                                 value: "401", caption: "chatgpt.com")],
+                facts: facts)
+        case "", "000":
+            return InfoCardModel(tone: .warn, title: "出口不通",
+                                 subtitle: "代理连上了，但 chatgpt.com 没有回应",
+                                 chips: [msChip],
+                                 facts: facts, footnote: hint)
+        default:
+            return InfoCardModel(tone: .warn, title: "链路有响应",
+                                 subtitle: "返回 HTTP \(v)，不是预期的 401",
+                                 chips: [msChip], facts: facts)
+        }
     }
 
     @objc private func showStatus() {
+        // 同样先把卡弹出来，状态采集全部丢到后台
+        let card = InfoCard.present(InfoCardModel(
+            tone: .neutral,
+            glyph: "list.bullet.rectangle",
+            title: "正在读取状态…",
+            subtitle: "检查隧道、系统代理与本地中继",
+            busy: true))
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let model = self.statusModel()
+            DispatchQueue.main.async { card.update(model) }
+        }
+    }
+
+    /// 状态卡片的内容，跑在后台（内部有 networksetup / 端口探测）
+    private func statusModel() -> InfoCardModel {
+        let token = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .latencyCritical],
+            reason: "公司代理：读取状态")
+        defer { ProcessInfo.processInfo.endActivity(token) }
+
         let on = controller.systemProxy().on
         var kv: [String: String] = [:]
         for sec in controller.statusSections() {
@@ -463,9 +494,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sysProxy = kv["系统代理"] ?? "—"
         let relayInfo = kv["本地中继"] ?? "—"
         let codex = kv["Codex"] ?? "—"
-        let upstream = kv["公司代理"] ?? "—"
+        let upstream = kv["代理"] ?? "—"
         let user = kv["用户"] ?? "—"
         let port = kv["中继端口"] ?? "—"
+        let svcs = controller.servicesToSet()
+        let svcCount = svcs.count
 
         let bad = ["断开", "不通", "不可达", "已关闭", "未运行", "直连"]
         func healthy(_ s: String) -> Bool { !bad.contains(where: { s.contains($0) }) }
@@ -480,7 +513,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             InfoChip(icon: "bolt.horizontal.fill", tint: relayOK ? .systemGreen : .systemOrange,
                      value: port, caption: "中继"),
             InfoChip(icon: "list.bullet", tint: .secondaryLabelColor,
-                     value: "\(controller.servicesToSet().count)", caption: "网络服务"),
+                     value: "\(svcCount)", caption: "网络服务"),
         ]
 
         let facts = [
@@ -492,18 +525,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                      tint: relayOK ? .systemGreen : .systemOrange),
             InfoFact("terminal", "Codex \(codex)",
                      tint: codexOK ? .systemGreen : .secondaryLabelColor),
-            InfoFact("server.rack", "公司代理 \(upstream)", detail: "账号 \(user)"),
+            InfoFact("server.rack", "代理 \(upstream)", detail: "账号 \(user)"),
         ]
 
-        InfoCard.present(InfoCardModel(
+        let foot: String? = svcs.isEmpty
+            ? nil
+            : "覆盖 \(svcCount) 个网络服务：" + svcs.joined(separator: "、")
+
+        return InfoCardModel(
             tone: on ? .ok : .neutral,
             title: on ? "代理运行中" : "当前直连",
             subtitle: on
-                ? (codexOK ? "系统代理与 Codex 都指向公司线路" : "系统代理已启用，Codex 仍为直连")
+                ? (codexOK ? "系统代理与 Codex 都指向代理线路" : "系统代理已启用，Codex 仍为直连")
                 : "系统代理未开启，全部走本地网络",
-            chips: chips, facts: facts,
-            footnote: "覆盖 \(controller.servicesToSet().count) 个网络服务："
-                + controller.servicesToSet().joined(separator: "、")))
+            chips: chips, facts: facts, footnote: foot)
     }
 
     @objc private func toggleAutoStart() {
@@ -595,7 +630,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let credits = NSAttributedString(
-            string: "公司 3proxy 一键开关 · 本地免认证中继",
+            string: "代理一键开关 · 本地免认证中继",
             attributes: [.font: NSFont.systemFont(ofSize: 11)])
         NSApp.orderFrontStandardAboutPanel(options: [
             .applicationName: "公司代理",
