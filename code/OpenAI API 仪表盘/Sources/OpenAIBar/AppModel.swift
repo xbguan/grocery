@@ -97,6 +97,9 @@ final class AppModel: ObservableObject {
             ItemCost(id: "text-embedding-3-large", name: "text-embedding-3-large", cost: 2.05, tokens: 2_600_000, requests: 3_300),
             ItemCost(id: "gpt-image-1", name: "gpt-image-1", cost: 0.94, tokens: 0, requests: 38)
         ]
+        snap.costBreakdown.todayTotal = snap.costBreakdown.today.reduce(0) { $0 + $1.cost }
+        snap.costBreakdown.last7Total = snap.costBreakdown.last7.reduce(0) { $0 + $1.cost }
+        snap.costBreakdown.last30Total = snap.costBreakdown.last30.reduce(0) { $0 + $1.cost }
         snap.balance = BalanceInfo(limit: 50, used: 15.62, available: 34.38,
                                    source: "API 计费额度上限 − 本月已用（估算）", isExact: false)
         snap.fetchedAt = .now
@@ -232,11 +235,11 @@ final class AppModel: ObservableObject {
         creditBridge.forceReload()
     }
 
-    /// 面板打开时：先把卡死的 loading 救回来，再按 15 分钟节流决定是否重读
+    /// 面板打开时：先把卡死的 loading 救回来，再按「自动刷新」间隔节流决定是否重读
     func refreshCreditOnPanelOpen() {
         guard config.showCredit else { return }
         creditBridge.recoverIfStuck()
-        creditBridge.refresh(stale: 900)
+        creditBridge.refresh(stale: TimeInterval(config.refreshMinutes * 60))
     }
 
     /// 清除平台登录态（只清 App 自己的 WebKit 存储，不影响浏览器）
@@ -304,8 +307,8 @@ final class AppModel: ObservableObject {
     // MARK: 数据加载
 
     func refresh() async {
-        // 余额与 Key 无关：只要开启了实时余额，就顺带刷一次（15 分钟内不重复整页加载）
-        if config.showCredit { creditBridge.refresh(stale: 900) }
+        // 余额与 Key 无关：只要开启了实时余额，就顺带刷一次（按「自动刷新」间隔节流，不重复整页加载）
+        if config.showCredit { creditBridge.refresh(stale: TimeInterval(config.refreshMinutes * 60)) }
 
         guard config.hasKey else {
             errorText = "还没有配置 Admin Key"

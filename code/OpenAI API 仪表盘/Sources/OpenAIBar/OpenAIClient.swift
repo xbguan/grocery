@@ -32,6 +32,12 @@ struct CostBreakdown {
     var last7: [ItemCost] = []
     var last30: [ItemCost] = []
 
+    /// 各时间范围的「全部花费总额」（含未显示进 Top 5 的零星项），
+    /// 用作进度条的占比分母，让每项长度反映它在总花费中的真实占比。
+    var todayTotal: Double = 0
+    var last7Total: Double = 0
+    var last30Total: Double = 0
+
     var isEmpty: Bool { today.isEmpty && last7.isEmpty && last30.isEmpty }
 }
 
@@ -240,8 +246,9 @@ struct OpenAIClient {
                                   requests: requestsByDay[day] ?? 0))
         }
 
-        // 给定日期范围，聚合出该范围内的 Top 花费项（按 line_item，金额降序取前 5）。
-        func aggregate(_ days: [Date]) -> [ItemCost] {
+        // 给定日期范围，聚合出该范围内的 Top 花费项（按 line_item，金额降序取前 5），
+        // 同时返回该范围的「全部花费总额」作为进度条占比分母。
+        func aggregate(_ days: [Date]) -> (items: [ItemCost], total: Double) {
             var cost: [String: Double] = [:]
             var modelTok: [String: ModelTokenBreakdown] = [:]
             var modelReq: [String: Int] = [:]
@@ -268,7 +275,9 @@ struct OpenAIClient {
                 return ItemCost(id: name, name: name, cost: c,
                                 tokens: tokens, requests: modelReq[model] ?? 0)
             }
-            return Array(items.sorted { $0.cost > $1.cost }.prefix(5))
+            let sorted = items.sorted { $0.cost > $1.cost }
+            let total = sorted.reduce(0.0) { $0 + $1.cost }
+            return (Array(sorted.prefix(5)), total)
         }
 
         let todayOnly = [todayStart]
@@ -276,9 +285,15 @@ struct OpenAIClient {
         let allDays = (0..<span).compactMap { cal.date(byAdding: .day, value: -$0, to: todayStart) }
 
         var breakdown = CostBreakdown()
-        breakdown.today = aggregate(todayOnly)
-        breakdown.last7 = aggregate(last7Days)
-        breakdown.last30 = aggregate(allDays)
+        let t = aggregate(todayOnly)
+        breakdown.today = t.items
+        breakdown.todayTotal = t.total
+        let l7 = aggregate(last7Days)
+        breakdown.last7 = l7.items
+        breakdown.last7Total = l7.total
+        let l30 = aggregate(allDays)
+        breakdown.last30 = l30.items
+        breakdown.last30Total = l30.total
 
         return (daily, breakdown)
     }

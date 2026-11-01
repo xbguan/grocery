@@ -35,7 +35,7 @@ struct AppConfig: Codable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         projectID = try c.decodeIfPresent(String.self, forKey: .projectID) ?? ""
-        refreshMinutes = try c.decodeIfPresent(Int.self, forKey: .refreshMinutes) ?? 5
+        refreshMinutes = max(try c.decodeIfPresent(Int.self, forKey: .refreshMinutes) ?? 5, 5)
         accountLabel = try c.decodeIfPresent(String.self, forKey: .accountLabel) ?? ""
         showCredit = try c.decodeIfPresent(Bool.self, forKey: .showCredit) ?? false
         hasConnectedCredit = try c.decodeIfPresent(Bool.self, forKey: .hasConnectedCredit) ?? false

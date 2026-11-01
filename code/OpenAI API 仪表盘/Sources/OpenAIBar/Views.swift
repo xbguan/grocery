@@ -742,9 +742,16 @@ struct MenuContentView: View {
             }
         }()
         let total = max(items.reduce(0) { $0 + $1.cost }, 0.0001)
-        // 进度条按「相对最大项」铺开：最大项填满轨道，其余按比例，避免按总和算时
-        // 每条都只占轨道一小截、后半段空跑显得拖沓。
-        let maxCost = items.first?.cost ?? total
+        // 进度条占比分母：当前范围的「全部花费总额」（含未显示进 Top 5 的零星项），
+        // 让每项长度反映它在总花费里的真实占比，而不是相对最高项的倍数。
+        let fullTotal: Double = {
+            switch range.wrappedValue {
+            case .today: return breakdown.todayTotal
+            case .last7: return breakdown.last7Total
+            case .last30: return breakdown.last30Total
+            }
+        }()
+        let denominator = max(fullTotal, total, 0.0001)
         return VStack(alignment: .leading, spacing: 10) {
             // 标题行：标题 + 无边框时间切换 + 合计（前 5 项之和）
             HStack(alignment: .center, spacing: 12) {
@@ -783,7 +790,7 @@ struct MenuContentView: View {
                                     .font(.system(size: 12.5, weight: .medium).monospacedDigit())
                             }
                             // 进度条与 token/请求数同一行：轨道占满 token 左侧空间、顶到数字前，
-                            // 右侧不再空跑。填充按「相对最大项」比例，用内层 GeometryReader 量轨道实际宽度。
+                            // 右侧不再空跑。填充按「该项 ÷ 全部花费总额」比例，用内层 GeometryReader 量轨道实际宽度。
                             HStack(spacing: 8) {
                                 ZStack(alignment: .leading) {
                                     Capsule().fill(Glass.inset(scheme))
@@ -793,7 +800,7 @@ struct MenuContentView: View {
                                                 colors: [Color.brand(scheme).opacity(0.85),
                                                          Color.brand(scheme).opacity(0.42)],
                                                 startPoint: .leading, endPoint: .trailing))
-                                            .frame(width: max(3, barGeo.size.width * item.cost / maxCost))
+                                            .frame(width: max(3, barGeo.size.width * item.cost / denominator))
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
@@ -1074,7 +1081,7 @@ struct SettingsView: View {
                 header
 
                 ScrollView {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 10) {
                         keySection
                         creditSection
                         projectSection
@@ -1143,7 +1150,7 @@ struct SettingsView: View {
                     .frame(width: 46)
             }
 
-            Text("必须以 sk-admin- 开头。组织用量与成本接口不接受普通项目 Key。保存后写入 macOS 钥匙串，配置文件里不含 Key。")
+            Text("须以 sk-admin- 开头；普通项目 Key 不可用。Key 存于 macOS 钥匙串，不写入文件。")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1200,7 +1207,7 @@ struct SettingsView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
-            Text("官方暂未开放用 ADMIN KEY 读取余额的接口（任何 Key 请求它都返回 403），所以这部分与 Key 无关：开启后 App 借本机平台登录态读取「剩余额度」，登录态存在 App 自己的 WebKit 容器里，不保存密码、不保存 cookie 明文。\n注意：关闭开关会同时清空本机登录态（等于退出登录），下次开启需要重新登录一次。")
+            Text("官方未开放用 Key 读取余额的接口，此项与 Key 无关：开启后借本机平台登录态读取，登录态存于 App 的 WebKit 容器，不存密码与 cookie。\n注意：关闭开关会清空本机登录态，下次需重新登录。")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1249,7 +1256,7 @@ struct SettingsView: View {
                 .background(inputBG)
                 .overlay(inputBorder)
                 .focused($focusedField, equals: .project)
-            Text("留空统计整个组织；填写后只统计该项目。")
+            Text("留空统计整个组织，填写后仅统计该项目。")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
         }
@@ -1273,15 +1280,35 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("自动刷新")
                         .font(.system(size: 11.5, weight: .medium))
-                    Picker("", selection: $refreshDraft) {
-                        Text("1 分钟").tag(1)
-                        Text("5 分钟").tag(5)
-                        Text("15 分钟").tag(15)
-                        Text("30 分钟").tag(30)
-                        Text("60 分钟").tag(60)
+                    Menu {
+                        ForEach([5, 15, 30, 60], id: \.self) { mins in
+                            Button {
+                                refreshDraft = mins
+                            } label: {
+                                if refreshDraft == mins {
+                                    Label("\(mins) 分钟", systemImage: "checkmark")
+                                } else {
+                                    Text("\(mins) 分钟")
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text("\(refreshDraft) 分钟")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, 9)
+                        .background(inputBG)
+                        .overlay(inputBorder)
+                        .contentShape(Rectangle())
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
+                    .buttonStyle(.plain)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -1291,9 +1318,8 @@ struct SettingsView: View {
     private var aboutSection: some View {
         section("数据来源", icon: "info.circle") {
             VStack(alignment: .leading, spacing: 5) {
-                Text("· 花费与用量来自 API 平台的 `/v1/organization/*` 组织级接口，按 UTC 自然日统计。")
-                Text("· 余额没有对 API Key 开放的接口（服务器明确要求浏览器会话）。在设置里开启「实时余额」后，App 借本机平台登录态读取，数据不出本机。")
-                Text("· Key 保存在 macOS 钥匙串（「钥匙串访问」搜 OpenAI API 仪表盘），不写入任何文件。")
+                Text("· 花费与用量按 UTC 自然日统计，来自组织级接口。")
+                Text("· 余额借本机登录态读取、不出本机；Key 存于钥匙串（搜「OpenAI API 仪表盘」）。")
             }
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
@@ -1351,7 +1377,7 @@ struct SettingsView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
+        .padding(14)
         .glassCard(radius: 20)
     }
 
