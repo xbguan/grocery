@@ -12,7 +12,8 @@ set -euo pipefail
 APP_NAME="OpenAI API 仪表盘"
 EXEC_NAME="OpenAIBar"
 BUNDLE_ID="com.xbguan.openai-api-dashboard"
-ACCOUNT="openai-admin-key-v2"
+ACCOUNT="openai-admin-key-v3"
+PREVIOUS_ACCOUNT="openai-admin-key-v2"
 LEGACY_ACCOUNT="openai-admin-key"
 LEGACY_SERVICE="com.xbguan.openaibar"      # 早期版本用过的服务名
 CONFIG_DIR="${HOME}/Library/Application Support/OpenAIApiDashboard"
@@ -102,7 +103,7 @@ done
 
 # ---------- 3. 钥匙串 ----------
 for svc in "$BUNDLE_ID" "$LEGACY_SERVICE"; do
-  for account in "$ACCOUNT" "$LEGACY_ACCOUNT"; do
+  for account in "$ACCOUNT" "$PREVIOUS_ACCOUNT" "$LEGACY_ACCOUNT"; do
     if security delete-generic-password -s "$svc" -a "$account" >/dev/null 2>&1; then
       echo "✓ 已删除钥匙串条目: $svc / $account"
     else
@@ -134,7 +135,7 @@ echo ""
 echo "复查："
 remaining_key=0
 for svc in "$BUNDLE_ID" "$LEGACY_SERVICE"; do
-  for account in "$ACCOUNT" "$LEGACY_ACCOUNT"; do
+  for account in "$ACCOUNT" "$PREVIOUS_ACCOUNT" "$LEGACY_ACCOUNT"; do
     if security find-generic-password -s "$svc" -a "$account" >/dev/null 2>&1; then
       remaining_key=1
     fi

@@ -5,35 +5,32 @@ import Security
 /// API Key 存储在 macOS 钥匙串，不写入任何明文配置文件。
 enum KeyStore {
     private static let service = "com.xbguan.openai-api-dashboard"
-    private static let legacyService = "com.xbguan.openaibar"
-    private static let account = "openai-admin-key-v2"
-    private static let legacyAccount = "openai-admin-key"
+    private static let account = "openai-admin-key-v3"
 
-    private static func baseQuery(_ svc: String, account: String = account) -> [String: Any] {
+    static func baseQuery(_ svc: String) -> [String: Any] {
         let context = LAContext()
         context.interactionNotAllowed = true
         return [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: svc,
             kSecAttrAccount as String: account,
-            // 旧签名无权访问旧条目时直接返回错误，绝不弹出钥匙串授权框。
-            kSecUseAuthenticationContext as String: context
+            kSecUseAuthenticationContext as String: context,
+            // macOS 旧式钥匙串 ACL 也可能要求授权；所有操作都必须直接失败，不能弹窗。
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
         ]
     }
 
     static func load() -> String? {
-        if let key = read(service, account: account) { return key }
-        // 能无弹窗读取旧条目时迁移；否则由用户在设置中重新输入一次。
-        for svc in [service, legacyService] {
-            guard let key = read(svc, account: legacyAccount) else { continue }
-            save(key)
-            return key
-        }
-        return nil
+        load(read: read)
+    }
+
+    static func load(read: (String, String) -> String?) -> String? {
+        read(service, account)
     }
 
     private static func read(_ svc: String, account: String) -> String? {
-        var query = baseQuery(svc, account: account)
+        var query = baseQuery(svc)
+        query[kSecAttrAccount as String] = account
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -69,12 +66,10 @@ enum KeyStore {
 
     static func delete() {
         delete(service)
-        delete(service, account: legacyAccount)
-        delete(legacyService, account: legacyAccount)
     }
 
-    private static func delete(_ svc: String, account: String = account) {
-        SecItemDelete(baseQuery(svc, account: account) as CFDictionary)
+    private static func delete(_ svc: String) {
+        SecItemDelete(baseQuery(svc) as CFDictionary)
     }
 
     static var hasKey: Bool { load()?.isEmpty == false }

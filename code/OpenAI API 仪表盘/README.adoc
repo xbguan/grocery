@@ -12,7 +12,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI API 仪表盘-1.5.6.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI API 仪表盘-1.5.7.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -144,7 +144,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI API 仪表盘-1.5.6.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI API 仪表盘-1.5.7.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
@@ -232,7 +232,7 @@ BIN=".build/bundle/OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
 Admin Key 保存在 *macOS 钥匙串*，*不写入任何文件*：
 
 * 服务名（service）：`com.xbguan.openai-api-dashboard`
-* 账户名（account）：`openai-admin-key`
+* 账户名（account）：`openai-admin-key-v3`
 
 钥匙串本身是系统级加密存储，密钥由系统保管、登录密码解锁，别的 App 读取需要你授权。
 
@@ -240,7 +240,7 @@ Admin Key 保存在 *macOS 钥匙串*，*不写入任何文件*：
 
 想更换或删除凭据：设置页点「清除 Key」，或在「钥匙串访问」里搜索 `openai-api-dashboard` 删除。
 
-注意：本 App 是 ad-hoc 签名（本机构建）。如果你重新编译过，首次读取钥匙串时 macOS 可能弹一次授权，点「始终允许」即可。
+App 使用稳定的本地代码签名。为避免旧版钥匙串条目的访问授权弹窗，1.5.7 不自动读取旧条目；升级后若显示未配置 Admin Key，请在设置中重新填入一次。运行时不应要求输入钥匙串密码或点击「始终允许」。
 
 == 卸载
 
@@ -251,7 +251,7 @@ Admin Key 保存在 *macOS 钥匙串*，*不写入任何文件*：
 |残留 |位置 |内容
 
 |钥匙串条目
-|service `com.xbguan.openai-api-dashboard`，account `openai-admin-key`
+|service `com.xbguan.openai-api-dashboard`，account `openai-admin-key-v3`（旧版可能另有 `v2` 或无版本号条目）
 |*Admin Key 本体*
 
 |配置文件
@@ -278,6 +278,9 @@ cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
 mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
 
 # 2. 删钥匙串凭据
+security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v3"
+# 曾安装旧版本时，按需再删除旧条目
+security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v2"
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key"
 
 # 3. 删配置
@@ -288,4 +291,4 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard
 
 === 只想换 Key、不卸载
 
-设置页点「清除 Key」即可——只删钥匙串里的凭据，App 和其他设置都保留。注意顺序：*先点这个，再删 App*，反了就会留下本文开头说的那条残留。
+设置页点「清除 Key」即可——删除当前版本的钥匙串凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。

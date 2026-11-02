@@ -511,7 +511,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Bundle ID：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>安装包：<code>dist/OpenAI API 仪表盘-1.5.6.dmg</code>（Intel / Apple 芯片通用）</p>
+<p>安装包：<code>dist/OpenAI API 仪表盘-1.5.7.dmg</code>（Intel / Apple 芯片通用）</p>
 </li>
 </ul>
 </div>
@@ -768,7 +768,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p><code>dist/OpenAI API 仪表盘-1.5.6.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
+<p><code>dist/OpenAI API 仪表盘-1.5.7.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
 </div>
 <div class="ulist">
 <ul>
@@ -928,7 +928,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>服务名（service）：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>账户名（account）：<code>openai-admin-key</code></p>
+<p>账户名（account）：<code>openai-admin-key-v3</code></p>
 </li>
 </ul>
 </div>
@@ -942,7 +942,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>想更换或删除凭据：设置页点「清除 Key」，或在「钥匙串访问」里搜索 <code>openai-api-dashboard</code> 删除。</p>
 </div>
 <div class="paragraph">
-<p>注意：本 App 是 ad-hoc 签名（本机构建）。如果你重新编译过，首次读取钥匙串时 macOS 可能弹一次授权，点「始终允许」即可。</p>
+<p>App 使用稳定的本地代码签名。为避免旧版钥匙串条目的访问授权弹窗，1.5.7 不自动读取旧条目；升级后若显示未配置 Admin Key，请在设置中重新填入一次。运行时不应要求输入钥匙串密码或点击「始终允许」。</p>
 </div>
 </div>
 </div>
@@ -968,7 +968,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">钥匙串条目</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">service <code>com.xbguan.openai-api-dashboard</code>，account <code>openai-admin-key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">service <code>com.xbguan.openai-api-dashboard</code>，account <code>openai-admin-key-v3</code>（旧版可能另有 <code>v2</code> 或无版本号条目）</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Admin Key 本体</strong></p></td>
 </tr>
 <tr>
@@ -999,6 +999,9 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
 
 # 2. 删钥匙串凭据
+security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v3"
+# 曾安装旧版本时，按需再删除旧条目
+security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v2"
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key"
 
 # 3. 删配置
@@ -1012,7 +1015,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 <div class="sect2">
 <h3 id="_只想换_key不卸载">只想换 Key、不卸载</h3>
 <div class="paragraph">
-<p>设置页点「清除 Key」即可——只删钥匙串里的凭据，App 和其他设置都保留。注意顺序：<strong>先点这个，再删 App</strong>，反了就会留下本文开头说的那条残留。</p>
+<p>设置页点「清除 Key」即可——删除当前版本的钥匙串凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。</p>
 </div>
 </div>
 </div>
@@ -1020,7 +1023,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-11-02 11:16:26 +0800
+Last updated 2026-11-02 11:32:32 +0800
 </div>
 </div>
 </body>

@@ -84,8 +84,9 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 
 ## 4. 安全规约
 
-- **绝不把 API Key 写进代码、配置或仓库**。Key 只存 macOS 钥匙串（service = `com.xbguan.openai-api-dashboard`，account = `openai-admin-key-v2`）
-- App 运行时不得出现钥匙串授权弹窗；所有钥匙串操作必须禁止交互。旧版 Key 无法无弹窗读取时，让用户在设置中重新输入，不放宽访问控制。
+- **绝不把 API Key 写进代码、配置或仓库**。Key 只存 macOS 钥匙串（service = `com.xbguan.openai-api-dashboard`，account = `openai-admin-key-v3`）
+- App 运行时不得出现钥匙串授权弹窗；所有钥匙串操作必须禁止交互。启动时只读当前条目，不自动读取旧版条目；读不到时让用户在设置中重新输入，不放宽访问控制。
+- 涉及钥匙串行为的版本，必须用实际 DMG 覆盖安装并验证启动、读取和保存都无钥匙串弹窗；未实测不得推送或发布。
 - 配置文件只允许保存非敏感项（备注名、项目 ID、刷新间隔）
 - 卸载必须能清干净：用 `./uninstall.sh`
 
