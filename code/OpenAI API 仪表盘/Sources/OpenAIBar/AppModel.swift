@@ -40,6 +40,7 @@ final class AppModel: ObservableObject {
 
     init() {
         self.config = ConfigStore.load()
+        NSApplication.shared.appearance = config.appearanceMode.appearance
         creditBridge.onChange = { [weak self] in self?.syncCredit() }
         if config.showCredit { creditBridge.start() }
         startAutoRefresh()
@@ -122,6 +123,9 @@ final class AppModel: ObservableObject {
 
     private func persistIfNeeded(old: AppConfig) {
         guard !suppressPersist else { return }
+        if old.appearanceMode != config.appearanceMode {
+            NSApplication.shared.appearance = config.appearanceMode.appearance
+        }
         let keyChanged = old.adminKey != config.adminKey
         let projectChanged = old.projectID != config.projectID
 

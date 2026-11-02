@@ -1293,6 +1293,10 @@ struct SettingsView: View {
 
     private var displaySection: some View {
         section("显示", icon: "slider.horizontal.3") {
+            AppearanceRow(selection: model.config.appearanceMode) { mode in
+                model.update { $0.appearanceMode = mode }
+            }
+
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("菜单栏备注名")

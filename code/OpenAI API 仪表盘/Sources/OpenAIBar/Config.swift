@@ -3,6 +3,7 @@ import Foundation
 /// 本地配置。只保存非敏感设置；API Key 走 macOS 钥匙串（见 KeyStore）。
 /// 文件：~/Library/Application Support/OpenAIBar/config.json（权限 600）
 struct AppConfig: Codable {
+    var appearanceMode: AppearanceMode = .system
     var projectID: String = ""
     var refreshMinutes: Int = 5
     var accountLabel: String = ""
@@ -21,6 +22,7 @@ struct AppConfig: Codable {
     fileprivate var legacyPlaintextKey: String?
 
     enum CodingKeys: String, CodingKey {
+        case appearanceMode
         case projectID
         case refreshMinutes
         case accountLabel
@@ -34,6 +36,7 @@ struct AppConfig: Codable {
     /// 手写解码：老版本 config.json 缺少 showCredit 等新字段时不能整份丢弃
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        appearanceMode = (try? c.decode(AppearanceMode.self, forKey: .appearanceMode)) ?? .system
         projectID = try c.decodeIfPresent(String.self, forKey: .projectID) ?? ""
         refreshMinutes = max(try c.decodeIfPresent(Int.self, forKey: .refreshMinutes) ?? 5, 5)
         accountLabel = try c.decodeIfPresent(String.self, forKey: .accountLabel) ?? ""
