@@ -1439,8 +1439,17 @@ struct SettingsView: View {
 
     /// 保存即完成：写配置 → 刷新数据 → 关闭设置窗口
     private func saveAndClose() {
+        let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if key != model.config.adminKey {
+            let saved = key.isEmpty ? KeyStore.admin.delete() : KeyStore.admin.save(key)
+            guard saved else {
+                testOK = false
+                testMessage = "无法静默更新已保存的 Key，本次设置未保存。"
+                return
+            }
+        }
         model.update { cfg in
-            cfg.adminKey = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            cfg.adminKey = key
             cfg.projectID = projectDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             cfg.accountLabel = labelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             cfg.refreshMinutes = refreshDraft
@@ -1451,10 +1460,13 @@ struct SettingsView: View {
     }
 
     private func clearKey() {
-        keyDraft = ""
         testOK = false
+        guard model.clearKey() else {
+            testMessage = "无法静默删除 Key，原凭据已保留。"
+            return
+        }
+        keyDraft = ""
         testMessage = "已清除，钥匙串里的 Key 已删除"
-        model.clearKey()
     }
 
     private func runTest() {

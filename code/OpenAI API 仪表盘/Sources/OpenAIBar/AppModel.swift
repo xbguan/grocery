@@ -129,16 +129,6 @@ final class AppModel: ObservableObject {
         let keyChanged = old.adminKey != config.adminKey
         let projectChanged = old.projectID != config.projectID
 
-        if keyChanged {
-            let trimmed = config.trimmedKey
-            if trimmed.isEmpty {
-                KeyStore.delete()
-            } else if !KeyStore.save(trimmed) {
-                errorText = "无法写入 macOS 钥匙串"
-                errorHint = "Key 未能保存。请检查钥匙串访问权限后重试。"
-            }
-        }
-
         ConfigStore.save(config)
         if old.refreshMinutes != config.refreshMinutes { startAutoRefresh() }
         if old.showCredit != config.showCredit {
@@ -171,7 +161,8 @@ final class AppModel: ObservableObject {
     }
 
     /// 彻底清除已保存的 Key
-    func clearKey() {        KeyStore.delete()
+    func clearKey() -> Bool {
+        guard KeyStore.admin.delete() else { return false }
         suppressPersist = true
         config.adminKey = ""
         suppressPersist = false
@@ -181,6 +172,7 @@ final class AppModel: ObservableObject {
         errorText = "还没有配置 Admin Key"
         errorHint = "在「设置」里填入 Admin Key，它会被保存到 macOS 钥匙串。"
         errorKind = .noKey
+        return true
     }
 
     func update(_ mutate: (inout AppConfig) -> Void) {

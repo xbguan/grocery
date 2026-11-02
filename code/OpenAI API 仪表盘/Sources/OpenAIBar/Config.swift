@@ -82,7 +82,7 @@ enum ConfigStore {
 
         migratePlaintextKeyIfNeeded(&cfg)
 
-        if let stored = KeyStore.load(), !stored.isEmpty {
+        if let stored = KeyStore.admin.load(), !stored.isEmpty {
             cfg.adminKey = stored
         }
 
@@ -97,8 +97,8 @@ enum ConfigStore {
     /// 把旧版本写在 JSON 里的明文 key 搬进钥匙串，并重写文件抹掉它
     private static func migratePlaintextKeyIfNeeded(_ cfg: inout AppConfig) {
         guard let legacy = cfg.legacyPlaintextKey, !legacy.isEmpty else { return }
-        if KeyStore.load() == nil {
-            KeyStore.save(legacy)
+        if KeyStore.admin.load() == nil {
+            guard KeyStore.admin.save(legacy) else { return }
         }
         cfg.adminKey = legacy
         cfg.legacyPlaintextKey = nil
