@@ -16,8 +16,17 @@
    - 中继在跑：`nc -z 127.0.0.1 7899`
    - 出口可用：`curl -s -o /dev/null -w "%{http_code}" --max-time 10 -x http://127.0.0.1:7899 https://www.google.com/generate_204` → `204`
 4. **提交推送** —— 提交信息写清改了什么、为什么；`git push` 后用 `git log --oneline -1 origin/main` 确认远端已更新。
+5. **同步 GitHub Release** —— 推送成功后按下方保留策略维护本项目的独立 Release；DMG 变更时发布新版本并核对附件。
 
 交付说明里要同时给出：DMG 路径与体积、版本号、架构、提交哈希。
+
+### DMG 与 GitHub Release 保留策略
+
+- `dist/` 只保留当前最新版本的 `公司代理-<VERSION>.dmg`。新 DMG 构建并校验通过后，删除 `dist/` 中其它旧版 DMG，再提交推送；旧版需要回退时从 git 历史恢复。
+- 本项目与 `OpenAI API 仪表盘` 分别维护独立 Release；本项目标签使用 `corp-proxy-v<VERSION>`，每条 Release 只附当前版本的一个 DMG。
+- 推送本项目的代码、构建、打包或图标变更后，创建对应版本的 Release，上传 `dist/` 中的唯一 DMG，并核对附件可下载、SHA-256 与本地文件一致。
+- 新 Release 核对通过后，删除本项目旧版本的 Release 及其标签；不得删除另一子项目的 Release。仓库当前文件与 GitHub Releases 均只保留本项目最新的一个 DMG。
+- 仅推送文档或规约变更、DMG 内容未变时，不升版或重复上传 DMG；更新本项目现有 Release 的说明，保持下载附件不变。
 
 ## 二、必须支持 Intel 与 Apple Silicon
 
