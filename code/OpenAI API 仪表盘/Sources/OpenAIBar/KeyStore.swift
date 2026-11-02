@@ -1,58 +1,69 @@
+import CryptoKit
 import Foundation
-import LocalAuthentication
-import Security
 
+/// Version 1: a format byte followed by CryptoKit's combined nonce, ciphertext and tag.
+/// The random local encryption key lives outside the versioned app bundle.
 struct KeyStore {
-    static let admin = KeyStore(service: "com.xbguan.openai-api-dashboard")
-    let service: String
-    var keychain: SecKeychain? = nil
-    private let account = "openai-admin-key-v3"
+    let directory: URL
+    private var secretURL: URL { directory.appendingPathComponent("admin.enc") }
+    private var keyURL: URL { directory.appendingPathComponent("local.key") }
 
-    // The file-based login keychain has its own UI policy for trusted-app ACLs.
-    // Keep it disabled for this process, including concurrent and later requests.
-    private func query(adding: Bool = false) -> [String: Any]? {
-        guard SecKeychainSetUserInteractionAllowed(false) == errSecSuccess else { return nil }
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecUseAuthenticationContext as String: context,
-            kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
-        ]
-        if let keychain {
-            if adding { query[kSecUseKeychain as String] = keychain }
-            else { query[kSecMatchSearchList as String] = [keychain] }
+    private func readKey() throws -> SymmetricKey {
+        let data = try Data(contentsOf: keyURL)
+        guard data.count == 32 else { throw CocoaError(.fileReadCorruptFile) }
+        return SymmetricKey(data: data)
+    }
+
+    func load() throws -> String? {
+        let file: Data
+        do { file = try Data(contentsOf: secretURL) }
+        catch let error as CocoaError where error.code == .fileReadNoSuchFile { return nil }
+        guard file.first == 1 else { throw CocoaError(.fileReadCorruptFile) }
+        let box = try AES.GCM.SealedBox(combined: file.dropFirst())
+        let data = try AES.GCM.open(box, using: readKey())
+        guard let value = String(data: data, encoding: .utf8), !value.isEmpty else {
+            throw CocoaError(.fileReadCorruptFile)
         }
-        return query
+        return value
     }
 
-    func load() -> String? {
-        guard var query = query() else { return nil }
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+    /// Publish only finished, owner-readable files. Concurrent first saves must
+    /// converge on one local key, never replace another process's key.
+    private func publish(_ data: Data, to url: URL, replace: Bool) throws {
+        var template = Array(directory.appendingPathComponent(".write.XXXXXX").path.utf8CString)
+        let fd = mkstemp(&template)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        let temporary = String(cString: template)
+        defer { unlink(temporary) }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        try handle.write(contentsOf: data)
+        try handle.synchronize()
+        try handle.close()
+        let result = replace ? rename(temporary, url.path) : link(temporary, url.path)
+        if result != 0 && (replace || errno != EEXIST) {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
     }
 
-    func save(_ key: String) -> Bool {
-        guard let match = query() else { return false }
-        let data = Data(key.utf8)
-        let status = SecItemUpdate(match as CFDictionary, [kSecValueData as String: data] as CFDictionary)
-        if status == errSecSuccess { return true }
-        guard status == errSecItemNotFound, var add = query(adding: true) else { return false }
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        add[kSecAttrLabel as String] = "OpenAI API 仪表盘 Admin Key"
-        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
+    func save(_ value: String) -> Bool {
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            let key: SymmetricKey
+            do { key = try readKey() }
+            catch let e as CocoaError where e.code == .fileReadNoSuchFile {
+                let bytes = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }
+                try publish(bytes, to: keyURL, replace: false)
+                key = try readKey()
+            }
+            let box = try AES.GCM.seal(Data(value.utf8), using: key)
+            guard let combined = box.combined else { return false }
+            try publish(Data([1]) + combined, to: secretURL, replace: true)
+            return true
+        } catch { return false }
     }
 
     func delete() -> Bool {
-        guard let query = query() else { return false }
-        let status = SecItemDelete(query as CFDictionary)
-        return status == errSecSuccess || status == errSecItemNotFound
+        unlink(secretURL.path) == 0 || errno == ENOENT
     }
 }

@@ -395,7 +395,7 @@ struct MenuContentView: View {
     }
 
     private var subtitle: String {
-        if model.errorKind == .noKey { return "未配置 Admin Key" }
+        if model.errorKind == .noKey { return model.config.credentialReadFailed ? "凭据读取失败" : "未配置 Admin Key" }
         if model.errorKind == .auth { return "Key 无效或权限不足" }
         return "Admin API · 组织级数据"
     }
@@ -942,7 +942,7 @@ struct MenuContentView: View {
 
     private var errorTitle: String {
         switch model.errorKind {
-        case .some(.noKey): return "还没有配置 Admin Key"
+        case .some(.noKey): return model.config.credentialReadFailed ? "无法读取已保存的 Admin Key" : "还没有配置 Admin Key"
         case .some(.auth):  return "Key 未被接受"
         default:            return "读取数据失败"
         }
@@ -1179,7 +1179,7 @@ struct SettingsView: View {
                     .frame(width: 46)
             }
 
-            Text("须以 sk-admin- 开头；普通项目 Key 不可用。Key 存于 macOS 钥匙串，不写入文件。")
+            Text("须以 sk-admin- 开头；普通项目 Key 不可用。Key 在本机加密保存。")
                 .font(.system(size: 11))
                 .foregroundStyle(TextTone.tertiary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
@@ -1352,7 +1352,7 @@ struct SettingsView: View {
         section("数据来源", icon: "info.circle") {
             VStack(alignment: .leading, spacing: 5) {
                 Text("· 花费与用量按 UTC 自然日统计，来自组织级接口。")
-                Text("· 余额借本机登录态读取、不出本机；Key 存于钥匙串（搜「OpenAI API 仪表盘」）。")
+                Text("· 余额借本机登录态读取、不出本机；Admin Key 在本机加密保存。")
             }
             .font(.system(size: 11))
             .foregroundStyle(TextTone.secondary(scheme))
@@ -1441,15 +1441,16 @@ struct SettingsView: View {
     private func saveAndClose() {
         let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         if key != model.config.adminKey {
-            let saved = key.isEmpty ? KeyStore.admin.delete() : KeyStore.admin.save(key)
+            let saved = key.isEmpty ? ConfigStore.user.credentials.delete() : ConfigStore.user.credentials.save(key)
             guard saved else {
                 testOK = false
-                testMessage = "无法静默更新已保存的 Key，本次设置未保存。"
+                testMessage = "无法更新本地加密凭据，本次设置未保存。"
                 return
             }
         }
         model.update { cfg in
             cfg.adminKey = key
+            if !key.isEmpty { cfg.credentialReadFailed = false }
             cfg.projectID = projectDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             cfg.accountLabel = labelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
             cfg.refreshMinutes = refreshDraft
@@ -1462,11 +1463,11 @@ struct SettingsView: View {
     private func clearKey() {
         testOK = false
         guard model.clearKey() else {
-            testMessage = "无法静默删除 Key，原凭据已保留。"
+            testMessage = "无法删除本地加密凭据，原凭据已保留。"
             return
         }
         keyDraft = ""
-        testMessage = "已清除，钥匙串里的 Key 已删除"
+        testMessage = "已清除本地保存的 Admin Key"
     }
 
     private func runTest() {

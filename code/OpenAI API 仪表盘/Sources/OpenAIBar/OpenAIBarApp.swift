@@ -148,7 +148,7 @@ struct OpenAIBarApp: App {
         ])
 
         let demo = CommandLine.arguments.contains("--demo")
-        // 演示模式用假数据，不去碰钥匙串（否则每次重编都要授权）
+        // 演示模式用假数据，不读取个人配置
         _model = StateObject(wrappedValue: demo ? AppModel(demo: true) : AppModel())
 
         if demo {

@@ -511,7 +511,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Bundle ID：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>安装包：<code>dist/OpenAI API 仪表盘-1.6.1.dmg</code>（Intel / Apple 芯片通用）</p>
+<p>安装包：<code>dist/OpenAI API 仪表盘-1.7.0.dmg</code>（Intel / Apple 芯片通用）</p>
 </li>
 </ul>
 </div>
@@ -529,7 +529,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>填入 <strong>Admin API Key</strong>（<code>sk-admin-</code> 开头），点「测试连接」确认</p>
 </li>
 <li>
-<p>点「保存」→ Key 写入 macOS 钥匙串，面板自动刷新</p>
+<p>点「保存」→ Key 在本机加密保存，面板自动刷新</p>
 </li>
 </ol>
 </div>
@@ -771,7 +771,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p><code>dist/OpenAI API 仪表盘-1.6.1.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
+<p><code>dist/OpenAI API 仪表盘-1.7.0.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
 </div>
 <div class="ulist">
 <ul>
@@ -820,7 +820,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="sect2">
 <h3 id="_换机器后要重新填_key">换机器后要重新填 Key</h3>
 <div class="paragraph">
-<p>Admin Key 存在 <strong>那台机器自己的钥匙串</strong> 里，不随安装包走。新机器首次启动会回到"未配置"状态，点「设置」重新填一次即可。两台机器可以各填各的，互不影响。</p>
+<p>Admin Key 存在 <strong>该用户的 Application Support 目录</strong> 里，不随安装包走。新机器首次启动会回到"未配置"状态，点「设置」重新填一次即可。两台机器可以各填各的，互不影响。</p>
 </div>
 </div>
 </div>
@@ -923,29 +923,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_安全说明">安全说明</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Admin Key 保存在 <strong>macOS 钥匙串</strong>，<strong>不写入任何文件</strong>：</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>服务名（service）：<code>com.xbguan.openai-api-dashboard</code></p>
-</li>
-<li>
-<p>账户名（account）：<code>openai-admin-key-v3</code></p>
-</li>
-</ul>
+<p>1.7.0 起，首次在设置中填写一次 Admin Key，此后覆盖安装会继续使用原来的凭据和外观等设置。App 不会读取旧版钥匙串。</p>
 </div>
 <div class="paragraph">
-<p>钥匙串本身是系统级加密存储，密钥由系统保管、登录密码解锁，别的 App 读取需要你授权。</p>
-</div>
-<div class="paragraph">
-<p><code>config.json</code> 里只有项目 ID、刷新间隔、备注名这些非敏感设置，文件权限 <code>600</code>。所有请求直连 <code>api.openai.com</code>，不经过任何第三方服务器。</p>
-</div>
-<div class="paragraph">
-<p>想更换或删除凭据：设置页点「清除 Key」，或在「钥匙串访问」里搜索 <code>openai-api-dashboard</code> 删除。</p>
-</div>
-<div class="paragraph">
-<p>App 使用稳定的本地代码签名。为避免旧版钥匙串条目的访问授权弹窗，1.5.7 不自动读取旧条目；升级后若显示未配置 Admin Key，请在设置中重新填入一次。运行时不应要求输入钥匙串密码或点击「始终允许」。</p>
+<p>凭据位于 <code>~/Library/Application Support/OpenAIApiDashboard/Credentials/</code>。App 以 AES-256-GCM 加密 Key，将带格式版本的密文写入 <code>admin.enc</code>；首次保存生成的随机密钥存入 <code>local.key</code>。目录权限为 700，两个文件为 600。取得这两个文件的同用户程序可能解密，请勿分享该目录。普通设置存于同级的 <code>config.json</code>。</p>
 </div>
 </div>
 </div>
@@ -953,34 +934,8 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_卸载">卸载</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>只把 App 拖进废纸篓是不够的</strong>——macOS 不会因为 App 被删就去清它的钥匙串和配置目录（所有 App 都这样，不是这一个的问题）。删掉 App 之后还会剩下两样：</p>
+<p>覆盖升级请直接替换 App。完整卸载会清除设置、加密凭据和平台登录态。</p>
 </div>
-<table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 20%;">
-<col style="width: 40%;">
-<col style="width: 40%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">残留</th>
-<th class="tableblock halign-left valign-top">位置</th>
-<th class="tableblock halign-left valign-top">内容</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">钥匙串条目</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">service <code>com.xbguan.openai-api-dashboard</code>，account <code>openai-admin-key-v3</code>（旧版可能另有 <code>v2</code> 或无版本号条目）</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Admin Key 本体</strong></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">配置文件</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~/Library/Application Support/OpenAIApiDashboard/config.json</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">只有项目 ID、刷新间隔、备注名，<strong>不含 key</strong></p></td>
-</tr>
-</tbody>
-</table>
 <div class="sect2">
 <h3 id="_一条命令搞定">一条命令搞定</h3>
 <div class="listingblock">
@@ -1001,7 +956,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <pre class="highlight"><code class="language-bash" data-lang="bash"># 1. 删 App
 mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
 
-# 2. 删钥匙串凭据
+# 2. 仅曾安装 1.6.1 或更早版本时，按需清理遗留凭据
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v3"
 # 曾安装旧版本时，按需再删除旧条目
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v2"
@@ -1018,7 +973,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 <div class="sect2">
 <h3 id="_只想换_key不卸载">只想换 Key、不卸载</h3>
 <div class="paragraph">
-<p>设置页点「清除 Key」即可——删除当前版本的钥匙串凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。</p>
+<p>设置页点「清除 Key」即可——删除当前版本的加密凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。</p>
 </div>
 </div>
 </div>
@@ -1026,7 +981,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-11-02 18:09:13 +0800
+Last updated 2026-11-02 18:22:47 +0800
 </div>
 </div>
 </body>

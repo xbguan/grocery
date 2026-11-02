@@ -1,6 +1,10 @@
 import Foundation
 
-/// 本地配置。只保存非敏感设置；API Key 走 macOS 钥匙串（见 KeyStore）。
+enum AppearanceMode: String, Codable, CaseIterable {
+    case system, dark, light
+}
+
+/// 本地配置。只保存非敏感设置；API Key 单独加密保存（见 KeyStore）。
 /// 文件：~/Library/Application Support/OpenAIBar/config.json（权限 600）
 struct AppConfig: Codable {
     var appearanceMode: AppearanceMode = .system
@@ -17,8 +21,9 @@ struct AppConfig: Codable {
 
     /// 仅存在于内存，永远不会被写入磁盘
     var adminKey: String = ""
+    var credentialReadFailed = false
 
-    /// 旧版本遗留在 JSON 里的明文 key，只用于一次性迁移到钥匙串
+    /// 旧版本遗留在 JSON 里的明文 key，只用于一次性迁移到加密文件
     fileprivate var legacyPlaintextKey: String?
 
     enum CodingKeys: String, CodingKey {
@@ -52,21 +57,15 @@ struct AppConfig: Codable {
     var hasKey: Bool { !trimmedKey.isEmpty }
 }
 
-enum ConfigStore {
-    static let directory: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("OpenAIApiDashboard", isDirectory: true)
-    }()
+struct ConfigStore {
+    static let user = ConfigStore(base: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0])
+    let base: URL
+    var directory: URL { base.appendingPathComponent("OpenAIApiDashboard", isDirectory: true) }
+    var credentials: KeyStore { KeyStore(directory: directory.appendingPathComponent("Credentials")) }
+    var fileURL: URL { directory.appendingPathComponent("config.json") }
+    private var legacyFileURL: URL { base.appendingPathComponent("OpenAIBar/config.json") }
 
-    private static var legacyFileURL: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("OpenAIBar", isDirectory: true)
-            .appendingPathComponent("config.json")
-    }
-
-    static let fileURL = directory.appendingPathComponent("config.json")
-
-    static func load() -> AppConfig {
+    func load() -> AppConfig {
         var cfg: AppConfig
         let sourceURL = FileManager.default.fileExists(atPath: fileURL.path)
             ? fileURL
@@ -80,33 +79,33 @@ enum ConfigStore {
             cfg = AppConfig()
         }
 
-        migratePlaintextKeyIfNeeded(&cfg)
-
-        if let stored = KeyStore.admin.load(), !stored.isEmpty {
-            cfg.adminKey = stored
+        do {
+            if let stored = try credentials.load() {
+                cfg.adminKey = stored
+            } else if let legacy = cfg.legacyPlaintextKey, !legacy.isEmpty {
+                guard credentials.save(legacy) else {
+                    cfg.credentialReadFailed = true
+                    return cfg
+                }
+                cfg.adminKey = legacy
+            }
+            if cfg.legacyPlaintextKey != nil {
+                cfg.legacyPlaintextKey = nil
+                save(cfg)
+            }
+        } catch {
+            cfg.credentialReadFailed = true
         }
 
         // 从旧目录搬过来后重写一次，之后就用新路径
-        if sourceURL == legacyFileURL {
-            save(cfg)
+        if sourceURL == legacyFileURL, !cfg.credentialReadFailed, save(cfg) {
             try? FileManager.default.removeItem(at: legacyFileURL)
         }
         return cfg
     }
 
-    /// 把旧版本写在 JSON 里的明文 key 搬进钥匙串，并重写文件抹掉它
-    private static func migratePlaintextKeyIfNeeded(_ cfg: inout AppConfig) {
-        guard let legacy = cfg.legacyPlaintextKey, !legacy.isEmpty else { return }
-        if KeyStore.admin.load() == nil {
-            guard KeyStore.admin.save(legacy) else { return }
-        }
-        cfg.adminKey = legacy
-        cfg.legacyPlaintextKey = nil
-        save(cfg)
-        NSLog("OpenAIBar: plaintext key migrated to Keychain")
-    }
-
-    static func save(_ config: AppConfig) {
+    @discardableResult
+    func save(_ config: AppConfig) -> Bool {
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             // 双保险：任何情况下都不把 key 写进文件
@@ -116,8 +115,10 @@ enum ConfigStore {
             let data = try JSONEncoder().encode(clean)
             try data.write(to: fileURL, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            return true
         } catch {
             NSLog("OpenAIBar: failed to save config: \(error)")
+            return false
         }
     }
 }

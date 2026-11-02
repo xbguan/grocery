@@ -1,56 +1,47 @@
 import Foundation
-import Security
 
-// Run once as "seed", then from a replacement executable as "upgrade".
-// All operations target a disposable keychain and dummy credentials.
+/// Run seed and upgrade as separate binaries with CREDENTIAL_TEST_HOME set to an empty test home.
 @main
 enum KeyStoreTests {
     static func main() throws {
-        let args = CommandLine.arguments
-        precondition(args.count == 3 && ["seed", "upgrade"].contains(args[1]))
-        let path = args[2]
-        precondition(path.hasPrefix("/private/tmp/") && path.hasSuffix("/fixture.keychain"))
-        var fixture: SecKeychain?
-        if args[1] == "seed" {
-            precondition(!FileManager.default.fileExists(atPath: path))
-            let password = UUID().uuidString
-            precondition(SecKeychainCreate(path, UInt32(password.utf8.count), password, false, nil, &fixture) == errSecSuccess)
-        } else {
-            precondition(SecKeychainOpen(path, &fixture) == errSecSuccess)
+        let env = ProcessInfo.processInfo.environment
+        guard let home = env["CREDENTIAL_TEST_HOME"], home.hasPrefix("/private/tmp/grocery-store-") else { fatalError("Isolated test home required") }
+        let config = ConfigStore(base: URL(fileURLWithPath: home))
+        let store = config.credentials
+        let enc = store.directory.appendingPathComponent("admin.enc")
+        let local = store.directory.appendingPathComponent("local.key")
+        var cfg = config.load()
+        switch CommandLine.arguments.last {
+        case "seed":
+            precondition(!cfg.hasKey && !cfg.credentialReadFailed)
+            precondition(store.save("dummy-upgrade-key"))
+            cfg.adminKey = "dummy-upgrade-key"
+            cfg.accountLabel = "fixture"
+            cfg.projectID = "proj-fixture"
+            cfg.appearanceMode = .dark
+            cfg.refreshMinutes = 15
+            config.save(cfg)
+            for url in [enc, local, config.fileURL] {
+                let data = try Data(contentsOf: url)
+                precondition(data.range(of: Data(cfg.adminKey.utf8)) == nil)
+                let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+                precondition((attrs[.posixPermissions] as? Int) == 0o600)
+            }
+        case "upgrade":
+            precondition(cfg.adminKey == "dummy-upgrade-key" && !cfg.credentialReadFailed)
+            precondition(cfg.projectID == "proj-fixture" && cfg.accountLabel == "fixture")
+            precondition(cfg.appearanceMode == .dark && cfg.refreshMinutes == 15)
+            precondition(store.save("dummy-replacement"))
+            precondition(config.load().adminKey == "dummy-replacement")
+            var bytes = try Data(contentsOf: enc)
+            bytes[bytes.count - 1] ^= 1
+            try bytes.write(to: enc)
+            precondition(config.load().credentialReadFailed)
+            precondition(store.delete())
+            let after = config.load()
+            precondition(!after.hasKey && !after.credentialReadFailed && after.accountLabel == "fixture")
+        default: fatalError("Expected seed or upgrade")
         }
-        guard let fixture else { fatalError("Missing fixture") }
-        let store = KeyStore(service: "grocery.tests.key-store", keychain: fixture)
-        if args[1] == "seed" {
-            precondition(store.load() == nil)
-            precondition(store.save("fixture-one"))
-            precondition(store.load() == "fixture-one")
-            print("Fresh save/read passed")
-            return
-        }
-        defer { SecKeychainDelete(fixture) }
-        let carried = store.load()
-        var allowed: DarwinBoolean = true
-        precondition(SecKeychainGetUserInteractionAllowed(&allowed) == errSecSuccess && !allowed.boolValue)
-        precondition(carried == nil || carried == "fixture-one")
-        print(carried == nil ? "Upgrade: denied silently" : "Upgrade: previous key read silently")
-        precondition(store.save("fixture-two"))
-        precondition(store.load() == "fixture-two")
-        precondition(store.delete() && store.load() == nil)
-        // Create an item whose decrypt ACL trusts only the fixture writer.
-        let writer = Process()
-        writer.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        writer.arguments = ["add-generic-password", "-s", "grocery.tests.denied",
-                            "-a", "openai-admin-key-v3", "-w", "fake-denied",
-                            "-T", "/usr/bin/security", path]
-        try writer.run()
-        writer.waitUntilExit()
-        precondition(writer.terminationStatus == 0)
-        let restricted = KeyStore(service: "grocery.tests.denied", keychain: fixture)
-        precondition(restricted.load() == nil)
-        print("Untrusted-app ACL denied silently")
-        precondition(store.save("fixture-lock"))
-        precondition(SecKeychainLock(fixture) == errSecSuccess)
-        precondition(store.load() == nil)
-        print("Replacement, delete and locked-keychain denial passed")
+        print("PASS", CommandLine.arguments.last!)
     }
 }

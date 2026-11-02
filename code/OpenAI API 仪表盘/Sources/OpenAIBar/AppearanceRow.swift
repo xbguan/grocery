@@ -1,8 +1,6 @@
 import SwiftUI
 
-enum AppearanceMode: String, Codable, CaseIterable {
-    case system, dark, light
-
+extension AppearanceMode {
     var appearance: NSAppearance? {
         switch self {
         case .system: return nil

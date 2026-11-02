@@ -12,13 +12,13 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI API 仪表盘-1.6.1.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI API 仪表盘-1.7.0.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
 . 点击菜单栏图标 → 面板底部「设置」
 . 填入 *Admin API Key*（`sk-admin-` 开头），点「测试连接」确认
-. 点「保存」→ Key 写入 macOS 钥匙串，面板自动刷新
+. 点「保存」→ Key 在本机加密保存，面板自动刷新
 
 获取 Admin Key：https://platform.openai.com/settings/organization/api-keys[platform.openai.com → Organization → Admin keys]
 普通项目 Key（`sk-proj-`）读不到组织用量，会报 403。
@@ -146,7 +146,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI API 仪表盘-1.6.1.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI API 仪表盘-1.7.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
@@ -174,7 +174,7 @@ xattr -cr "/Applications/OpenAI API 仪表盘.app"
 
 === 换机器后要重新填 Key
 
-Admin Key 存在 *那台机器自己的钥匙串* 里，不随安装包走。新机器首次启动会回到"未配置"状态，点「设置」重新填一次即可。两台机器可以各填各的，互不影响。
+Admin Key 存在 *该用户的 Application Support 目录* 里，不随安装包走。新机器首次启动会回到"未配置"状态，点「设置」重新填一次即可。两台机器可以各填各的，互不影响。
 
 == 连不上怎么办
 
@@ -231,35 +231,13 @@ BIN=".build/bundle/OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
 
 == 安全说明
 
-Admin Key 保存在 *macOS 钥匙串*，*不写入任何文件*：
+1.7.0 起，首次在设置中填写一次 Admin Key，此后覆盖安装会继续使用原来的凭据和外观等设置。App 不会读取旧版钥匙串。
 
-* 服务名（service）：`com.xbguan.openai-api-dashboard`
-* 账户名（account）：`openai-admin-key-v3`
-
-钥匙串本身是系统级加密存储，密钥由系统保管、登录密码解锁，别的 App 读取需要你授权。
-
-`config.json` 里只有项目 ID、刷新间隔、备注名这些非敏感设置，文件权限 `600`。所有请求直连 `api.openai.com`，不经过任何第三方服务器。
-
-想更换或删除凭据：设置页点「清除 Key」，或在「钥匙串访问」里搜索 `openai-api-dashboard` 删除。
-
-App 使用稳定的本地代码签名。为避免旧版钥匙串条目的访问授权弹窗，1.5.7 不自动读取旧条目；升级后若显示未配置 Admin Key，请在设置中重新填入一次。运行时不应要求输入钥匙串密码或点击「始终允许」。
+凭据位于 `~/Library/Application Support/OpenAIApiDashboard/Credentials/`。App 以 AES-256-GCM 加密 Key，将带格式版本的密文写入 `admin.enc`；首次保存生成的随机密钥存入 `local.key`。目录权限为 700，两个文件为 600。取得这两个文件的同用户程序可能解密，请勿分享该目录。普通设置存于同级的 `config.json`。
 
 == 卸载
 
-*只把 App 拖进废纸篓是不够的*——macOS 不会因为 App 被删就去清它的钥匙串和配置目录（所有 App 都这样，不是这一个的问题）。删掉 App 之后还会剩下两样：
-
-[cols="1,2,2"]
-|===
-|残留 |位置 |内容
-
-|钥匙串条目
-|service `com.xbguan.openai-api-dashboard`，account `openai-admin-key-v3`（旧版可能另有 `v2` 或无版本号条目）
-|*Admin Key 本体*
-
-|配置文件
-|`~/Library/Application Support/OpenAIApiDashboard/config.json`
-|只有项目 ID、刷新间隔、备注名，*不含 key*
-|===
+覆盖升级请直接替换 App。完整卸载会清除设置、加密凭据和平台登录态。
 
 === 一条命令搞定
 
@@ -279,7 +257,7 @@ cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
 # 1. 删 App
 mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
 
-# 2. 删钥匙串凭据
+# 2. 仅曾安装 1.6.1 或更早版本时，按需清理遗留凭据
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v3"
 # 曾安装旧版本时，按需再删除旧条目
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v2"
@@ -293,4 +271,4 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard
 
 === 只想换 Key、不卸载
 
-设置页点「清除 Key」即可——删除当前版本的钥匙串凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。
+设置页点「清除 Key」即可——删除当前版本的加密凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。

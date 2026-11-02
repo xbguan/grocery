@@ -39,7 +39,7 @@ final class AppModel: ObservableObject {
     private var timer: Timer?
 
     init() {
-        self.config = ConfigStore.load()
+        self.config = ConfigStore.user.load()
         NSApplication.shared.appearance = config.appearanceMode.appearance
         creditBridge.onChange = { [weak self] in self?.syncCredit() }
         if config.showCredit { creditBridge.start() }
@@ -129,7 +129,7 @@ final class AppModel: ObservableObject {
         let keyChanged = old.adminKey != config.adminKey
         let projectChanged = old.projectID != config.projectID
 
-        ConfigStore.save(config)
+        ConfigStore.user.save(config)
         if old.refreshMinutes != config.refreshMinutes { startAutoRefresh() }
         if old.showCredit != config.showCredit {
             if config.showCredit {
@@ -148,7 +148,7 @@ final class AppModel: ObservableObject {
                     suppressPersist = true
                     config.hasConnectedCredit = false
                     suppressPersist = false
-                    ConfigStore.save(config)
+                    ConfigStore.user.save(config)
                 }
                 syncCredit()
             }
@@ -162,15 +162,16 @@ final class AppModel: ObservableObject {
 
     /// 彻底清除已保存的 Key
     func clearKey() -> Bool {
-        guard KeyStore.admin.delete() else { return false }
+        guard ConfigStore.user.credentials.delete() else { return false }
         suppressPersist = true
         config.adminKey = ""
+        config.credentialReadFailed = false
         suppressPersist = false
-        ConfigStore.save(config)
+        ConfigStore.user.save(config)
         snapshot = nil
         hasLoadedOnce = false
         errorText = "还没有配置 Admin Key"
-        errorHint = "在「设置」里填入 Admin Key，它会被保存到 macOS 钥匙串。"
+        errorHint = "在「设置」里填入 Admin Key，它会加密保存在本机。"
         errorKind = .noKey
         return true
     }
@@ -313,7 +314,7 @@ final class AppModel: ObservableObject {
 
         guard config.hasKey else {
             errorText = "还没有配置 Admin Key"
-            errorHint = "Admin Key 只能在设置里填入，App 不会内置任何 Key。"
+            errorHint = config.credentialReadFailed ? "请检查本地凭据目录，或在设置中重新填写 Key。" : "请在设置中填写 Admin Key，它会加密保存在本机。"
             errorKind = .noKey
             return
         }
