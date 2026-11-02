@@ -12,7 +12,8 @@ set -euo pipefail
 APP_NAME="OpenAI API 仪表盘"
 EXEC_NAME="OpenAIBar"
 BUNDLE_ID="com.xbguan.openai-api-dashboard"
-ACCOUNT="openai-admin-key"
+ACCOUNT="openai-admin-key-v2"
+LEGACY_ACCOUNT="openai-admin-key"
 LEGACY_SERVICE="com.xbguan.openaibar"      # 早期版本用过的服务名
 CONFIG_DIR="${HOME}/Library/Application Support/OpenAIApiDashboard"
 WEBKIT_DIR="${HOME}/Library/WebKit/${BUNDLE_ID}"          # 平台登录态（余额功能）
@@ -55,7 +56,7 @@ else
     echo "  2) App      → 移到废纸篓: $p"
   done
 fi
-echo "  3) 钥匙串   → 删除 ${BUNDLE_ID} / ${ACCOUNT}"
+echo "  3) 钥匙串   → 删除新旧 Admin Key 条目"
 if [[ -d "$CONFIG_DIR" ]]; then
   echo "  4) 配置目录 → 删除 ${CONFIG_DIR}"
 else
@@ -101,11 +102,13 @@ done
 
 # ---------- 3. 钥匙串 ----------
 for svc in "$BUNDLE_ID" "$LEGACY_SERVICE"; do
-  if security delete-generic-password -s "$svc" -a "$ACCOUNT" >/dev/null 2>&1; then
-    echo "✓ 已删除钥匙串条目: $svc"
-  else
-    echo "· 钥匙串里没有: $svc"
-  fi
+  for account in "$ACCOUNT" "$LEGACY_ACCOUNT"; do
+    if security delete-generic-password -s "$svc" -a "$account" >/dev/null 2>&1; then
+      echo "✓ 已删除钥匙串条目: $svc / $account"
+    else
+      echo "· 钥匙串里没有: $svc / $account"
+    fi
+  done
 done
 
 # ---------- 4. 配置目录 ----------
@@ -129,7 +132,15 @@ done
 # ---------- 复查 ----------
 echo ""
 echo "复查："
-if security find-generic-password -s "$BUNDLE_ID" -a "$ACCOUNT" >/dev/null 2>&1; then
+remaining_key=0
+for svc in "$BUNDLE_ID" "$LEGACY_SERVICE"; do
+  for account in "$ACCOUNT" "$LEGACY_ACCOUNT"; do
+    if security find-generic-password -s "$svc" -a "$account" >/dev/null 2>&1; then
+      remaining_key=1
+    fi
+  done
+done
+if [[ $remaining_key -eq 1 ]]; then
   echo "  ✗ 钥匙串条目仍然存在，请到「钥匙串访问」里搜索 openai-api-dashboard 手动删除"
 else
   echo "  ✓ 钥匙串：干净"

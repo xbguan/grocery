@@ -31,6 +31,7 @@
 ### 1.2 GitHub Release 同步
 
 - 本项目与 `公司代理` 分别维护独立 Release；本项目标签使用 `openai-dashboard-v<版本>`，每条 Release 只附当前版本的一个 DMG。
+- 改动完成后先在本地提交并验证。只有收到用户明确的「推送并发布」通知，才推送代码并在推送成功后更新 Release；若用户自行推送，则等用户明确通知「已推送，发布」后再更新 Release。不得仅因检测到远端更新自动发布。
 - 推送本项目的代码、资源、构建或打包变更前，完成升版、重新构建和上述校验；推送成功后创建对应版本的 Release，上传 `dist/` 中的唯一 DMG，并核对附件可下载、SHA-256 与本地文件一致。
 - 新 Release 核对通过后，删除本项目旧版本的 Release 及其标签；不得删除另一子项目的 Release。仓库当前文件与 GitHub Releases 均只保留本项目最新的一个 DMG，旧版本仍可从 git 历史恢复。
 - 仅推送文档或规约变更、DMG 内容未变时，不升版或重复上传 DMG；更新本项目现有 Release 的说明，保持下载附件不变。
@@ -83,7 +84,8 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 
 ## 4. 安全规约
 
-- **绝不把 API Key 写进代码、配置或仓库**。Key 只存 macOS 钥匙串（service = `com.xbguan.openai-api-dashboard`，account = `openai-admin-key`）
+- **绝不把 API Key 写进代码、配置或仓库**。Key 只存 macOS 钥匙串（service = `com.xbguan.openai-api-dashboard`，account = `openai-admin-key-v2`）
+- App 运行时不得出现钥匙串授权弹窗；所有钥匙串操作必须禁止交互。旧版 Key 无法无弹窗读取时，让用户在设置中重新输入，不放宽访问控制。
 - 配置文件只允许保存非敏感项（备注名、项目 ID、刷新间隔）
 - 卸载必须能清干净：用 `./uninstall.sh`
 
@@ -108,8 +110,8 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 ## 7. 签名与分发
 
 - **签名用本地自签名证书 `OpenAIBar Local Signing`，不用 ad-hoc**（v1.4.3 起）。
-  - 原因：ad-hoc 没有稳定签名身份，钥匙串对 Admin Key 的「始终允许」只能按 cdhash 绑定，而每次重新打包 cdhash 都变 → 用户每次启动都弹钥匙串授权框。稳定证书签名后，ACL 按「证书 + bundle id」持久绑定，点一次「始终允许」永久生效。
-  - `build.sh` 已自动检测：找到证书就用它签名，找不到则回退 ad-hoc 并在 stderr 告警。
+  - 原因：ad-hoc 没有稳定签名身份，每次重新打包 cdhash 都变，可能使已有钥匙串条目的访问控制失效。App 不得依赖用户点击「始终允许」。
+  - `build.sh` 找不到证书时必须停止打包，不得回退 ad-hoc。
   - 证书存于本机登录钥匙串，10 年有效（codeSigning EKU）。**换机器 / 重装系统需重建**：
     ```bash
     # 生成自签名证书并导入（-T 预授权 codesign 访问私钥）
@@ -127,7 +129,7 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
     basicConstraints = CA:false
     EOF
     )
-    openssl pkcs12 -export -out /tmp/oai-sign.p12 -inkey /tmp/oai-key.pem -in /tmp/oai-cert.pem -passout pass:oai-local -name "OpenAIBar Local Signing"
+    openssl pkcs12 -export -legacy -out /tmp/oai-sign.p12 -inkey /tmp/oai-key.pem -in /tmp/oai-cert.pem -passout pass:oai-local -name "OpenAIBar Local Signing"
     security import /tmp/oai-sign.p12 -k ~/Library/Keychains/login.keychain-db -P oai-local -T /usr/bin/codesign
     security add-trusted-cert -d -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db /tmp/oai-cert.pem
     ```

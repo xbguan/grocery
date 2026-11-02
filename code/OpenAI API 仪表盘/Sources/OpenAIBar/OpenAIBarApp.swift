@@ -24,9 +24,7 @@ enum DemoWindow {
         )
         window.title = "OpenAI API 仪表盘 · 预览（假数据）"
         window.titlebarAppearsTransparent = true
-        if args.contains("--demo-dark") {
-            window.appearance = NSAppearance(named: .darkAqua)
-        }
+        window.appearance = NSAppearance(named: args.contains("--demo-dark") ? .darkAqua : .aqua)
         window.contentView = hosting
         window.center()
         window.makeKeyAndOrderFront(nil)

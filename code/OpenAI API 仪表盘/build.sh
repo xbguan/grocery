@@ -74,9 +74,8 @@ if security find-identity -v -p codesigning 2>/dev/null | grep -q "$SIGN_ID"; th
   xattr -cr "$BUNDLE_DIR" 2>/dev/null || true
   codesign --force --deep --sign "$SIGN_ID" "$BUNDLE_DIR" 2>&1 | sed 's/^/    /'
 else
-  echo "!! 未找到签名证书「$SIGN_ID」，回退 ad-hoc（会导致钥匙串反复弹窗）" >&2
-  xattr -cr "$BUNDLE_DIR" 2>/dev/null || true
-  codesign --force --deep --sign - "$BUNDLE_DIR" 2>&1 | sed 's/^/    /'
+  echo "错误：未找到签名证书「$SIGN_ID」；为避免运行时钥匙串授权弹窗，停止打包。" >&2
+  exit 1
 fi
 
 echo "==> 校验"

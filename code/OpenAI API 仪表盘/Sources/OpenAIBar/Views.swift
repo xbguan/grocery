@@ -45,6 +45,16 @@ extension Color {
     }
 }
 
+enum TextTone {
+    static func secondary(_ s: ColorScheme) -> Color {
+        s == .dark ? Color.white.opacity(0.78) : Color(nsColor: .secondaryLabelColor)
+    }
+
+    static func tertiary(_ s: ColorScheme) -> Color {
+        s == .dark ? Color.white.opacity(0.62) : Color(nsColor: .tertiaryLabelColor)
+    }
+}
+
 // MARK: - 玻璃材质
 
 enum Glass {
@@ -208,7 +218,7 @@ struct CircleIconButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(TextTone.secondary(scheme))
         .onHover { hover = $0 }
         .help(help)
     }
@@ -236,7 +246,7 @@ private struct Chip: View {
                 Capsule().fill(tint?.opacity(0.16)
                                ?? (scheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.055)))
             )
-            .foregroundStyle(tint ?? .secondary)
+            .foregroundStyle(tint ?? TextTone.secondary(scheme))
     }
 }
 
@@ -359,7 +369,7 @@ struct MenuContentView: View {
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                 Text(subtitle)
                     .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
             }
 
             Spacer(minLength: 8)
@@ -397,12 +407,12 @@ struct MenuContentView: View {
             HStack(spacing: 6) {
                 Text("今日花费")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
                 Chip(text: "UTC")
                 Spacer()
                 Text("近 7 天 \(Fmt.money(snap.cost7))")
                     .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
             }
 
             HStack(alignment: .lastTextBaseline, spacing: 10) {
@@ -418,7 +428,7 @@ struct MenuContentView: View {
 
                 Text("\(Fmt.tokens(snap.todayTokens)) tokens")
                     .font(.system(size: 12.5, weight: .medium, design: .rounded).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
                     .padding(.bottom, 8)
             }
         }
@@ -442,7 +452,7 @@ struct MenuContentView: View {
                 Spacer()
                 Text("日均 \(Fmt.money(avg))")
                     .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
             }
 
             DayBars(points: points, peak: peak)
@@ -456,7 +466,7 @@ struct MenuContentView: View {
                 Text(Fmt.dayLabel(points.last?.id ?? .now))
             }
             .font(.system(size: 10.5).monospacedDigit())
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(TextTone.tertiary(scheme))
         }
         .padding(14)
         .glassCard()
@@ -476,14 +486,14 @@ struct MenuContentView: View {
         VStack(spacing: 4) {
             Text(title)
                 .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
             Text(value)
                 .font(.system(size: 17, weight: .semibold, design: .rounded).monospacedDigit())
                 .lineLimit(1)
                 .minimumScaleFactor(0.65)
             Text(sub)
                 .font(.system(size: 10).monospacedDigit())
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(TextTone.tertiary(scheme))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
@@ -537,7 +547,7 @@ struct MenuContentView: View {
             }
             Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。如需此功能，请到设置中开启「显示真实余额」，并登录 OpenAI 平台。")
                 .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
             creditLink("去设置开启", icon: "chevron.right") { openSettings() }
             if let b = snap.balance, let available = b.available {
@@ -545,7 +555,7 @@ struct MenuContentView: View {
                      (b.limit.map { " / 上限 \(Fmt.money($0))" } ?? "") +
                      "（计费上限 − 本月已用，仅供参考）")
                     .font(.system(size: 9.5))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(TextTone.tertiary(scheme))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -605,7 +615,7 @@ struct MenuContentView: View {
             }
             Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。登录一次 OpenAI 平台即可显示真实余额；登录态只存在本机，App 不保存密码，也不保存 cookie 明文。")
                 .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
             creditLink("登录 OpenAI 平台", icon: "chevron.right") { model.loginForCredit() }
         }
@@ -625,7 +635,7 @@ struct MenuContentView: View {
             }
             Text("平台登录态已过期，重新登录即可恢复。上次读到 \(Fmt.money(last.available)) · \(Fmt.updatedLabel(last.at))。")
                 .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
             creditLink("重新登录", icon: "chevron.right") { model.loginForCredit() }
         }
@@ -639,7 +649,7 @@ struct MenuContentView: View {
             ProgressView().controlSize(.small).scaleEffect(0.8)
             Text("正在读取余额…")
                 .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
             Spacer()
         }
         // 撑到和其它余额卡一样高并垂直居中，避免 loading 态只有一行、切状态时高度突变
@@ -703,7 +713,7 @@ struct MenuContentView: View {
                     Text("\(Int(min(100, used / limit * 100)))%")
                 }
                 .font(.system(size: 11).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
             }
 
             if optIn {
@@ -711,7 +721,7 @@ struct MenuContentView: View {
                     creditLink("读取真实余额", icon: "chevron.right") { model.loginForCredit() }
                     Text("需登录平台账号一次")
                         .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(TextTone.tertiary(scheme))
                     Spacer(minLength: 0)
                 }
             }
@@ -721,14 +731,14 @@ struct MenuContentView: View {
                     creditLink("重试", icon: "arrow.clockwise") { model.retryCredit() }
                     Text("上次读数仅供参照")
                         .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(TextTone.tertiary(scheme))
                     Spacer(minLength: 0)
                 }
             }
 
             Text(balance.source)
                 .font(.system(size: 10.5))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(TextTone.tertiary(scheme))
         }
         .padding(14)
         .glassCard()
@@ -770,13 +780,13 @@ struct MenuContentView: View {
                 Spacer()
                 Text(Fmt.money(total))
                     .font(.system(size: 11.5, weight: .medium).monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
             }
 
             if items.isEmpty {
                 Text("该时间段暂无花费")
                     .font(.system(size: 11.5))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(TextTone.tertiary(scheme))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             } else {
@@ -811,7 +821,7 @@ struct MenuContentView: View {
 
                                 Text(itemSubtitle(item))
                                     .font(.system(size: 9.5))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(TextTone.tertiary(scheme))
                                     .lineLimit(1)
                             }
                             .frame(height: 11)
@@ -824,7 +834,7 @@ struct MenuContentView: View {
             // 否则一个数字容易被当成整个范围的总花费。
             Text("仅显示花费最高的前 5 项，右上角为这 5 项之和")
                 .font(.system(size: 9.5))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(TextTone.tertiary(scheme))
         }
         .padding(14)
         .glassCard()
@@ -835,7 +845,7 @@ struct MenuContentView: View {
         Button(action: action) {
             Text(range.rawValue)
                 .font(.system(size: 11, weight: selected ? .semibold : .regular))
-                .foregroundStyle(selected ? Color.brand(scheme) : .secondary)
+                .foregroundStyle(selected ? Color.brand(scheme) : TextTone.secondary(scheme))
         }
         .buttonStyle(.plain)
     }
@@ -878,7 +888,7 @@ struct MenuContentView: View {
                     Text(hint)
                         .font(.system(size: 11.5))
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(TextTone.secondary(scheme))
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 6)
                 }
@@ -886,7 +896,7 @@ struct MenuContentView: View {
                     Text(msg)
                         .font(.system(size: 11))
                         .multilineTextAlignment(.center)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(TextTone.tertiary(scheme))
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 6)
                 }
@@ -949,7 +959,7 @@ struct MenuContentView: View {
             ProgressView().controlSize(.small)
             Text("正在读取用量数据…")
                 .font(.system(size: 12))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
         }
         .padding(40)
         .frame(maxWidth: .infinity)
@@ -966,7 +976,7 @@ struct MenuContentView: View {
             HStack(spacing: 14) {
                 Text(statusText)
                     .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(TextTone.tertiary(scheme))
                 Spacer()
                 Button {
                     openSettings()
@@ -976,7 +986,7 @@ struct MenuContentView: View {
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
                 .help("设置 Admin Key 与刷新间隔")
 
                 Button {
@@ -987,7 +997,7 @@ struct MenuContentView: View {
                         .labelStyle(.titleAndIcon)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
                 .help("退出 OpenAI API 仪表盘")
             }
             .padding(.horizontal, UI.hPad)
@@ -1118,7 +1128,7 @@ struct SettingsView: View {
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                 Text("组织级用量与花费 · 数据来自 API 平台，与 ChatGPT 订阅无关")
                     .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
             }
             Spacer()
         }
@@ -1155,7 +1165,7 @@ struct SettingsView: View {
 
             Text("须以 sk-admin- 开头；普通项目 Key 不可用。Key 存于 macOS 钥匙串，不写入文件。")
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(TextTone.tertiary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
 
             if let fp = keyFingerprint {
@@ -1167,7 +1177,7 @@ struct SettingsView: View {
                         .font(.system(size: 10.5, design: .monospaced))
                         .textSelection(.enabled)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(TextTone.secondary(scheme))
             }
 
             HStack(spacing: 10) {
@@ -1177,7 +1187,7 @@ struct SettingsView: View {
 
                 Button("清除 Key") { clearKey() }
                     .buttonStyle(GlassPillStyle(compact: true))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
                     .disabled(keyDraft.isEmpty)
 
                 if isTesting {
@@ -1212,7 +1222,7 @@ struct SettingsView: View {
 
             Text("官方未开放用 Key 读取余额的接口，此项与 Key 无关：开启后借本机平台登录态读取，登录态存于 App 的 WebKit 容器，不存密码与 cookie。\n注意：关闭开关会清空本机登录态，下次需重新登录。")
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(TextTone.tertiary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
@@ -1224,13 +1234,13 @@ struct SettingsView: View {
 
                 Button("退出登录") { model.clearCreditLogin() }
                     .buttonStyle(GlassPillStyle(compact: true))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
 
                 Spacer()
 
                 Text(creditStatusText)
                     .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(TextTone.secondary(scheme))
                     .lineLimit(1)
             }
         }
@@ -1261,7 +1271,7 @@ struct SettingsView: View {
                 .focused($focusedField, equals: .project)
             Text("留空统计整个组织，填写后仅统计该项目。")
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(TextTone.tertiary(scheme))
         }
     }
 
@@ -1303,7 +1313,7 @@ struct SettingsView: View {
                             Spacer()
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(TextTone.secondary(scheme))
                         }
                         .padding(.horizontal, 11)
                         .padding(.vertical, 9)
@@ -1325,7 +1335,7 @@ struct SettingsView: View {
                 Text("· 余额借本机登录态读取、不出本机；Key 存于钥匙串（搜「OpenAI API 仪表盘」）。")
             }
             .font(.system(size: 11))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(TextTone.secondary(scheme))
             .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -1344,7 +1354,7 @@ struct SettingsView: View {
                 Spacer()
                 Text(appVersion)
                     .font(.system(size: 10.5))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(TextTone.tertiary(scheme))
                 Button("保存") { saveAndClose() }
                     .buttonStyle(BrandButtonStyle(scheme: scheme))
                     .keyboardShortcut(.defaultAction)
