@@ -35,6 +35,7 @@ final class CreditBridge: NSObject {
     private(set) var available: Double? { didSet { if available != oldValue { onChange?() } } }
     private(set) var granted: Double?
     private(set) var used: Double?
+    private(set) var expiry: CreditExpiry?
     private(set) var updatedAt: Date? { didSet { if updatedAt != oldValue { onChange?() } } }
 
     /// 最近一次成功读到的值。**只用于「上次读到 X」这类文案**，不参与现值渲染：
@@ -43,12 +44,14 @@ final class CreditBridge: NSObject {
 
     /// 平台账单页：这个页面自己会请求 credit_grants
     static let pageURL = URL(string: "https://platform.openai.com/settings/organization/billing/overview")!
+    private static let grantsURL = URL(string: "https://platform.openai.com/settings/organization/billing/credit-grants")!
 
     private var webView: WKWebView?
     private var hostWindow: NSWindow?
     private var timeoutTimer: Timer?
     private var settleTimer: Timer?
     private var lastLoadAt: Date?
+    private var didLoadGrantDetails = false
     private var hasStarted = false
     /// 世代号：每次 start()/stop() 递增。异步回调（clearSession）凭它判断
     /// 「在我等待期间世界是不是已经变了」，变了就作废，避免把当前状态改乱。
@@ -80,6 +83,7 @@ final class CreditBridge: NSObject {
         available = nil
         granted = nil
         used = nil
+        expiry = nil
         updatedAt = nil
     }
 
@@ -112,6 +116,7 @@ final class CreditBridge: NSObject {
     private func load() {
         let view = ensureWebView()
         lastLoadAt = Date()
+        didLoadGrantDetails = false
         state = .loading
         view.load(URLRequest(url: Self.pageURL))
 
@@ -158,22 +163,24 @@ final class CreditBridge: NSObject {
     // MARK: 结果处理
 
     private func apply(summary: CreditSummary, from url: String) {
+        guard let balance = summary.totalAvailable else { return }
         granted = summary.totalGranted
         used = summary.totalUsed
-        available = summary.totalAvailable
+        expiry = summary.nextExpiration(asOf: .now)
+        available = balance
         updatedAt = .now
-        if let a = summary.totalAvailable {
-            lastKnown = (a, summary.totalGranted, summary.totalUsed, .now)
-        }
+        lastKnown = (balance, summary.totalGranted, summary.totalUsed, .now)
         state = .ready
         timeoutTimer?.invalidate()
         timeoutTimer = nil
         settleTimer?.invalidate()
         settleTimer = nil
-        NSLog("OpenAIBar: credit \(summary.totalAvailable) via \(url)")
+        if expiry == nil { loadGrantDetailsIfNeeded() }
+        NSLog("OpenAIBar: credit \(balance) via \(url)")
     }
 
     private func apply(domValue: Double) {
+        expiry = nil
         available = domValue
         updatedAt = .now
         lastKnown = (domValue, nil, nil, .now)
@@ -182,6 +189,13 @@ final class CreditBridge: NSObject {
         timeoutTimer = nil
         settleTimer?.invalidate()
         settleTimer = nil
+        loadGrantDetailsIfNeeded()
+    }
+
+    private func loadGrantDetailsIfNeeded() {
+        guard !didLoadGrantDetails, let webView else { return }
+        didLoadGrantDetails = true
+        webView.load(URLRequest(url: Self.grantsURL))
     }
 
     /// 登录态清除（设置里「退出登录」）
@@ -198,6 +212,7 @@ final class CreditBridge: NSObject {
                 self.available = nil
                 self.granted = nil
                 self.used = nil
+                self.expiry = nil
                 self.updatedAt = nil
                 self.lastKnown = nil
                 self.lastLoadAt = nil
@@ -220,7 +235,9 @@ final class CreditBridge: NSObject {
         try { window.webkit.messageHandlers.credit.postMessage(payload); } catch (e) {}
       }
       function isCreditURL(u){
-        return typeof u === 'string' && u.indexOf('/dashboard/billing/credit_grants') >= 0;
+        return typeof u === 'string' &&
+          (u.indexOf('/dashboard/billing/credit_grants') >= 0 ||
+           u.indexOf('/dashboard/billing/credit-grants') >= 0);
       }
 
       // 1) fetch 钩子：页面发请求后，复制一份响应体读出来
@@ -233,7 +250,7 @@ final class CreditBridge: NSObject {
           if (isCreditURL(u)) {
             p.then(function(r){
               try {
-                r.clone().text().then(function(t){ send({url: u, status: r.status, body: String(t).slice(0, 6000)}); })
+                r.clone().text().then(function(t){ send({url: u, status: r.status, body: String(t).slice(0, 100000)}); })
                              .catch(function(){});
               } catch (e) {}
             }).catch(function(){});
@@ -253,7 +270,7 @@ final class CreditBridge: NSObject {
         var self = this;
         this.addEventListener('load', function(){
           if (isCreditURL(self.__oaiURL)) {
-            send({url: String(self.__oaiURL), status: self.status, body: String(self.responseText || '').slice(0, 6000)});
+            send({url: String(self.__oaiURL), status: self.status, body: String(self.responseText || '').slice(0, 100000)});
           }
         });
         return origSend.apply(this, arguments);
@@ -284,13 +301,14 @@ extension CreditBridge: WKScriptMessageHandler {
               let body = dict["body"] as? String else { return }
 
         if url == "dom" {
-            if let v = Double(body) { apply(domValue: v) }
+            if state == .loading, let v = Double(body) { apply(domValue: v) }
             return
         }
         // 会话过期最常见的形态不是整页跳登录页，而是页面正常、只有余额接口 401/403。
         // 这种情况以前只能等 30s 超时 → 被误报成「读取超时」，现在直接判为需要重新登录。
         let status = dict["status"] as? Int ?? 0
         if status == 401 || status == 403 {
+            guard state == .loading else { return }
             timeoutTimer?.invalidate()
             timeoutTimer = nil
             settleTimer?.invalidate()
@@ -301,7 +319,12 @@ extension CreditBridge: WKScriptMessageHandler {
         }
         guard let data = body.data(using: .utf8),
               let summary = try? JSONDecoder().decode(CreditSummary.self, from: data) else { return }
-        apply(summary: summary, from: url)
+        if summary.totalAvailable != nil {
+            apply(summary: summary, from: url)
+        } else if let next = summary.nextExpiration(asOf: .now), available != nil {
+            expiry = next
+            onChange?()
+        }
     }
 }
 
@@ -365,11 +388,71 @@ struct CreditSummary: Decodable {
     let totalGranted: Double?
     let totalUsed: Double?
     let totalAvailable: Double?
+    let grants: CreditGrantList?
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        totalGranted = try values.decodeIfPresent(Double.self, forKey: .totalGranted)
+        totalUsed = try values.decodeIfPresent(Double.self, forKey: .totalUsed)
+        totalAvailable = try values.decodeIfPresent(Double.self, forKey: .totalAvailable)
+        if let nested = try? values.decode(CreditGrantList.self, forKey: .grants) {
+            grants = nested
+        } else if let data = try? values.decode([CreditGrant].self, forKey: .data) {
+            grants = CreditGrantList(data: data)
+        } else {
+            grants = nil
+        }
+    }
+
+    func nextExpiration(asOf now: Date) -> CreditExpiry? {
+        if let totalAvailable, totalAvailable <= 0 { return nil }
+        return grants?.data.compactMap { grant in
+            guard let amount = grant.grantAmount,
+                  let expiresAt = grant.expiresAt,
+                  amount > 0,
+                  expiresAt > now.timeIntervalSince1970 else { return nil }
+            let remaining = max(0, amount - (grant.usedAmount ?? 0))
+            guard remaining > 0 else { return nil }
+            return CreditExpiry(date: Date(timeIntervalSince1970: expiresAt), remaining: remaining)
+        }.min { $0.date < $1.date }
+    }
 
     enum CodingKeys: String, CodingKey {
         case totalGranted = "total_granted"
         case totalUsed = "total_used"
         case totalAvailable = "total_available"
+        case grants
+        case data
+    }
+}
+
+struct CreditGrantList: Decodable {
+    let data: [CreditGrant]
+}
+
+struct CreditGrant: Decodable {
+    let grantAmount: Double?
+    let usedAmount: Double?
+    let expiresAt: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case grantAmount = "grant_amount"
+        case usedAmount = "used_amount"
+        case expiresAt = "expires_at"
+    }
+}
+
+struct CreditExpiry {
+    let date: Date
+    let remaining: Double
+
+    func countdown(asOf now: Date) -> String {
+        let seconds = date.timeIntervalSince(now)
+        guard seconds > 0 else { return "已到期" }
+        let hours = Int(seconds / 3600)
+        guard hours > 0 else { return "<1h" }
+        let days = hours / 24
+        return days > 0 ? "\(days)d \(hours % 24)h" : "\(hours)h"
     }
 }
 

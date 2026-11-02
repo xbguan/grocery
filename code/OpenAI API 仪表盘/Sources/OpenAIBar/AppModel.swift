@@ -14,6 +14,7 @@ struct LiveCredit {
     var granted: Double?
     var used: Double?
     var at: Date
+    var expiry: CreditExpiry? = nil
 }
 
 @MainActor
@@ -206,7 +207,8 @@ final class AppModel: ObservableObject {
             liveCredit = LiveCredit(available: a,
                                     granted: creditBridge.granted,
                                     used: creditBridge.used,
-                                    at: creditBridge.updatedAt ?? .now)
+                                    at: creditBridge.updatedAt ?? .now,
+                                    expiry: creditBridge.expiry)
             // 记住「读到过」，用来把「登录已失效」和「从未登录」分开显示
             if !config.hasConnectedCredit { config.hasConnectedCredit = true }
         } else {
@@ -254,7 +256,10 @@ final class AppModel: ObservableObject {
     /// 预览用：伪造一条实时余额
     func loadDemoCredit() {
         demoCreditFlags(hasConnected: true)
-        liveCredit = LiveCredit(available: 12.51, granted: 16.0, used: 3.49, at: .now)
+        liveCredit = LiveCredit(available: 12.51, granted: 16.0, used: 3.49,
+                                at: .now,
+                                expiry: CreditExpiry(date: .now.addingTimeInterval(28 * 86400 + 4 * 3600),
+                                                     remaining: 12.51))
         lastKnownCredit = liveCredit
         creditState = .ready
     }

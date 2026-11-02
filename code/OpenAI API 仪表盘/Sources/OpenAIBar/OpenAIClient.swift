@@ -51,6 +51,7 @@ struct BalanceInfo {
     /// 数据来源说明
     var source: String
     var isExact: Bool
+    var expiry: CreditExpiry? = nil
 }
 
 struct Snapshot {

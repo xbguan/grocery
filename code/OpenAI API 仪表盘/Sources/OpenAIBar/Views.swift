@@ -511,7 +511,7 @@ struct MenuContentView: View {
     private func balanceSection(_ snap: Snapshot) -> some View {
         Group {
             if let lc = model.liveCredit {
-                balanceCard(liveInfo(lc), title: "API 余额")
+                balanceCard(liveInfo(lc), title: "API 余额", showExpiry: true)
             } else if !model.config.showCredit {
                 // 状态 1（从未开启）与状态 2（从开启切回关闭）共用这张卡：
                 // 关闭开关会同时清掉登录态，所以两者界面必须一致，不能残留上次读数。
@@ -585,7 +585,7 @@ struct MenuContentView: View {
 
     private func liveInfo(_ lc: LiveCredit) -> BalanceInfo {
         BalanceInfo(limit: lc.granted, used: lc.used, available: lc.available,
-                    source: liveCreditSource(lc), isExact: true)
+                    source: liveCreditSource(lc), isExact: true, expiry: lc.expiry)
     }
 
     /// 刷新失败时的上次读数：数字照旧，但脚注说清是旧值，并给「重试」
@@ -677,7 +677,8 @@ struct MenuContentView: View {
         .glassCard(radius: 20)
     }
 
-    private func balanceCard(_ balance: BalanceInfo, title: String = "API 额度", optIn: Bool = false, retry: Bool = false) -> some View {
+    private func balanceCard(_ balance: BalanceInfo, title: String = "API 额度", optIn: Bool = false,
+                             retry: Bool = false, showExpiry: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(title)
@@ -690,6 +691,11 @@ struct MenuContentView: View {
                     Text("剩余 \(Fmt.money(available))")
                         .font(.system(size: 13.5, weight: .semibold, design: .rounded).monospacedDigit())
                         .foregroundStyle(available < 5 ? Color.red : Color.primary)
+                }
+                if showExpiry {
+                    Text(balance.expiry.map { "最近到期 \($0.countdown(asOf: .now))" } ?? "效期未取得")
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded).monospacedDigit())
+                        .foregroundStyle(balance.expiry == nil ? TextTone.tertiary(scheme) : Color.brand(scheme))
                 }
             }
 
@@ -724,6 +730,16 @@ struct MenuContentView: View {
                         .foregroundStyle(TextTone.tertiary(scheme))
                     Spacer(minLength: 0)
                 }
+            }
+
+            if showExpiry, let expiry = balance.expiry {
+                HStack {
+                    Text("到期：\(expiry.date.formatted(date: .numeric, time: .shortened))")
+                    Spacer()
+                    Text("该笔剩余 \(Fmt.money(expiry.remaining))")
+                }
+                .font(.system(size: 10.5).monospacedDigit())
+                .foregroundStyle(TextTone.secondary(scheme))
             }
 
             if retry {

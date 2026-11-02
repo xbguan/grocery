@@ -12,7 +12,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI API 仪表盘-1.5.5.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI API 仪表盘-1.5.6.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -73,7 +73,7 @@ image::preview-settings.png[width=460]
 |三档汇总，每档附请求数或 token 数
 
 |API 余额
-|实时余额（`$12.51` 这类真实数字，来自平台登录态）或估算值；带「估算」标记表示非官方精确值
+|实时余额（来自平台登录态）显示剩余金额与最近一笔可用额度的到期倒计时、准确到期时间；未取到明细时显示「效期未取得」。估算值带「估算」标记
 
 |API 余额 · 需要登录
 |开启实时余额但登录态失效时出现，卡上直接给「登录 OpenAI 平台」按钮
@@ -115,7 +115,7 @@ image::menubar.png[width=560]
 
 本 App 只读取 *API 平台（platform.openai.com）组织级* 的数据：按 token 计费的用量与成本，需要 Admin Key。
 
-它和 *ChatGPT 订阅*（Plus / Pro / Team 的月费）是两套完全独立的体系，互不影响。App 里显示的「API 额度」指的是 API 账户的计费额度（预充值余额或后付费的月度上限），不是你的 ChatGPT 订阅权益。若你只买了 ChatGPT 订阅、没在 API 平台充值，这里不会有任何可用余量。
+API 计费与 ChatGPT 订阅分别管理；符合条件的订阅可领取关联到 API 组织的赠送额度。App 里的「API 余额」以该组织账单数据为准，可能包含订阅赠送额度或预充值额度。
 
 余额：*任何 API Key 都读不到余额*，这不是权限问题而是接口限制。实测（2026-10）用 Admin Key 请求：
 
@@ -129,7 +129,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 换任何 key 类型都不行，`/v1/organization/*` 下也没有余额端点（`/credits`、`/organization/credits` 等全部 404）。所以余额只有两条路：
 
-* *实时余额（推荐，需你登录一次）*：设置里打开「显示真实余额」，App 用一个隐藏的 WKWebView 打开平台账单页，页面自己会请求 `credit_grants`，我们在 `documentStart` 注入钩子把**响应体**截下来，解析 `total_available`。登录态存在 App 自己的 WebKit 容器（`~/Library/WebKit/com.xbguan.openai-api-dashboard`），不保存密码、不保存 cookie 明文、不外发。
+* *实时余额（推荐，需你登录一次）*：设置里打开「显示真实余额」，App 用一个隐藏的 WKWebView 打开平台账单页，页面自己会请求 `credit_grants`，我们在 `documentStart` 注入钩子把**响应体**截下来，解析 `total_available` 与逐笔 grant 明细；概览没有效期时再加载同一登录态下的 Credit grants 页面。取得明细后显示最近一笔尚未用完额度的到期倒计时与时间，否则显示「效期未取得」。登录态存在 App 自己的 WebKit 容器（`~/Library/WebKit/com.xbguan.openai-api-dashboard`），不保存密码、不保存 cookie 明文、不外发。
 * *估算兜底*：未开启实时余额、或实时读取失败时，退回 `subscription`（额度上限）− `usage`（已用）的推算值，界面标注「估算」。
 
 ⚠️ 实现上有一条硬约束：*不能自己发这个请求*。从页面上下文 fetch `api.openai.com` 会被 CORS 挡掉（实测 `Load failed`），只能让页面发、我们截。
@@ -144,7 +144,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI API 仪表盘-1.5.5.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI API 仪表盘-1.5.6.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
