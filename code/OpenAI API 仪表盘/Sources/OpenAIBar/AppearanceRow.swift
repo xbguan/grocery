@@ -24,40 +24,46 @@ struct AppearanceRow: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 14) {
-            Text("外观模式")
-                .font(.system(size: 11.5, weight: .medium))
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 2) {
-                    ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                        let selected = selection == mode
-                        Button {
-                            select(mode)
-                        } label: {
-                            HStack(spacing: 4) {
-                                if selected {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 9, weight: .bold))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("外观模式").font(.headline)
+            HStack(spacing: 10) {
+                ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                    let selected = selection == mode
+                    Button { select(mode) } label: {
+                        VStack(spacing: 8) {
+                            ZStack(alignment: .topLeading) {
+                                HStack(spacing: 0) {
+                                    (mode == .dark ? Color(white: 0.26) : Color(white: 0.94))
+                                    (mode == .light ? Color(white: 0.84) : Color(white: 0.16))
                                 }
-                                Text(mode.title)
+                                HStack(spacing: 3) {
+                                    ForEach([Color.red, .yellow, .green], id: \.self) { color in
+                                        Circle().fill(color).frame(width: 4, height: 4)
+                                    }
+                                }
+                                .padding(6)
                             }
-                            .font(.system(size: 12, weight: selected ? .semibold : .regular))
-                            .frame(width: 62, height: 24)
-                            .background(selected ? Color.brand(scheme).opacity(0.24) : .clear,
-                                        in: RoundedRectangle(cornerRadius: 6))
-                            .contentShape(Rectangle())
+                            .frame(height: 44)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            Text(mode.title)
+                                .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                                .foregroundStyle(scheme == .dark ? Color.white : .black)
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(mode.title)
-                        .accessibilityAddTraits(selected ? .isSelected : [])
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10)
+                            .strokeBorder(selected ? Color.brand(scheme) : Glass.hairline(scheme),
+                                          lineWidth: selected ? 2 : 1))
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(mode.title)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
-                .padding(2)
-                .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 8))
-                Text(selection == .system ? "跟随 macOS 外观自动切换" : "始终使用" + selection.title + "外观")
-                    .font(.system(size: 11))
-                    .foregroundStyle(TextTone.secondary(scheme))
             }
+            Text("选择后立即生效。系统模式跟随 macOS 外观。")
+                .font(.caption).foregroundStyle(TextTone.secondary(scheme))
         }
     }
 }

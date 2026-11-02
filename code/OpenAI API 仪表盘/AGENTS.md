@@ -71,9 +71,10 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 
 ### 交互规范
 
-- *菜单面板与设置窗口互斥*：打开设置前调 `MenuBarPanel.closeIfOpen()`；面板出现时调 `SettingsWindow.close()`
-- 设置里点「保存」= 写配置 + 关窗（`SettingsWindow.close()`），不再留在页面上弹"已保存"
-- 面板内容超过屏幕可视高度时靠测量自动变滚动（`BodyHeightKey` + `UI.maxBodyHeight`），不允许被窗口裁掉
+- API 用量、ChatGPT 订阅与外观设置共用固定尺寸的左右面板。切换只更新右侧内容，左侧导航与底部操作保持原位。
+- 左下角「设置」只管理外观，选择后立即生效；Admin Key、余额、项目与刷新配置从 API 页进入，保存后回到 API 页。
+- 以完整 API 页为尺寸基准，常规屏幕一屏展示；可视高度不足时优先保证内容可达，仅右侧允许滚动。
+- 系统菜单栏只显示状态图标，金额只在 API 内容区展示。
 
 ### 图标规范
 

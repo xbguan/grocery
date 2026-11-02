@@ -9,7 +9,8 @@ import AppKit
 // 而不是靠分隔线。
 
 enum UI {
-    static let panelWidth: CGFloat = 432
+    static let panelWidth: CGFloat = 708
+    static let sidebarWidth: CGFloat = 202
     static let hPad: CGFloat = 16
     static let cardRadius: CGFloat = 24
     static let gap: CGFloat = 9
@@ -20,19 +21,10 @@ enum UI {
     /// 正常余额卡、关闭态说明卡保持自然高度，不再被强行撑高，避免卡片底部多出空档。
     static let creditMinHeight: CGFloat = 104
 
-    /// 头部与底栏的固定高度，用于给中间内容算可用空间
-    static let headerHeight: CGFloat = 58
-    static let footerHeight: CGFloat = 44
-
-    /// 面板最大高度：跟随屏幕，别超出可视区
-    static var maxPanelHeight: CGFloat {
-        (NSScreen.main?.visibleFrame.height ?? 900) - 12
+    static var panelHeight: CGFloat {
+        min(690, (NSScreen.main?.visibleFrame.height ?? 900) - 16)
     }
 
-    /// 中间滚动区的最大高度
-    static var maxBodyHeight: CGFloat {
-        max(240, maxPanelHeight - headerHeight - footerHeight)
-    }
 }
 
 extension Color {
@@ -105,6 +97,7 @@ private struct GlassCard: ViewModifier {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .strokeBorder(Glass.stroke(scheme), lineWidth: 1)
             )
+            .compositingGroup()
             .shadow(color: Color.black.opacity(scheme == .dark ? 0.42 : 0.07),
                     radius: elevated ? 16 : 9, x: 0, y: elevated ? 8 : 4)
             .shadow(color: Color.black.opacity(scheme == .dark ? 0.22 : 0.035),
@@ -141,14 +134,6 @@ struct PanelBackground: View {
 private extension Color {
     init(srgb r: Double, _ g: Double, _ b: Double) {
         self.init(.sRGB, red: r, green: g, blue: b, opacity: 1)
-    }
-}
-
-/// 测量中间内容高度，用来判断要不要滚动
-private struct BodyHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 
@@ -256,11 +241,8 @@ struct MenuBarLabel: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        HStack(spacing: 4) {
-            Image(nsImage: icon)
-            Text(text)
-                .font(.system(size: 11.5, weight: .medium).monospacedDigit())
-        }
+        Image(nsImage: icon)
+            .accessibilityLabel("OpenAI 仪表盘")
     }
 
     /// 图标永远是表盘，只换状态，不换成警告三角
@@ -272,10 +254,6 @@ struct MenuBarLabel: View {
         }
     }
 
-    private var text: String {
-        if let snap = model.snapshot { return Fmt.money(snap.todayCost) }
-        return "—"
-    }
 }
 
 // MARK: - 主面板
@@ -283,159 +261,216 @@ struct MenuBarLabel: View {
 struct MenuContentView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
-    @State private var bodyHeight: CGFloat = 0
+    enum Page: String {
+        case usage = "API 用量"
+        case subscription = "ChatGPT 订阅"
+        case settings = "设置"
+        case configuration = "API 配置"
+    }
+
+    @State private var page: Page
+    @State private var showCreditConfig = false
     @State private var costRange: CostRange = .last7
 
-    var body: some View {
-        ZStack {
-            PanelBackground()
+    init(initialPage: Page = .usage) {
+        _page = State(initialValue: initialPage)
+    }
 
-            VStack(spacing: 0) {
+    var body: some View {
+        HStack(spacing: 0) {
+            sidebar
+            Divider()
+            VStack(alignment: .leading, spacing: 0) {
                 header
-                middle
-                footer
+                switch page {
+                case .usage:
+                    if UI.panelHeight < 650 {
+                        ScrollView { usageContent }
+                    } else {
+                        usageContent
+                    }
+                case .configuration:
+                    APIConfigurationView(showCredit: showCreditConfig) { page = .usage }
+                case .settings:
+                    AppearanceRow(selection: model.config.appearanceMode) { mode in
+                        model.update { $0.appearanceMode = mode }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .glassCard()
+                    .padding(.horizontal, UI.hPad)
+                case .subscription:
+                    subscription
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(width: UI.panelWidth)
+        .frame(width: UI.panelWidth, height: UI.panelHeight)
+        .background(PanelBackground())
         .tint(Color.brand(scheme))
-        .onPreferenceChange(BodyHeightKey.self) { h in
-            // 定高策略：只在「首次测量」或「内容高度显著变化」时更新，其余时间冻结。
-            //
-            // 为什么冻结：MenuBarExtra 的窗口高度只能取整，而内容测量值常带小数；
-            // 若把测量值持续喂回 .frame(height:)，窗口与布局会在取整之间反复拉锯，
-            // 面板 1px 级持续抖动。冻结后，内容再多也只会在滚动区内滚动。
-            //
-            // 为什么允许显著变化：初次运行「未配置 → 填 Key → 有数据」时，内容从空态
-            // （约 300pt）跳到完整内容（约 550pt）。若死守首次测量值，面板会卡在空态
-            // 高度、把底部卡片截断。只有差距超过阈值（80pt）才重新定一次高，
-            // 亚像素级的微抖（1pt 级）不会触发，抖动问题不会复发。
-            let target = min(h.rounded(.up), UI.maxBodyHeight.rounded(.down))
-            guard target > 120 else { return }
-            if bodyHeight < 60 || abs(target - bodyHeight) > 80 {
-                bodyHeight = target
+        .onAppear { model.refreshCreditOnPanelOpen() }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(nsImage: LogoMark.image(size: 64))
+                    .resizable().frame(width: 28, height: 28)
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(1).help(title)
+                Spacer(minLength: 0)
+                if model.isLoading || model.creditState == .loading || model.subscriptionLoading {
+                    ProgressView().controlSize(.small).frame(width: 28, height: 28)
+                        .accessibilityLabel("正在刷新")
+                } else {
+                    CircleIconButton(system: "arrow.clockwise", help: "刷新全部数据") {
+                        Task { await model.refresh(manual: true) }
+                    }
+                    .accessibilityLabel("刷新全部数据")
+                }
             }
+            .padding(.bottom, 12)
+            navButton(.usage, icon: "chart.bar")
+            navButton(.subscription, icon: "bubble.left.and.bubble.right")
+            Spacer()
+            HStack(spacing: 8) {
+                Text(statusText).font(.caption2).lineLimit(1)
+                    .foregroundStyle(TextTone.secondary(scheme))
+                Spacer(minLength: 0)
+                Button("设置") { page = .settings }
+                    .foregroundStyle(page == .settings ? Color.brand(scheme) : .primary)
+                    .accessibilityAddTraits(page == .settings ? .isSelected : [])
+                Button("退出") { NSApplication.shared.terminate(nil) }
+            }
+            .buttonStyle(.plain)
+            .font(.caption)
         }
-        .transaction { $0.animation = nil }
-        .onAppear {
-            SettingsWindow.close()
-            model.refreshCreditOnPanelOpen()
+        .padding(12)
+        .frame(width: UI.sidebarWidth)
+        .frame(maxHeight: .infinity)
+        .background(Glass.inset(scheme))
+    }
+
+    private func navButton(_ destination: Page, icon: String) -> some View {
+        let selected = page == destination || (page == .configuration && destination == .usage)
+        return Button { page = destination } label: {
+            Label(destination.rawValue, systemImage: icon)
+                .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                .padding(9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(selected ? Color.brand(scheme).opacity(0.20) : .clear,
+                            in: RoundedRectangle(cornerRadius: 9))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var subscription: some View {
+        let data = model.subscription
+        return VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text("订阅套餐").font(.headline)
+                Spacer()
+                Text(data?.plan?.capitalized ?? "—").font(.headline)
+            }
+            Text("Codex 本周剩余额度")
+                .font(.callout).foregroundStyle(TextTone.secondary(scheme))
+            Text(data?.remainingPercent.map { "\($0)%" } ?? "—")
+                .font(.system(size: 38, weight: .semibold, design: .rounded).monospacedDigit())
+            if let percent = data?.remainingPercent {
+                ProgressView(value: Double(percent), total: 100)
+            }
+            subscriptionRow("下次周重置", data?.weeklyReset?.formatted(date: .abbreviated, time: .shortened))
+            subscriptionRow("可用重置机会", data?.resetCredits.map { "\($0) 次" })
+            subscriptionRow("订阅到期", "数据源未提供")
+            if let error = model.subscriptionError {
+                Text(error).foregroundStyle(TextTone.secondary(scheme))
+            } else if !model.config.showSubscription {
+                Text("连接本机已登录的 Codex，可读取套餐及 Codex 周额度。")
+            } else if model.subscriptionLoading {
+                Text("正在读取本机 Codex 账号…")
+            } else if data?.usageUnavailable == true {
+                Text("已取得套餐，额度读取失败。请检查网络后刷新。")
+            } else if let data {
+                Text("来源：本机 Codex · " + Fmt.updatedLabel(data.fetchedAt))
+                    .foregroundStyle(TextTone.secondary(scheme))
+            }
+            Button(model.config.showSubscription ? "断开订阅读取" : "连接本机 Codex") {
+                model.setSubscriptionEnabled(!model.config.showSubscription)
+            }
+            .buttonStyle(GlassPillStyle(compact: true))
+        }
+        .padding(16).glassCard()
+        .padding(.horizontal, UI.hPad)
+    }
+
+    private func subscriptionRow(_ label: String, _ value: String?) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value ?? (model.subscription == nil ? "—" : "未取得"))
+                .foregroundStyle(TextTone.secondary(scheme))
         }
     }
 
-    /// 中间区域：内容自然撑开；超出屏幕可视高度时自己变成可滚动，
-    /// 避免菜单栏窗口把底部（花费来源、底栏）裁掉。
-    private var middle: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            Group {
-                if model.snapshot == nil, model.errorKind != nil {
-                    errorState
-                } else if let snap = model.snapshot {
-                    VStack(spacing: UI.gap) {
-                        hero(snap)
-                        trend(snap)
-                        kpis(snap)
-                        balanceSection(snap)
-                        if !snap.costBreakdown.isEmpty {
-                            topItems(snap.costBreakdown, range: $costRange)
-                        }
-                    }
-                    .padding(.horizontal, UI.hPad)
-                    .padding(.bottom, 14)
-                } else {
-                    loadingState
+    @ViewBuilder private var usageContent: some View {
+        if model.snapshot == nil, model.errorKind != nil {
+            errorState
+        } else if let snap = model.snapshot {
+            VStack(spacing: UI.gap) {
+                kpis(snap)
+                trend(snap)
+                balanceSection(snap)
+                if !snap.costBreakdown.isEmpty {
+                    topItems(snap.costBreakdown, range: $costRange)
                 }
             }
-            .background(
-                GeometryReader { g in
-                    Color.clear.preference(key: BodyHeightKey.self, value: g.size.height)
-                }
-            )
+            .padding(.horizontal, UI.hPad)
+            .padding(.bottom, 12)
+        } else {
+            loadingState
         }
-        .frame(height: min(max(bodyHeight, 160), UI.maxBodyHeight.rounded(.down)))
     }
 
     // MARK: 头部
 
     private var header: some View {
         HStack(spacing: 11) {
-            Image(nsImage: LogoMark.image(size: 64))
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 32, height: 32)
-                .shadow(color: Color.black.opacity(0.28), radius: 5, y: 2)
-
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                Text(subtitle)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(TextTone.secondary(scheme))
-            }
-
-            Spacer(minLength: 8)
-
-            if model.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.8)
-                    .frame(width: 28, height: 28)
-            } else {
-                CircleIconButton(system: "arrow.clockwise", help: "立即刷新") {
-                    Task { await model.refresh() }
+                Text(page.rawValue)
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                if page == .usage {
+                    Text(subtitle)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(TextTone.secondary(scheme))
                 }
             }
+            Spacer(minLength: 8)
+            if page == .usage {
+                CircleIconButton(system: "slider.horizontal.3", help: "API 配置") { openConfiguration() }
+            }
+
         }
         .padding(.horizontal, UI.hPad)
         .padding(.top, 14)
         .padding(.bottom, 12)
     }
 
+    private func openConfiguration(credit: Bool = false) {
+        showCreditConfig = credit
+        page = .configuration
+    }
+
     private var title: String {
-        model.config.accountLabel.isEmpty ? "OpenAI API 仪表盘" : model.config.accountLabel
+        model.config.accountLabel.isEmpty ? "OpenAI 仪表盘" : model.config.accountLabel
     }
 
     private var subtitle: String {
         if model.errorKind == .noKey { return model.config.credentialReadFailed ? "凭据读取失败" : "未配置 Admin Key" }
         if model.errorKind == .auth { return "Key 无效或权限不足" }
         return "Admin API · 组织级数据"
-    }
-
-    // MARK: 今日花费
-
-    private func hero(_ snap: Snapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Text("今日花费")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(TextTone.secondary(scheme))
-                Chip(text: "UTC")
-                Spacer()
-                Text("近 7 天 \(Fmt.money(snap.cost7))")
-                    .font(.system(size: 11.5).monospacedDigit())
-                    .foregroundStyle(TextTone.secondary(scheme))
-            }
-
-            HStack(alignment: .lastTextBaseline, spacing: 10) {
-                Text(Fmt.money(snap.todayCost))
-                    .font(.system(size: 38, weight: .semibold, design: .rounded).monospacedDigit())
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .foregroundStyle(
-                        LinearGradient(colors: [.primary, .primary.opacity(0.72)],
-                                       startPoint: .top, endPoint: .bottom))
-
-                Spacer(minLength: 8)
-
-                Text("\(Fmt.tokens(snap.todayTokens)) tokens")
-                    .font(.system(size: 12.5, weight: .medium, design: .rounded).monospacedDigit())
-                    .foregroundStyle(TextTone.secondary(scheme))
-                    .padding(.bottom, 8)
-            }
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
-        .glassCard(elevated: true)
     }
 
     // MARK: 14 天趋势（自绘，零值日也有可见底座）
@@ -456,7 +491,7 @@ struct MenuContentView: View {
             }
 
             DayBars(points: points, peak: peak)
-                .frame(height: 64)
+                .frame(height: 52)
 
             HStack {
                 Text(Fmt.dayLabel(points.first?.id ?? .now))
@@ -468,7 +503,7 @@ struct MenuContentView: View {
             .font(.system(size: 10.5).monospacedDigit())
             .foregroundStyle(TextTone.tertiary(scheme))
         }
-        .padding(14)
+        .padding(12)
         .glassCard()
     }
 
@@ -476,7 +511,7 @@ struct MenuContentView: View {
 
     private func kpis(_ snap: Snapshot) -> some View {
         HStack(spacing: 8) {
-            kpiTile("今日", Fmt.money(snap.todayCost), "\(snap.todayRequests) 次请求")
+            kpiTile("今日 · UTC", Fmt.money(snap.todayCost), "\(Fmt.tokens(snap.todayTokens)) tokens · \(Fmt.tokens(snap.todayRequests)) 次请求")
             kpiTile("7 天", Fmt.money(snap.cost7), "\(Fmt.tokens(snap.tokens7)) tokens")
             kpiTile("30 天", Fmt.money(snap.cost30), "\(Fmt.tokens(snap.tokens30)) tokens")
         }
@@ -545,11 +580,11 @@ struct MenuContentView: View {
                 Chip(text: "未开启")
                 Spacer()
             }
-            Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。如需此功能，请到设置中开启「显示真实余额」，并登录 OpenAI 平台。")
+            Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。如需此功能，请到 API 配置中开启「显示真实余额」，并登录 OpenAI 平台。")
                 .font(.system(size: 10.5))
                 .foregroundStyle(TextTone.secondary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
-            creditLink("去设置开启", icon: "chevron.right") { openSettings() }
+            creditLink("去 API 配置开启", icon: "chevron.right") { openConfiguration(credit: true) }
             if let b = snap.balance, let available = b.available {
                 Text("估算额度：剩余 \(Fmt.money(available))" +
                      (b.limit.map { " / 上限 \(Fmt.money($0))" } ?? "") +
@@ -560,7 +595,7 @@ struct MenuContentView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(12)
         .glassCard()
     }
 
@@ -620,7 +655,7 @@ struct MenuContentView: View {
             creditLink("登录 OpenAI 平台", icon: "chevron.right") { model.loginForCredit() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(12)
         .glassCard()
     }
 
@@ -640,7 +675,7 @@ struct MenuContentView: View {
             creditLink("重新登录", icon: "chevron.right") { model.loginForCredit() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
+        .padding(12)
         .glassCard()
     }
 
@@ -756,7 +791,7 @@ struct MenuContentView: View {
                 .font(.system(size: 10.5))
                 .foregroundStyle(TextTone.tertiary(scheme))
         }
-        .padding(14)
+        .padding(12)
         .glassCard()
     }
 
@@ -806,7 +841,7 @@ struct MenuContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             } else {
-                VStack(spacing: 9) {
+                VStack(spacing: 6) {
                     ForEach(items) { item in
                         VStack(spacing: 5) {
                             HStack(spacing: 8) {
@@ -852,7 +887,7 @@ struct MenuContentView: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(TextTone.tertiary(scheme))
         }
-        .padding(14)
+        .padding(12)
         .glassCard()
     }
 
@@ -953,10 +988,10 @@ struct MenuContentView: View {
     private var primaryAction: some View {
         switch model.errorKind {
         case .some(.noKey):
-            Button("填入 Admin Key") { openSettings() }
+            Button("填入 Admin Key") { openConfiguration() }
                 .buttonStyle(BrandButtonStyle(scheme: scheme))
         case .some(.auth):
-            Button("重新填写 Key") { openSettings() }
+            Button("重新填写 Key") { openConfiguration() }
                 .buttonStyle(BrandButtonStyle(scheme: scheme))
         case .some:
             Button {
@@ -983,57 +1018,13 @@ struct MenuContentView: View {
 
     // MARK: 底部
 
-    private var footer: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Glass.hairline(scheme))
-                .frame(height: 1)
-
-            HStack(spacing: 14) {
-                Text(statusText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(TextTone.tertiary(scheme))
-                Spacer()
-                Button {
-                    openSettings()
-                } label: {
-                    Label("设置", systemImage: "gearshape")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .labelStyle(.titleAndIcon)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(TextTone.secondary(scheme))
-                .help("设置 Admin Key 与刷新间隔")
-
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    Label("退出", systemImage: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 11.5, weight: .medium))
-                        .labelStyle(.titleAndIcon)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(TextTone.secondary(scheme))
-                .help("退出 OpenAI API 仪表盘")
-            }
-            .padding(.horizontal, UI.hPad)
-            .padding(.vertical, 11)
-        }
-    }
-
     private var statusText: String {
         if model.isLoading && model.snapshot == nil { return "正在更新…" }
-        guard let snap = model.snapshot else { return "尚未加载" }
-        return Fmt.updatedLabel(snap.fetchedAt)
+        let latest = [model.snapshot?.fetchedAt, model.liveCredit?.at, model.subscription?.fetchedAt]
+            .compactMap { $0 }.max()
+        return latest.map { Fmt.updatedLabel($0) } ?? "尚未加载"
     }
 
-    private func openSettings() {
-        // 先收起菜单面板，再开设置窗口：两个窗口不该同时浮在屏幕上
-        MenuBarPanel.closeIfOpen()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
-            SettingsWindow.show(model: model)
-        }
-    }
 }
 
 // MARK: - 14 天柱状图（自绘）
@@ -1084,7 +1075,14 @@ private struct DayBars: View {
 
 // MARK: - 设置
 
-struct SettingsView: View {
+struct APIConfigurationView: View {
+    let onSave: () -> Void
+    @State private var sectionIndex: Int
+
+    init(showCredit: Bool, onSave: @escaping () -> Void) {
+        _sectionIndex = State(initialValue: showCredit ? 1 : 0)
+        self.onSave = onSave
+    }
     @EnvironmentObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
 
@@ -1103,54 +1101,26 @@ struct SettingsView: View {
     private enum Field { case key, project, label }
 
     var body: some View {
-        ZStack {
-            PanelBackground()
-
-            VStack(spacing: 0) {
-                header
-
-                ScrollView {
-                    VStack(spacing: 10) {
-                        keySection
-                        creditSection
-                        projectSection
-                        displaySection
-                        aboutSection
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 4)
-                    .padding(.bottom, 16)
-                }
-
-                footerBar
+        VStack(alignment: .leading, spacing: 14) {
+            Picker("配置类别", selection: $sectionIndex) {
+                Text("凭据").tag(0)
+                Text("余额").tag(1)
+                Text("其他").tag(2)
             }
+            .labelsHidden().pickerStyle(.segmented)
+            switch sectionIndex {
+            case 0: keySection
+            case 1: creditSection
+            default:
+                projectSection
+                displaySection
+                aboutSection
+            }
+            Spacer(minLength: 0)
+            footerBar
         }
-        .frame(width: 560, height: 720)
-        .tint(Color.brand(scheme))
+        .padding(.horizontal, UI.hPad)
         .onAppear(perform: loadDrafts)
-    }
-
-    // MARK: 头部
-
-    private var header: some View {
-        HStack(spacing: 13) {
-            Image(nsImage: LogoMark.image(size: 84))
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 42, height: 42)
-                .shadow(color: Color.black.opacity(0.3), radius: 6, y: 3)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("OpenAI API 仪表盘")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                Text("组织级用量与花费 · 数据来自 API 平台，与 ChatGPT 订阅无关")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(TextTone.secondary(scheme))
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 16)
     }
 
     // MARK: 各分区
@@ -1293,10 +1263,6 @@ struct SettingsView: View {
 
     private var displaySection: some View {
         section("显示", icon: "slider.horizontal.3") {
-            AppearanceRow(selection: model.config.appearanceMode) { mode in
-                model.update { $0.appearanceMode = mode }
-            }
-
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("菜单栏备注名")
@@ -1437,7 +1403,7 @@ struct SettingsView: View {
         creditDraft = model.config.showCredit
     }
 
-    /// 保存即完成：写配置 → 刷新数据 → 关闭设置窗口
+    /// 保存后返回 API 用量页
     private func saveAndClose() {
         let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         if key != model.config.adminKey {
@@ -1457,7 +1423,7 @@ struct SettingsView: View {
             cfg.showCredit = creditDraft
         }
         NSApp.keyWindow?.makeFirstResponder(nil)
-        SettingsWindow.close()
+        onSave()
     }
 
     private func clearKey() {

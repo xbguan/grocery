@@ -36,6 +36,39 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastKnownCredit: LiveCredit?
     @Published private(set) var creditState: CreditBridge.State = .off
 
+    @Published private(set) var subscription: SubscriptionSnapshot?
+    @Published private(set) var subscriptionError: String?
+    @Published private(set) var subscriptionLoading = false
+    private var subscriptionTask: Task<Void, Never>?
+
+    func setSubscriptionEnabled(_ enabled: Bool) {
+        config.showSubscription = enabled
+        subscriptionTask?.cancel()
+        subscriptionTask = nil
+        subscription = nil
+        subscriptionError = nil
+        subscriptionLoading = false
+        if enabled { refreshSubscription() }
+    }
+
+    private func refreshSubscription() {
+        guard config.showSubscription, !subscriptionLoading else { return }
+        subscriptionLoading = true
+        subscriptionTask = Task {
+            let result = await Task.detached(priority: .utility) { Result { try SubscriptionReader.read() } }.value
+            guard !Task.isCancelled else { return }
+            subscriptionLoading = false
+            switch result {
+            case .success(let value):
+                subscription = value
+                subscriptionError = nil
+            case .failure(let error):
+                subscription = nil
+                subscriptionError = (error as? SubscriptionReadError ?? .service).localizedDescription
+            }
+        }
+    }
+
     private var timer: Timer?
 
     init() {
@@ -113,7 +146,7 @@ final class AppModel: ObservableObject {
     func loadDemoEmpty() {
         snapshot = nil
         errorText = "还没有配置 Admin Key"
-        errorHint = "Admin Key 只能在设置里填入，App 不会内置任何 Key。"
+        errorHint = "Admin Key 请在 API 配置中填入，App 不会内置任何 Key。"
         errorKind = .noKey
     }
 
@@ -171,7 +204,7 @@ final class AppModel: ObservableObject {
         snapshot = nil
         hasLoadedOnce = false
         errorText = "还没有配置 Admin Key"
-        errorHint = "在「设置」里填入 Admin Key，它会加密保存在本机。"
+        errorHint = "在「API 配置」里填入 Admin Key，它会加密保存在本机。"
         errorKind = .noKey
         return true
     }
@@ -308,13 +341,17 @@ final class AppModel: ObservableObject {
 
     // MARK: 数据加载
 
-    func refresh() async {
+    func refresh(manual: Bool = false) async {
         // 余额与 Key 无关：只要开启了实时余额，就顺带刷一次（按「自动刷新」间隔节流，不重复整页加载）
-        if config.showCredit { creditBridge.refresh(stale: TimeInterval(config.refreshMinutes * 60)) }
+        refreshSubscription()
+        if config.showCredit {
+            if manual && creditState != .loading { creditBridge.forceReload() }
+            else { creditBridge.refresh(stale: TimeInterval(config.refreshMinutes * 60)) }
+        }
 
         guard config.hasKey else {
             errorText = "还没有配置 Admin Key"
-            errorHint = config.credentialReadFailed ? "请检查本地凭据目录，或在设置中重新填写 Key。" : "请在设置中填写 Admin Key，它会加密保存在本机。"
+            errorHint = config.credentialReadFailed ? "请检查本地凭据目录，或在 API 配置中重新填写 Key。" : "请在 API 配置中填写 Admin Key，它会加密保存在本机。"
             errorKind = .noKey
             return
         }
