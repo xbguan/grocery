@@ -434,7 +434,7 @@ struct MenuContentView: View {
         HStack(spacing: 11) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.rawValue)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: page == .settings ? 24 : 17, weight: .semibold, design: .rounded))
                 if page == .usage {
                     Text(subtitle)
                         .font(.system(size: 11.5))
@@ -1061,6 +1061,46 @@ private struct DayBars: View {
 
 // MARK: - 设置
 
+private struct SettingsFieldSurface: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    var focused = false
+
+    func body(content: Content) -> some View {
+        content
+            .textFieldStyle(.plain)
+            .font(.system(size: 16))
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(focused ? Color.brand(scheme) : Glass.hairline(scheme),
+                              lineWidth: focused ? 2 : 1)
+                .allowsHitTesting(false))
+            .contentShape(Rectangle())
+    }
+}
+
+private struct SettingsActionStyle: ButtonStyle {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.isEnabled) private var enabled
+    var prominent = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(prominent ? Color.black : Color.primary)
+            .padding(.horizontal, prominent ? 26 : 16)
+            .frame(minHeight: 44)
+            .background {
+                if prominent { Capsule().fill(Color.brand(scheme)) }
+                else { Capsule().fill(.thinMaterial) }
+            }
+            .overlay(Capsule().strokeBorder(Glass.stroke(scheme), lineWidth: 1))
+            .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.48)
+            .contentShape(Capsule())
+    }
+}
+
 struct SettingsForm: View {
     let onSave: () -> Void
     @EnvironmentObject var model: AppModel
@@ -1082,74 +1122,109 @@ struct SettingsForm: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ViewThatFits(in: .vertical) {
-                groups.fixedSize(horizontal: false, vertical: true)
-                ScrollView { groups }
+            ScrollView {
+                groups
+                    .padding(.horizontal, UI.hPad)
+                    .padding(.vertical, 6)
             }
-            Spacer(minLength: 0)
+            .scrollBounceBehavior(.basedOnSize)
             footerBar
         }
-        .padding(.horizontal, UI.hPad)
         .onAppear(perform: loadDrafts)
     }
 
     private var groups: some View {
-        VStack(alignment: .leading, spacing: UI.gap) {
+        VStack(alignment: .leading, spacing: 16) {
             section("通用", icon: "slider.horizontal.3") {
                 AppearanceRow(selection: model.config.appearanceMode) { mode in
                     model.update { $0.appearanceMode = mode }
                 }
+                Divider()
                 row("自动刷新间隔") {
-                    Picker("自动刷新间隔", selection: $refreshDraft) {
-                        ForEach([5, 15, 30, 60], id: \.self) { Text("\($0) 分钟").tag($0) }
+                    Menu {
+                        Picker("自动刷新间隔", selection: $refreshDraft) {
+                            ForEach([5, 15, 30, 60], id: \.self) { Text("\($0) 分钟").tag($0) }
+                        }
+                    } label: {
+                        HStack {
+                            Text("\(refreshDraft) 分钟")
+                            Spacer()
+                            Image(systemName: "chevron.up.chevron.down").font(.footnote)
+                        }
+                        .modifier(SettingsFieldSurface())
                     }
-                    .labelsHidden()
+                    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+                    .accessibilityLabel("自动刷新间隔，\(refreshDraft) 分钟")
                 }
+                hint("按此间隔更新所有已连接的数据源，也可以点击左栏顶部手动刷新。")
                 row("备注名") {
                     TextField("OpenAI 仪表盘", text: $labelDraft)
                         .focused($focusedField, equals: .label)
+                        .modifier(SettingsFieldSurface(focused: focusedField == .label))
                 }
+                hint("显示在左栏顶部，留空使用默认名称。")
             }
             section("API 用量", icon: "chevron.left.forwardslash.chevron.right") {
                 row("Admin Key") {
-                    Group {
-                        if showKey {
-                            TextField("sk-admin-…", text: $keyDraft)
-                        } else {
-                            SecureField("sk-admin-…", text: $keyDraft)
+                    HStack(spacing: 4) {
+                        Group {
+                            if showKey {
+                                TextField("sk-admin-…", text: $keyDraft)
+                            } else {
+                                SecureField("sk-admin-…", text: $keyDraft)
+                            }
                         }
+                        .focused($focusedField, equals: .key)
+                        .accessibilityLabel("Admin Key")
+                        Button { showKey.toggle() } label: {
+                            Image(systemName: showKey ? "eye.slash" : "eye")
+                                .frame(width: 40, height: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showKey ? "隐藏 Admin Key" : "显示 Admin Key")
                     }
-                    .focused($focusedField, equals: .key)
-                    .help(keyFingerprint ?? "Admin Key 在本机加密保存")
-                    Button { showKey.toggle() } label: {
-                        Image(systemName: showKey ? "eye.slash" : "eye")
-                    }
-                    .accessibilityLabel(showKey ? "隐藏 Admin Key" : "显示 Admin Key")
+                    .modifier(SettingsFieldSurface(focused: focusedField == .key))
+                }
+                hint("使用 sk-admin- 开头的组织管理员 Key。普通项目 Key 无法查询组织用量。Key 在本机加密保存。")
+                if let keyFingerprint {
+                    Text(keyFingerprint).font(.system(size: 13, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+                HStack(spacing: 10) {
                     Button(isTesting ? "测试中…" : "测试连接") { runTest() }
                         .disabled(isTesting || keyDraft.isEmpty)
-                    Button("清除") { clearKey() }.disabled(keyDraft.isEmpty)
+                    Button("清除 Key") { clearKey() }.disabled(keyDraft.isEmpty)
                 }
                 if let testMessage {
-                    Text(testMessage).font(.caption)
+                    Text(testMessage).font(.system(size: 14))
                         .foregroundStyle(testOK ? Color.brand(scheme) : Color.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                Divider()
                 row("项目 ID") {
                     TextField("选填 · proj_…", text: $projectDraft)
                         .focused($focusedField, equals: .project)
-                        .help("留空统计整个组织，填写后仅统计该项目")
+                        .modifier(SettingsFieldSurface(focused: focusedField == .project))
                 }
-                row("显示实时余额") {
+                hint("留空统计整个组织，填写后仅统计该项目。花费与用量按 UTC 自然日统计。")
+                Divider()
+                HStack {
+                    Text("显示实时余额")
+                    Spacer()
                     Toggle("显示实时余额", isOn: $creditDraft)
-                        .labelsHidden().toggleStyle(.switch)
-                    if model.config.showCredit && !creditDraft {
-                        Text("保存后清除平台登录态").font(.caption)
-                    }
+                        .labelsHidden().toggleStyle(.switch).controlSize(.large)
+                        .scaleEffect(1.3)
+                        .frame(width: 54, height: 44)
                 }
-                row("OpenAI 平台") {
-                    Text(creditStatusText).lineLimit(1).help(creditStatusText)
-                    Spacer(minLength: 0)
-                    Button(model.liveCredit == nil ? "登录" : "重新登录") {
+                hint("余额通过本机的 OpenAI 平台登录会话读取，Admin Key 无法读取余额。登录态由本机 WebKit 管理，App 不保存密码或明文 Cookie。关闭开关并保存后会清除平台登录态，下次需要重新登录。")
+                HStack {
+                    Text("OpenAI 平台")
+                    Spacer()
+                    Text(creditStatusText).foregroundStyle(TextTone.secondary(scheme))
+                }
+                HStack(spacing: 10) {
+                    Button(model.liveCredit == nil ? "登录平台" : "重新登录") {
                         creditDraft = true
                         model.loginForCredit()
                     }
@@ -1157,16 +1232,27 @@ struct SettingsForm: View {
                 }
             }
             section("ChatGPT 订阅", icon: "person") {
-                row("本机 Codex 账号") {
-                    Text(subscriptionStatus)
-                    Spacer(minLength: 0)
-                    Button(model.config.showSubscription ? "断开连接" : "连接本机 Codex") {
-                        model.setSubscriptionEnabled(!model.config.showSubscription)
-                    }
+                HStack {
+                    Text("本机 Codex 账号")
+                    Spacer()
+                    Text(subscriptionStatus).foregroundStyle(TextTone.secondary(scheme))
+                }
+                hint("从本机已登录的 Codex 读取订阅套餐和周额度。断开后清除仪表盘内的订阅读数。")
+                Button(model.config.showSubscription ? "断开连接" : "连接本机 Codex") {
+                    model.setSubscriptionEnabled(!model.config.showSubscription)
                 }
             }
         }
-        .controlSize(.small)
+        .font(.system(size: 16))
+        .buttonStyle(SettingsActionStyle())
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(TextTone.secondary(scheme))
+            .fixedSize(horizontal: false, vertical: true)
+            .lineSpacing(2)
     }
 
     private var subscriptionStatus: String {
@@ -1178,12 +1264,11 @@ struct SettingsForm: View {
 
     private func row<Content: View>(_ title: String,
                                     @ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 8) {
-            Text(title).frame(width: 92, alignment: .leading)
+        HStack(spacing: 12) {
+            Text(title).frame(width: 105, alignment: .leading)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .font(.system(size: 12))
     }
 
     private var creditStatusText: String {
@@ -1200,47 +1285,33 @@ struct SettingsForm: View {
     }
 
     private var footerBar: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Glass.hairline(scheme))
-                .frame(height: 1)
-
-            HStack(spacing: 12) {
-                Link(destination: URL(string: "https://platform.openai.com/settings/organization/api-keys")!) {
-                    Text("打开 OpenAI 后台")
-                        .font(.system(size: 11.5, weight: .medium))
-                }
-                Spacer()
-                Text(appVersion)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(TextTone.tertiary(scheme))
-                Button("保存") { saveAndClose() }
-                    .buttonStyle(BrandButtonStyle(scheme: scheme))
-                    .keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 13)
+        HStack(spacing: 12) {
+            Link("打开 OpenAI 后台", destination: URL(string: "https://platform.openai.com/settings/organization/api-keys")!)
+                .font(.system(size: 14, weight: .medium))
+            Spacer()
+            Text(appVersion).font(.caption).foregroundStyle(TextTone.secondary(scheme))
+            Button("保存") { saveAndClose() }
+                .buttonStyle(SettingsActionStyle(prominent: true))
+                .keyboardShortcut(.defaultAction)
         }
+        .padding(.horizontal, UI.hPad)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) { Divider() }
     }
-
-    // MARK: 零件
 
     private func section<Content: View>(_ title: String,
                                         icon: String,
                                         @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(Color.brand(scheme))
-                Text(title)
-                    .font(.system(size: 12.5, weight: .semibold))
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 21, weight: .semibold, design: .rounded))
+                .padding(.bottom, 3)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .glassCard(radius: 20)
+        .padding(18)
+        .glassCard(radius: 24)
     }
 
     private var appVersion: String {
