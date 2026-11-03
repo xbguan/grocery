@@ -40,17 +40,58 @@ final class AppModel: ObservableObject {
     @Published private(set) var lastSubscriptionUpdate: Date?
     @Published private(set) var subscriptionError: String?
     @Published private(set) var subscriptionLoading = false
+    @Published private(set) var subscriptionLoginInProgress = false
     private var subscriptionTask: Task<Void, Never>?
 
-    func setSubscriptionEnabled(_ enabled: Bool) {
-        config.showSubscription = enabled
+    func loginForSubscription() {
+        guard !subscriptionLoginInProgress else { return }
         subscriptionTask?.cancel()
-        subscriptionTask = nil
         lastSubscriptionUpdate = nil
         subscription = nil
         subscriptionError = nil
-        subscriptionLoading = false
-        if enabled { refreshSubscription() }
+        subscriptionLoading = true
+        subscriptionLoginInProgress = true
+        subscriptionTask = Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Result {
+                    try SubscriptionReader.login { url in
+                        DispatchQueue.main.sync { NSWorkspace.shared.open(url) }
+                    }
+                }
+            }.value
+            guard !Task.isCancelled else { return }
+            subscriptionLoading = false
+            subscriptionLoginInProgress = false
+            switch result {
+            case .success(let value):
+                config.showSubscription = true
+                lastSubscriptionUpdate = value.fetchedAt
+                subscription = value
+            case .failure(let error):
+                subscriptionError = (error as? SubscriptionReadError ?? .service).localizedDescription
+            }
+        }
+    }
+
+    func logoutSubscription() {
+        guard !subscriptionLoading else { return }
+        subscriptionLoading = true
+        subscriptionError = nil
+        subscriptionTask = Task {
+            let result = await Task.detached(priority: .utility) {
+                Result { try SubscriptionReader.logout() }
+            }.value
+            guard !Task.isCancelled else { return }
+            subscriptionLoading = false
+            switch result {
+            case .success:
+                config.showSubscription = false
+                subscription = nil
+                lastSubscriptionUpdate = nil
+            case .failure(let error):
+                subscriptionError = (error as? SubscriptionReadError ?? .service).localizedDescription
+            }
+        }
     }
 
     private func refreshSubscription() {

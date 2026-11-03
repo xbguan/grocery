@@ -420,13 +420,13 @@ struct MenuContentView: View {
             if let error = model.subscriptionError {
                 Text(error).foregroundStyle(TextTone.secondary(scheme))
             } else if !model.config.showSubscription {
-                Text("连接本机已登录的 Codex，可读取套餐及 Codex 周额度。")
+                Text("在设置中登录 ChatGPT，可读取套餐及 Codex 周额度。")
             } else if model.subscriptionLoading {
-                Text("正在读取本机 Codex 账号…")
+                Text(model.subscriptionLoginInProgress ? "等待 ChatGPT 登录…" : "正在读取订阅…")
             } else if data?.usageUnavailable == true {
                 Text("已取得套餐，额度读取失败。请检查网络后刷新。")
             } else if data != nil {
-                Text("来源：Codex 登录 · 具体价格档位以 ChatGPT 为准")
+                Text("来源：软件专属 ChatGPT 登录 · 具体价格档位以 ChatGPT 为准")
                     .foregroundStyle(TextTone.secondary(scheme))
             }
             if data == nil {
@@ -1266,13 +1266,20 @@ struct SettingsForm: View {
             }
             section("ChatGPT 订阅", icon: "person") {
                 HStack {
-                    Text("Codex 登录")
+                    Text("ChatGPT 登录")
                     Spacer()
                     Text(subscriptionStatus).foregroundStyle(TextTone.secondary(scheme))
                 }
-                hint("Codex 是 OpenAI 的编程工具。这里读取它在本机保存的 ChatGPT 登录，不复用 API 平台登录；未单独安装 CLI 时也会尝试 Codex 或 ChatGPT 应用内的程序。")
-                Button(model.config.showSubscription ? "断开连接" : "读取 Codex 账号") {
-                    model.setSubscriptionEnabled(!model.config.showSubscription)
+                hint("订阅登录由本软件单独保存，不受日常 Codex 切换供应商影响，也不复用 API 余额的平台登录。读取仍需本机有 Codex CLI、Codex 或 ChatGPT 应用。")
+                HStack(spacing: 10) {
+                    Button(model.subscriptionLoginInProgress ? "登录中…" : "登录 ChatGPT") {
+                        model.loginForSubscription()
+                    }
+                    .disabled(model.subscriptionLoading)
+                    if model.config.showSubscription {
+                        Button("退出登录") { model.logoutSubscription() }
+                            .disabled(model.subscriptionLoading)
+                    }
                 }
             }
         }
@@ -1289,6 +1296,7 @@ struct SettingsForm: View {
     }
 
     private var subscriptionStatus: String {
+        if model.subscriptionLoginInProgress { return "登录中…" }
         if model.subscriptionLoading { return "读取中…" }
         if model.subscriptionError != nil { return "读取失败" }
         if model.subscription != nil { return "已连接" }
