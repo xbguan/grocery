@@ -342,26 +342,37 @@ struct MenuContentView: View {
             navButton(.usage, icon: "chevron.left.forwardslash.chevron.right")
             navButton(.subscription, icon: "person")
             Spacer()
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 Text(statusText).font(.caption2).lineLimit(1)
                     .foregroundStyle(TextTone.secondary(scheme))
+                    .help(statusText)
                 Spacer(minLength: 0)
                 Button { page = .settings } label: {
-                    Label("设置", systemImage: "gearshape")
+                    sidebarActionLabel("设置", icon: "gearshape")
                 }
                     .foregroundStyle(page == .settings ? Color.brand(scheme) : .primary)
                     .accessibilityAddTraits(page == .settings ? .isSelected : [])
                 Button { NSApplication.shared.terminate(nil) } label: {
-                    Label("退出", systemImage: "rectangle.portrait.and.arrow.right")
+                    sidebarActionLabel("退出", icon: "rectangle.portrait.and.arrow.right")
                 }
             }
             .buttonStyle(.plain)
-            .font(.caption)
         }
         .padding(12)
         .frame(width: UI.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background(Glass.inset(scheme))
+    }
+
+    private func sidebarActionLabel(_ title: String, icon: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).accessibilityHidden(true)
+            Text(title)
+        }
+        .font(.system(size: 13))
+        .fixedSize()
+        .frame(minWidth: 51, minHeight: 30)
+        .contentShape(Rectangle())
     }
 
     private func navButton(_ destination: Page, icon: String) -> some View {
