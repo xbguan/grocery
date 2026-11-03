@@ -1,4 +1,4 @@
-# 项目规约 · OpenAI API 仪表盘
+# 项目规约 · OpenAI 仪表盘
 
 本文件是本项目的强制约定，任何代码改动都必须遵守。
 
@@ -45,7 +45,7 @@
 - 最低系统版本 `LSMinimumSystemVersion = 14.0`（macOS Sonoma），`minos` 需与此一致
 - 每次打包后必须检查：
   ```bash
-  lipo -archs "dist/.../OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
+  lipo -archs "dist/.../OpenAI 仪表盘.app/Contents/MacOS/OpenAIBar"
   # 期望输出：x86_64 arm64
   ```
 - 依赖只能来自 `/usr/lib`、`/System/Library`；`otool -L` 中 `@rpath` 依赖数必须为 0
@@ -139,7 +139,7 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
     security add-trusted-cert -d -r trustRoot -p codeSign -k ~/Library/Keychains/login.keychain-db /tmp/oai-cert.pem
     ```
   - ⚠️ **证书签名必须前台 + 沙箱外跑 `make-dmg.sh`**：codesign 要访问钥匙串，沙箱内会报 `errSecInternalComponent`（`login.keychain-db file-delete` 被拦）。后台任务（run_in_background）里沙箱绕过不生效。
-- 本机无 Apple 开发者证书，做不了公证。用户首次打开需右键 → 打开，或 `xattr -cr "/Applications/OpenAI API 仪表盘.app"`
+- 本机无 Apple 开发者证书，做不了公证。用户首次打开需右键 → 打开，或 `xattr -cr "/Applications/OpenAI 仪表盘.app"`
 - 这段说明已印在 DMG 背景图底部，无需额外告知
 
 ## 8. 余额读取（平台登录态）

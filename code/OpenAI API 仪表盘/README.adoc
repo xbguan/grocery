@@ -1,4 +1,4 @@
-= OpenAI API 仪表盘 — macOS 菜单栏 API 用量监控
+= OpenAI 仪表盘 — macOS 菜单栏 API 用量与 ChatGPT 订阅
 :sectnums:
 :toc: left
 :toclevels: 2
@@ -9,11 +9,11 @@
 
 == 已安装
 
-* 应用位置：`/Applications/OpenAI API 仪表盘.app`（放 `~/Applications/` 同样能用，卸载脚本两处都会找）
+* 应用位置：`/Applications/OpenAI 仪表盘.app`（放 `~/Applications/` 同样能用，卸载脚本两处都会找）
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI API 仪表盘-1.10.0.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI 仪表盘-1.10.1.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -147,7 +147,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI API 仪表盘-1.10.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI 仪表盘-1.10.1.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
@@ -158,7 +158,7 @@ image::dmg-window.png[width=520]
 
 [quote]
 ____
-"OpenAI API 仪表盘"无法打开，因为无法验证开发者。
+"OpenAI 仪表盘"无法打开，因为无法验证开发者。
 ____
 
 两种放行办法，任选其一：
@@ -168,7 +168,7 @@ ____
 +
 [source,bash]
 ----
-xattr -cr "/Applications/OpenAI API 仪表盘.app"
+xattr -cr "/Applications/OpenAI 仪表盘.app"
 ----
 
 用 U 盘拷贝一般不带隔离标记，双击即可。若提示的是「App 已损坏，无法打开」，同样是隔离标记作祟，用第 2 条处理。
@@ -197,8 +197,8 @@ cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
 
 产物：
 
-* `.build/bundle/OpenAI API 仪表盘.app` —— 可运行的原件（不再往项目根拷 .app，见下文）
-* `dist/OpenAI API 仪表盘-<版本>.dmg` —— 分发包
+* `.build/bundle/OpenAI 仪表盘.app` —— 可运行的原件（不再往项目根拷 .app，见下文）
+* `dist/OpenAI 仪表盘-<版本>.dmg` —— 分发包
 
 === 项目规约
 
@@ -221,7 +221,7 @@ cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
 
 [source,bash]
 ----
-BIN=".build/bundle/OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
+BIN=".build/bundle/OpenAI 仪表盘.app/Contents/MacOS/OpenAIBar"
 "$BIN" --demo              # 浅色 + 假数据
 "$BIN" --demo --demo-dark  # 深色
 "$BIN" --demo --demo-empty # 未配置 Key 的状态
@@ -238,7 +238,7 @@ BIN=".build/bundle/OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
 
 == 卸载
 
-覆盖升级请直接替换 App。完整卸载会清除设置、加密凭据和平台登录态。
+1.10.1 起应用更名为「OpenAI 仪表盘」。从旧名升级时，先退出旧 App，在「应用程序」中将「OpenAI API 仪表盘.app」重命名为「OpenAI 仪表盘.app」，再从镜像拖入并选择替换。配置、凭据及平台会话沿用原位置。此后的覆盖升级直接替换 App。完整卸载会清除设置、加密凭据和平台登录态。
 
 === 一条命令搞定
 
@@ -256,7 +256,7 @@ cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
 [source,bash]
 ----
 # 1. 删 App
-mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
+mv "/Applications/OpenAI 仪表盘.app" ~/.Trash/
 
 # 2. 仅曾安装 1.6.1 或更早版本时，按需清理遗留凭据
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v3"

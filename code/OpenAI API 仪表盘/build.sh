@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 构建并打包「OpenAI API 仪表盘」（无需完整 Xcode，Command Line Tools 即可）
+# 构建并打包「OpenAI 仪表盘」（无需完整 Xcode，Command Line Tools 即可）
 #
 #   ./build.sh              只编译本机架构（快，日常开发用）
 #   ./build.sh --universal  编译 arm64 + x86_64 通用二进制（发给别的 Mac 用）
@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 EXEC_NAME="OpenAIBar"                # 二进制名（Info.plist 的 CFBundleExecutable）
-APP_NAME="OpenAI API 仪表盘"          # 显示名 / .app 文件名
+APP_NAME="OpenAI 仪表盘"          # 显示名 / .app 文件名
 APP_BUNDLE="${APP_NAME}.app"
 DEPLOY_TARGET="14.0"
 
@@ -86,10 +86,16 @@ echo "    架构: $(lipo -archs "${BUNDLE_DIR}/Contents/MacOS/${EXEC_NAME}")"
 # 而且 DMG 打包与安装都直接用 .build/bundle 里的原件，不需要根目录副本。
 if [[ $INSTALL -eq 1 ]]; then
   echo "==> 安装到 /Applications"
-  pkill -f "${APP_BUNDLE}/Contents/MacOS/${EXEC_NAME}" 2>/dev/null || true
+  for installed in "/Applications/${APP_BUNDLE}" "/Applications/OpenAI API 仪表盘.app"; do
+    [[ -d "$installed" ]] || continue
+    pkill -f "$installed/Contents/MacOS/${EXEC_NAME}" 2>/dev/null || true
+  done
   [[ -e "/Applications/${APP_BUNDLE}" ]] && mv "/Applications/${APP_BUNDLE}" \
     "$HOME/.Trash/${APP_NAME}-旧版本-$(date +%s).app" 2>/dev/null || true
   ditto "$BUNDLE_DIR" "/Applications/${APP_BUNDLE}"
+  if [[ -d "/Applications/OpenAI API 仪表盘.app" ]]; then
+    mv "/Applications/OpenAI API 仪表盘.app" "$HOME/.Trash/OpenAI API 仪表盘-旧版本-$(date +%s).app"
+  fi
   echo "    已安装: /Applications/${APP_BUNDLE}"
 fi
 

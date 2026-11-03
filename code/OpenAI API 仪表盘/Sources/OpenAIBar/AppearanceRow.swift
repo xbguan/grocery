@@ -25,7 +25,7 @@ struct AppearanceRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("外观模式").font(.system(size: 16, weight: .medium))
+            Text("外观模式").font(.system(size: 13, weight: .medium))
             HStack(spacing: 10) {
                 ForEach(AppearanceMode.allCases, id: \.self) { mode in
                     let selected = selection == mode
@@ -49,7 +49,7 @@ struct AppearanceRow: View {
                                 if selected { Image(systemName: "checkmark") }
                                 Text(mode.title)
                             }
-                                .font(.system(size: 15, weight: selected ? .semibold : .regular))
+                                .font(.system(size: 13, weight: selected ? .semibold : .regular))
                                 .foregroundStyle(scheme == .dark ? Color.white : .black)
                         }
                         .padding(8)
@@ -66,7 +66,7 @@ struct AppearanceRow: View {
                 }
             }
             Text("选择后立即生效。系统模式跟随 macOS 外观。")
-                .font(.system(size: 14)).foregroundStyle(TextTone.secondary(scheme))
+                .font(.system(size: 11.5)).foregroundStyle(TextTone.secondary(scheme))
         }
     }
 }

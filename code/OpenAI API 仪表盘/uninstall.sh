@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 彻底卸载「OpenAI API 仪表盘」
+# 彻底卸载「OpenAI 仪表盘」
 #
 # 只把 App 拖进废纸篓是不够的 —— 钥匙串里的 Admin Key、配置目录、
 # 以及余额功能用到的平台登录态都不会跟着走，这个脚本把它们一起清干净。
@@ -9,7 +9,7 @@
 #   ./uninstall.sh --dry-run    只看不删
 set -euo pipefail
 
-APP_NAME="OpenAI API 仪表盘"
+APP_NAMES=("OpenAI 仪表盘" "OpenAI API 仪表盘")
 EXEC_NAME="OpenAIBar"
 BUNDLE_ID="com.xbguan.openai-api-dashboard"
 ACCOUNT="openai-admin-key-v3"
@@ -37,14 +37,14 @@ done
 # ---------- 找出 App 可能所在的每一处 ----------
 typeset -a APP_PATHS
 typeset -A seen
-for p in "/Applications/${APP_NAME}.app" \
-         "${HOME}/Applications/${APP_NAME}.app" \
-         "${PWD}/${APP_NAME}.app"; do
-  [[ -d "$p" ]] || continue
-  real=$(cd "$(dirname "$p")" && pwd)/$(basename "$p")
-  [[ -n "${seen[$real]:-}" ]] && continue
-  seen[$real]=1
-  APP_PATHS+=("$real")
+for name in "${APP_NAMES[@]}"; do
+  for p in "/Applications/${name}.app" "${HOME}/Applications/${name}.app" "${PWD}/${name}.app"; do
+    [[ -d "$p" ]] || continue
+    real=$(cd "$(dirname "$p")" && pwd)/$(basename "$p")
+    [[ -n "${seen[$real]:-}" ]] && continue
+    seen[$real]=1
+    APP_PATHS+=("$real")
+  done
 done
 
 # ---------- 报告 ----------
@@ -83,8 +83,9 @@ fi
 
 echo ""
 # ---------- 1. 退出进程 ----------
-if pgrep -f "${APP_NAME}.app/Contents/MacOS/${EXEC_NAME}" >/dev/null 2>&1; then
-  pkill -f "${APP_NAME}.app/Contents/MacOS/${EXEC_NAME}" 2>/dev/null || true
+process_pattern="OpenAI( API)? 仪表盘[.]app/Contents/MacOS/${EXEC_NAME}"
+if pgrep -f "$process_pattern" >/dev/null 2>&1; then
+  pkill -f "$process_pattern" 2>/dev/null || true
   sleep 1
   echo "✓ 已退出进程"
 else
@@ -158,7 +159,7 @@ else
 fi
 
 remaining=0
-for p in "/Applications/${APP_NAME}.app" "${HOME}/Applications/${APP_NAME}.app"; do
+for p in "${APP_PATHS[@]}"; do
   [[ -d "$p" ]] && remaining=1
 done
 if [[ $remaining -eq 1 ]]; then

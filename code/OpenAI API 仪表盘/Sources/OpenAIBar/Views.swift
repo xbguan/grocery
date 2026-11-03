@@ -328,10 +328,14 @@ struct MenuContentView: View {
                 Text(statusText).font(.caption2).lineLimit(1)
                     .foregroundStyle(TextTone.secondary(scheme))
                 Spacer(minLength: 0)
-                Button("设置") { page = .settings }
+                Button { page = .settings } label: {
+                    Label("设置", systemImage: "gearshape")
+                }
                     .foregroundStyle(page == .settings ? Color.brand(scheme) : .primary)
                     .accessibilityAddTraits(page == .settings ? .isSelected : [])
-                Button("退出") { NSApplication.shared.terminate(nil) }
+                Button { NSApplication.shared.terminate(nil) } label: {
+                    Label("退出", systemImage: "rectangle.portrait.and.arrow.right")
+                }
             }
             .buttonStyle(.plain)
             .font(.caption)
@@ -434,7 +438,7 @@ struct MenuContentView: View {
         HStack(spacing: 11) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.rawValue)
-                    .font(.system(size: page == .settings ? 24 : 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
                 if page == .usage {
                     Text(subtitle)
                         .font(.system(size: 11.5))
@@ -1068,7 +1072,7 @@ private struct SettingsFieldSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .textFieldStyle(.plain)
-            .font(.system(size: 16))
+            .font(.system(size: 13))
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, minHeight: 44)
             .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 12))
@@ -1087,7 +1091,7 @@ private struct SettingsActionStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .semibold))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(prominent ? Color.black : Color.primary)
             .padding(.horizontal, prominent ? 26 : 16)
             .frame(minHeight: 44)
@@ -1197,7 +1201,7 @@ struct SettingsForm: View {
                     Button("清除 Key") { clearKey() }.disabled(keyDraft.isEmpty)
                 }
                 if let testMessage {
-                    Text(testMessage).font(.system(size: 14))
+                    Text(testMessage).font(.system(size: 11.5))
                         .foregroundStyle(testOK ? Color.brand(scheme) : Color.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1243,13 +1247,13 @@ struct SettingsForm: View {
                 }
             }
         }
-        .font(.system(size: 16))
+        .font(.system(size: 13))
         .buttonStyle(SettingsActionStyle())
     }
 
     private func hint(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14))
+            .font(.system(size: 11.5))
             .foregroundStyle(TextTone.secondary(scheme))
             .fixedSize(horizontal: false, vertical: true)
             .lineSpacing(2)
@@ -1287,7 +1291,7 @@ struct SettingsForm: View {
     private var footerBar: some View {
         HStack(spacing: 12) {
             Link("打开 OpenAI 后台", destination: URL(string: "https://platform.openai.com/settings/organization/api-keys")!)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
             Spacer()
             Text(appVersion).font(.caption).foregroundStyle(TextTone.secondary(scheme))
             Button("保存") { saveAndClose() }
@@ -1305,7 +1309,7 @@ struct SettingsForm: View {
                                         @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Label(title, systemImage: icon)
-                .font(.system(size: 21, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .padding(.bottom, 3)
             content()
         }

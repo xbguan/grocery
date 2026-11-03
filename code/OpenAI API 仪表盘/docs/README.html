@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.12">
-<title>OpenAI API 仪表盘 — macOS 菜单栏 API 用量监控</title>
+<title>OpenAI 仪表盘 — macOS 菜单栏 API 用量与 ChatGPT 订阅</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300,300italic,400,400italic,600,600italic%7CNoto+Serif:400,400italic,700,700italic%7CDroid+Sans+Mono:400,700">
 <style>
 /* Asciidoctor default stylesheet | MIT License | https://asciidoctor.org */
@@ -440,7 +440,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </head>
 <body class="article toc2 toc-left">
 <div id="header">
-<h1>OpenAI API 仪表盘 — macOS 菜单栏 API 用量监控</h1>
+<h1>OpenAI 仪表盘 — macOS 菜单栏 API 用量与 ChatGPT 订阅</h1>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
@@ -499,7 +499,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>应用位置：<code>/Applications/OpenAI API 仪表盘.app</code>（放 <code>~/Applications/</code> 同样能用，卸载脚本两处都会找）</p>
+<p>应用位置：<code>/Applications/OpenAI 仪表盘.app</code>（放 <code>~/Applications/</code> 同样能用，卸载脚本两处都会找）</p>
 </li>
 <li>
 <p>源码工程：<code>/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/</code></p>
@@ -511,7 +511,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Bundle ID：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>安装包：<code>dist/OpenAI API 仪表盘-1.10.0.dmg</code>（Intel / Apple 芯片通用）</p>
+<p>安装包：<code>dist/OpenAI 仪表盘-1.10.1.dmg</code>（Intel / Apple 芯片通用）</p>
 </li>
 </ul>
 </div>
@@ -771,7 +771,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p><code>dist/OpenAI API 仪表盘-1.10.0.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
+<p><code>dist/OpenAI 仪表盘-1.10.1.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
 </div>
 <div class="ulist">
 <ul>
@@ -791,7 +791,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="quoteblock">
 <blockquote>
 <div class="paragraph">
-<p>"OpenAI API 仪表盘"无法打开，因为无法验证开发者。</p>
+<p>"OpenAI 仪表盘"无法打开，因为无法验证开发者。</p>
 </div>
 </blockquote>
 </div>
@@ -807,7 +807,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p><strong>命令行</strong>（反复遇到时更省事）：</p>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-bash" data-lang="bash">xattr -cr "/Applications/OpenAI API 仪表盘.app"</code></pre>
+<pre class="highlight"><code class="language-bash" data-lang="bash">xattr -cr "/Applications/OpenAI 仪表盘.app"</code></pre>
 </div>
 </div>
 </li>
@@ -854,10 +854,10 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p><code>.build/bundle/OpenAI API 仪表盘.app</code> —— 可运行的原件（不再往项目根拷 .app，见下文）</p>
+<p><code>.build/bundle/OpenAI 仪表盘.app</code> —— 可运行的原件（不再往项目根拷 .app，见下文）</p>
 </li>
 <li>
-<p><code>dist/OpenAI API 仪表盘-&lt;版本&gt;.dmg</code> —— 分发包</p>
+<p><code>dist/OpenAI 仪表盘-&lt;版本&gt;.dmg</code> —— 分发包</p>
 </li>
 </ul>
 </div>
@@ -906,7 +906,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="highlight"><code class="language-bash" data-lang="bash">BIN=".build/bundle/OpenAI API 仪表盘.app/Contents/MacOS/OpenAIBar"
+<pre class="highlight"><code class="language-bash" data-lang="bash">BIN=".build/bundle/OpenAI 仪表盘.app/Contents/MacOS/OpenAIBar"
 "$BIN" --demo              # 浅色 + 假数据
 "$BIN" --demo --demo-dark  # 深色
 "$BIN" --demo --demo-empty # 未配置 Key 的状态
@@ -934,7 +934,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_卸载">12. 卸载</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>覆盖升级请直接替换 App。完整卸载会清除设置、加密凭据和平台登录态。</p>
+<p>1.10.1 起应用更名为「OpenAI 仪表盘」。从旧名升级时，先退出旧 App，在「应用程序」中将「OpenAI API 仪表盘.app」重命名为「OpenAI 仪表盘.app」，再从镜像拖入并选择替换。配置、凭据及平台会话沿用原位置。此后的覆盖升级直接替换 App。完整卸载会清除设置、加密凭据和平台登录态。</p>
 </div>
 <div class="sect2">
 <h3 id="_一条命令搞定">12.1. 一条命令搞定</h3>
@@ -954,7 +954,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="listingblock">
 <div class="content">
 <pre class="highlight"><code class="language-bash" data-lang="bash"># 1. 删 App
-mv "/Applications/OpenAI API 仪表盘.app" ~/.Trash/
+mv "/Applications/OpenAI 仪表盘.app" ~/.Trash/
 
 # 2. 仅曾安装 1.6.1 或更早版本时，按需清理遗留凭据
 security delete-generic-password -s "com.xbguan.openai-api-dashboard" -a "openai-admin-key-v3"
@@ -981,7 +981,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-11-03 08:30:34 +0800
+Last updated 2026-11-03 08:47:08 +0800
 </div>
 </div>
 </body>

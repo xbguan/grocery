@@ -23,7 +23,7 @@ enum DemoWindow {
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
-        window.title = "OpenAI API 仪表盘 · 预览（假数据）"
+        window.title = "OpenAI 仪表盘 · 预览（假数据）"
         window.titlebarAppearsTransparent = true
         window.appearance = NSAppearance(named: args.contains("--demo-dark") ? .darkAqua : .aqua)
         window.contentView = hosting

@@ -4,15 +4,15 @@
 #   ./make-dmg.sh            直接打包现有 .app
 #   ./make-dmg.sh --rebuild  先重新编译通用版本再打包
 #
-# 产物: dist/OpenAI API 仪表盘-<版本>.dmg
+# 产物: dist/OpenAI 仪表盘-<版本>.dmg
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="OpenAI API 仪表盘"
+APP_NAME="OpenAI 仪表盘"
 APP_BUNDLE="${APP_NAME}.app"
 BUILT_APP=".build/bundle/${APP_BUNDLE}"   # build.sh 组装的原件，避免碰项目根下受保护的副本
 EXEC_NAME="OpenAIBar"
-VOL_NAME="OpenAI API 仪表盘"
+VOL_NAME="OpenAI 仪表盘"
 DIST="dist"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
