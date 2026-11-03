@@ -8,6 +8,8 @@ import AppKit
 // （顶部高光描边 + 底部收紧）→ 内容。卡片之间留出间隙，靠柔影分层，
 // 而不是靠分隔线。
 
+private let adminKeysURL = URL(string: "https://platform.openai.com/settings/organization/admin-keys")!
+
 enum UI {
     static let panelWidth: CGFloat = 708
     static let sidebarWidth: CGFloat = 202
@@ -976,7 +978,7 @@ struct MenuContentView: View {
             primaryAction
 
             if model.errorKind == .noKey || model.errorKind == .auth {
-                Link(destination: URL(string: "https://platform.openai.com/settings/organization/admin-keys")!) {
+                Link(destination: adminKeysURL) {
                     Text("打开 OpenAI 后台创建 Admin Key")
                         .font(.system(size: 11.5, weight: .medium))
                 }
@@ -1208,6 +1210,14 @@ struct SettingsForm: View {
                     Button(isTesting ? "测试中…" : "测试连接") { runTest() }
                         .disabled(isTesting || keyDraft.isEmpty)
                     Button("清除 Key") { clearKey() }.disabled(keyDraft.isEmpty)
+                    Link(destination: adminKeysURL) {
+                        HStack(spacing: 4) {
+                            Text("管理 Admin Key")
+                            Image(systemName: "arrow.up.right").accessibilityHidden(true)
+                        }
+                    }
+                    .foregroundStyle(TextTone.secondary(scheme))
+                    .help("在浏览器中打开 OpenAI 平台的 Admin Keys 页面")
                 }
                 if let testMessage {
                     Text(testMessage).font(.system(size: 11))
@@ -1298,8 +1308,6 @@ struct SettingsForm: View {
 
     private var footerBar: some View {
         HStack(spacing: 12) {
-            Link("打开 OpenAI 后台", destination: URL(string: "https://platform.openai.com/settings/organization/api-keys")!)
-                .font(.system(size: 13, weight: .medium))
             Spacer()
             Text(appVersion).font(.caption).foregroundStyle(TextTone.secondary(scheme))
             Button("保存") { saveAndClose() }
