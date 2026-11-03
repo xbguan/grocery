@@ -90,19 +90,29 @@ private struct GlassCard: ViewModifier {
     var elevated: Bool = false
 
     func body(content: Content) -> some View {
-        content
+        let dark = scheme == .dark
+        let fill = LinearGradient(colors: [
+            Color.white.opacity(dark ? 0.065 : 0.79),
+            Color.white.opacity(dark ? 0.055 : 0.63)
+        ], startPoint: .top, endPoint: .bottom)
+        let edge = LinearGradient(colors: [
+            dark ? Color.white.opacity(0.055) : Color.white.opacity(0.50),
+            dark ? Color.white.opacity(0.035) : Color.black.opacity(0.035)
+        ], startPoint: .topLeading, endPoint: .bottomTrailing)
+
+        return content
             .background(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(Glass.fill(scheme))
+                    .fill(fill)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Glass.stroke(scheme), lineWidth: 1)
+                    .strokeBorder(edge, lineWidth: 1)
             )
             .compositingGroup()
-            .shadow(color: Color.black.opacity(scheme == .dark ? 0.42 : 0.07),
-                    radius: elevated ? 16 : 9, x: 0, y: elevated ? 8 : 4)
-            .shadow(color: Color.black.opacity(scheme == .dark ? 0.22 : 0.035),
+            .shadow(color: Color.black.opacity(dark ? 0.20 : 0.05),
+                    radius: elevated ? 10 : 6, x: 0, y: elevated ? 4 : 2)
+            .shadow(color: Color.black.opacity(dark ? 0.09 : 0.025),
                     radius: 1, x: 0, y: 1)
     }
 }
