@@ -163,7 +163,9 @@ enum MenuBarIcon {
     private enum State { case normal, idle, alert }
 
     private static func render(_ state: State) -> NSImage {
-        let size = NSSize(width: 27, height: 20)
+        let drawingSize = NSSize(width: 27, height: 20)
+        let scale: CGFloat = 0.85
+        let size = NSSize(width: drawingSize.width * scale, height: drawingSize.height * scale)
         let deg = Double.pi / 180
 
         let img = NSImage(size: size, flipped: false) { _ in
@@ -171,11 +173,12 @@ enum MenuBarIcon {
 
             // 直接走 CGContext 画弧：NSBezierPath.appendArc 默认是顺时针，
             // 会把弧画到圆心下方，方向和预期相反。
-            let c = CGPoint(x: size.width / 2, y: 8.65)
+            let c = CGPoint(x: drawingSize.width / 2, y: 8.65)
             let r: CGFloat = 6.7
 
             ctx.saveGState()
-            let frame = CGRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1)
+            ctx.scaleBy(x: scale, y: scale)
+            let frame = CGRect(origin: .zero, size: drawingSize).insetBy(dx: 1, dy: 1)
             ctx.addPath(CGPath(roundedRect: frame, cornerWidth: 5, cornerHeight: 5, transform: nil))
             ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.76).cgColor)
             ctx.setLineWidth(1.1)
