@@ -331,8 +331,8 @@ struct MenuContentView: View {
                 }
             }
             .padding(.bottom, 12)
-            navButton(.usage, icon: "chart.bar")
-            navButton(.subscription, icon: "bubble.left.and.bubble.right")
+            navButton(.usage, icon: "chevron.left.forwardslash.chevron.right")
+            navButton(.subscription, icon: "person")
             Spacer()
             HStack(spacing: 8) {
                 Text(statusText).font(.caption2).lineLimit(1)
@@ -355,7 +355,13 @@ struct MenuContentView: View {
     private func navButton(_ destination: Page, icon: String) -> some View {
         let selected = page == destination || (page == .configuration && destination == .usage)
         return Button { page = destination } label: {
-            Label(destination.rawValue, systemImage: icon)
+            Label {
+                Text(destination.rawValue)
+            } icon: {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .regular))
+                    .frame(width: 20)
+            }
                 .font(.system(size: 13, weight: selected ? .semibold : .regular))
                 .padding(9)
                 .frame(maxWidth: .infinity, alignment: .leading)
