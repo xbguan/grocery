@@ -12,6 +12,10 @@ struct SubscriptionTests {
         precondition(snapshot.remainingPercent == 72 && snapshot.weeklyReset == Date(timeIntervalSince1970: 1793995200))
         precondition(snapshot.resetCredits == 0 && snapshot.plan == "plus")
 
+        precondition(SubscriptionSnapshot().maskedEmail == nil)
+        precondition(SubscriptionSnapshot(email: "a@example.com").maskedEmail == "***@example.com")
+        precondition(SubscriptionSnapshot(email: "incomplete").maskedEmail == nil)
+
         var missing = SubscriptionSnapshot()
         missing.apply(["rateLimits": ["limitId": "other", "primary": weekly]])
         precondition(missing.remainingPercent == nil && missing.resetCredits == nil)

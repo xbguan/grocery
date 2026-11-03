@@ -35,6 +35,7 @@ struct SubscriptionAuthTests {
         precondition(signedIn.plan == "pro" && signedIn.remainingPercent == 72)
         let refreshed = try SubscriptionReader.read(executable: helper, home: privateHome)
         precondition(refreshed.plan == "pro")
+        precondition(refreshed.maskedEmail == "li***@example.com")
 
         try SubscriptionReader.logout(executable: helper, home: privateHome)
         do {
@@ -66,7 +67,7 @@ struct SubscriptionAuthTests {
           printf '{"id":%s,"result":{"rateLimits":{"primary":{"windowDurationMins":10080,"usedPercent":28}}}}\\n' "$id" ;;
         *'"method":"account'*'read"'*)
           if [ -f "$CODEX_HOME/auth.json" ]; then
-            printf '{"id":%s,"result":{"account":{"type":"chatgpt","planType":"pro"}}}\\n' "$id"
+            printf '{"id":%s,"result":{"account":{"type":"chatgpt","planType":"pro","email":"linda@example.com"}}}\\n' "$id"
           else
             printf '{"id":%s,"result":{"account":null}}\\n' "$id"
           fi ;;

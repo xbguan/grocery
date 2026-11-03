@@ -264,6 +264,7 @@ struct MenuContentView: View {
     @State private var usingKeyboard = false
     @State private var navigationMonitor: Any?
     @State private var page: Page
+    @State private var showingPlanInfo = false
     @State private var costRange: CostRange = .last7
 
     init(initialPage: Page = .usage) {
@@ -388,79 +389,118 @@ struct MenuContentView: View {
     }
 
     private var subscription: some View {
-        let data = model.subscription
-        return VStack(alignment: .leading, spacing: 15) {
-            HStack {
-                Text("账号套餐").font(.headline)
-                Spacer()
-                Text(data == nil ? "—" : (data?.displayPlan ?? "未确认")).font(.headline)
+        VStack(alignment: .leading, spacing: UI.gap) {
+            if let data = model.subscription {
+                weeklyQuota(data)
+                resetCredits(data)
             }
-            if let raw = data?.plan {
-                if raw.lowercased() == "prolite" {
-                    Text("Codex 账号标识：\(raw)；具体 Pro 档位以 ChatGPT 为准")
-                        .font(.system(size: 12))
-                        .foregroundStyle(TextTone.secondary(scheme))
-                } else if data?.displayPlan == nil {
-                    Text("Codex 账号标识：\(raw)；对应订阅档位未确认")
-                        .font(.system(size: 12))
-                        .foregroundStyle(TextTone.secondary(scheme))
-                }
-            }
-            Text("Codex 本周剩余额度")
-                .font(.callout).foregroundStyle(TextTone.secondary(scheme))
-            Text(data?.remainingPercent.map { "\($0)%" } ?? "—")
-                .font(.system(size: 38, weight: .semibold, design: .rounded).monospacedDigit())
-            if let percent = data?.remainingPercent {
-                ProgressView(value: Double(percent), total: 100)
-            }
-            subscriptionRow("下次周重置", data?.weeklyReset?.formatted(date: .abbreviated, time: .shortened))
-            subscriptionRow("可用重置机会", data?.resetCredits.map { "\($0) 次" })
-            if let count = data?.resetCredits, count > 0 {
-                ForEach(data?.resetCreditDetails ?? []) { credit in
-                    HStack {
-                        Text("额度重置")
-                        Spacer()
-                        Text(credit.expiresAt.map {
-                            "有效期至 \($0.formatted(date: .abbreviated, time: .shortened))"
-                        } ?? "有效期未知")
-                            .foregroundStyle(TextTone.secondary(scheme))
-                    }
+            if let message = subscriptionMessage {
+                Text(message)
                     .font(.system(size: 12))
-                }
-                if count > (data?.resetCreditDetails.count ?? 0) {
-                    Text("另有 \(count - (data?.resetCreditDetails.count ?? 0)) 次机会，未取得有效期明细")
-                        .font(.system(size: 12))
-                        .foregroundStyle(TextTone.secondary(scheme))
-                }
-            }
-            if let error = model.subscriptionError {
-                Text(error).foregroundStyle(TextTone.secondary(scheme))
-            } else if !model.config.showSubscription {
-                Text("在设置中登录 ChatGPT，可读取套餐及 Codex 周额度。")
-            } else if model.subscriptionLoading {
-                Text(model.subscriptionLoginInProgress ? "等待 ChatGPT 登录…" : "正在读取订阅…")
-            } else if data?.usageUnavailable == true {
-                Text("已取得套餐，额度读取失败。请检查网络后刷新。")
-            } else if data != nil {
-                Text("来源：软件专属 ChatGPT 登录 · 具体价格档位以 ChatGPT 为准")
-                    .font(.system(size: 11))
                     .foregroundStyle(TextTone.secondary(scheme))
             }
-            if data == nil {
+            if model.subscription == nil {
                 Button("订阅设置") { page = .settings }
                     .buttonStyle(GlassPillStyle(compact: true))
             }
         }
-        .padding(16).glassCard()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, UI.hPad)
+        .padding(.bottom, 12)
     }
 
-    private func subscriptionRow(_ label: String, _ value: String?) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Text(value ?? (model.subscription == nil ? "—" : "未取得"))
-                .foregroundStyle(TextTone.secondary(scheme))
+    private var subscriptionMessage: String? {
+        if let error = model.subscriptionError { return error }
+        if model.subscriptionLoginInProgress { return "等待 ChatGPT 登录…" }
+        if !model.config.showSubscription { return "在设置中登录 ChatGPT，可读取套餐及 Codex 周额度。" }
+        if model.subscriptionLoading { return "正在读取订阅…" }
+        if model.subscription?.usageUnavailable == true { return "已取得套餐，额度读取失败。请检查网络后刷新。" }
+        return nil
+    }
+
+    private func weeklyQuota(_ data: SubscriptionSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Codex 本周剩余额度").fixedSize()
+                Spacer()
+                if let masked = data.maskedEmail, let email = data.email {
+                    Text(verbatim: masked)
+                        .lineLimit(1).truncationMode(.middle)
+                        .font(.system(size: 11))
+                        .help(email)
+                }
+            }
+            .font(.callout)
+            .foregroundStyle(TextTone.secondary(scheme))
+
+            Text(data.remainingPercent.map { "\($0)%" } ?? "—")
+                .font(.system(size: 28, weight: .semibold, design: .rounded).monospacedDigit())
+            if let percent = data.remainingPercent {
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.secondary.opacity(0.2))
+                        Capsule().fill(Color.brand(scheme))
+                            .frame(width: geometry.size.width * CGFloat(percent) / 100)
+                    }
+                }
+                .frame(height: 6)
+                .accessibilityRepresentation {
+                    ProgressView("Codex 本周剩余额度", value: Double(percent), total: 100)
+                }
+            }
+            HStack {
+                Text("下次周重置")
+                Text(data.weeklyReset?.formatted(date: .abbreviated, time: .shortened) ?? "未取得")
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(TextTone.secondary(scheme))
+        }
+        .padding(16).glassCard()
+    }
+
+    private func resetCredits(_ data: SubscriptionSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack {
+                Text("可用重置次数")
+                Spacer()
+                Text(data.resetCredits.map { "\($0) 次" } ?? "未取得")
+            }
+            .font(.headline)
+            ForEach(data.resetCreditDetails) { credit in
+                Divider()
+                HStack {
+                    Text(credit.expiresAt.map { "\($0.formatted(date: .abbreviated, time: .shortened)) 到期" } ?? "到期时间未知")
+                    Spacer()
+                    Text("1 次")
+                }
+                .font(.system(size: 12).monospacedDigit())
+            }
+            if let count = data.resetCredits, count > data.resetCreditDetails.count {
+                Text("另有 \(count - data.resetCreditDetails.count) 次未取得到期时间")
+                    .font(.system(size: 11))
+                    .foregroundStyle(TextTone.secondary(scheme))
+            }
+        }
+        .padding(16).glassCard()
+    }
+
+    private func planBadge(_ data: SubscriptionSnapshot) -> some View {
+        HStack(spacing: 6) {
+            Chip(text: data.displayPlan ?? "未确认")
+            Button { showingPlanInfo.toggle() } label: {
+                Image(systemName: "info.circle")
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("套餐说明")
+            .popover(isPresented: $showingPlanInfo) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("来源：本应用登录的 ChatGPT 账号")
+                    if let plan = data.plan { Text("Codex 账号标识：\(plan)") }
+                    if data.displayPlan == "Pro" { Text("具体 Pro 档位以 ChatGPT 为准。") }
+                }
+                .font(.system(size: 11))
+                .padding(12)
+            }
         }
     }
 
@@ -495,6 +535,9 @@ struct MenuContentView: View {
                         .font(.system(size: 11.5))
                         .foregroundStyle(TextTone.secondary(scheme))
                 }
+            }
+            if page == .subscription, let data = model.subscription {
+                planBadge(data)
             }
             Spacer(minLength: 8)
             if page != .settings {

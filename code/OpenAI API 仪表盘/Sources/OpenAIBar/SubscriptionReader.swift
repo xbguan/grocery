@@ -8,6 +8,7 @@ struct ResetCredit: Identifiable {
 }
 
 struct SubscriptionSnapshot {
+    var email: String?
     var plan: String?
     var remainingPercent: Int?
     var weeklyReset: Date?
@@ -15,6 +16,14 @@ struct SubscriptionSnapshot {
     var resetCreditDetails: [ResetCredit] = []
     var usageUnavailable = false
     let fetchedAt = Date()
+
+    var maskedEmail: String? {
+        guard let email else { return nil }
+        let parts = email.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        let prefix = parts[0].prefix(min(2, parts[0].count - 1))
+        return "\(prefix)***@\(parts[1])"
+    }
 
     var displayPlan: String? {
         switch plan?.lowercased() {
@@ -225,7 +234,7 @@ private final class CodexSession {
     func snapshot() throws -> SubscriptionSnapshot {
         let account = try request("account/read", ["refreshToken": false])["account"] as? [String: Any]
         guard account?["type"] as? String == "chatgpt" else { throw SubscriptionReadError.login }
-        var snapshot = SubscriptionSnapshot(plan: account?["planType"] as? String)
+        var snapshot = SubscriptionSnapshot(email: account?["email"] as? String, plan: account?["planType"] as? String)
         do {
             snapshot.apply(try request("account/rateLimits/read", ["excludeResetCreditDetails": false]))
         } catch {

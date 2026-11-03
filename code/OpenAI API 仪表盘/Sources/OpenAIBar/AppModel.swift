@@ -198,8 +198,8 @@ final class AppModel: ObservableObject {
         suppressPersist = true
         config.showSubscription = true
         suppressPersist = false
-        var value = SubscriptionSnapshot(plan: "pro")
-        let weekly: [String: Any] = ["windowDurationMins": 10080, "usedPercent": 49,
+        var value = SubscriptionSnapshot(email: "linda@example.com", plan: "prolite")
+        let weekly: [String: Any] = ["windowDurationMins": 10080, "usedPercent": 50,
                                      "resetsAt": Date().addingTimeInterval(2 * 86400).timeIntervalSince1970]
         let limits: [String: Any] = ["limitId": "codex", "planType": "prolite", "secondary": weekly]
         let credits: [[String: Any]] = (1...3).map { index in

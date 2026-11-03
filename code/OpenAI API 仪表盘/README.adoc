@@ -13,7 +13,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI 仪表盘-1.13.0.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI 仪表盘-1.14.0.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -59,7 +59,7 @@ image::preview-settings.png[width=460]
 * 系统菜单栏只显示仪表盘图标。API 用量、ChatGPT 订阅与设置在同一个固定大小的面板右侧切换。
 * 点击菜单栏图标会在该屏幕中央打开独立窗口；窗口左上角使用系统标准关闭和最小化按钮。应用也显示在程序坞，点击程序坞图标可重新打开窗口。关闭只隐藏窗口；真正退出请点左侧底部「退出」。窗口打开时不会默认高亮刷新按钮，按 Tab 导航时仍显示焦点提示。
 * 左侧顶部刷新按钮更新全部已连接的数据源。API 用量和 ChatGPT 订阅各自在标题右侧显示本页最近一次成功更新的时间；左侧底部由「设置」和「退出」平分一行。API 配置保存后返回用量页。
-* 在设置的「ChatGPT 订阅」组点「登录 ChatGPT」，登录态单独保存在本软件的 `SubscriptionCodex/` 目录，不受日常 Codex 切换供应商影响，也不复用 API 余额的平台登录。软件通过 Codex 程序读取套餐、Codex 七天额度、周重置时间及剩余重置机会；若接口提供明细，还会列出各次机会的有效期。此功能需要本机有 Codex CLI、Codex 应用或 ChatGPT 应用附带的 Codex 程序。账号套餐不代表 Pro 100/200 价格档位，订阅续费日也未由此数据源提供。「退出登录」只清除软件专属的 ChatGPT 登录。
+* 在设置的「ChatGPT 订阅」组点「登录 ChatGPT」，登录态单独保存在本软件的 `SubscriptionCodex/` 目录，不受日常 Codex 切换供应商影响，也不复用 API 余额的平台登录。软件通过 Codex 程序读取套餐、Codex 七天额度、周重置时间及剩余重置机会；若接口提供明细，页面按到期时间列出每次重置。额度卡右上角显示脱敏邮箱，悬停可查看完整地址。点击标题旁的 ⓘ 可查看套餐说明。此功能需要本机有 Codex CLI、Codex 应用或 ChatGPT 应用附带的 Codex 程序。账号套餐不代表 Pro 100/200 价格档位，订阅续费日也未由此数据源提供。「退出登录」只清除软件专属的 ChatGPT 登录。
 
 == 界面说明
 
@@ -148,7 +148,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI 仪表盘-1.13.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI 仪表盘-1.14.0.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
