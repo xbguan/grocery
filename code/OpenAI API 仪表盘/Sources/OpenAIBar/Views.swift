@@ -317,6 +317,7 @@ struct MenuContentView: View {
                         Task { await model.refresh(manual: true) }
                     }
                     .accessibilityLabel("刷新全部数据")
+                    .focusEffectDisabled(!usingKeyboard)
                 }
             }
             .padding(.bottom, 12)

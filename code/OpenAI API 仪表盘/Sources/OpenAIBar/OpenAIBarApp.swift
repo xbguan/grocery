@@ -109,7 +109,8 @@ final class DashboardAppDelegate: NSObject, NSApplicationDelegate {
             window = created
         }
 
-        if !window.isVisible { model.refreshCreditOnPanelOpen() }
+        let wasVisible = window.isVisible
+        if !wasVisible { model.refreshCreditOnPanelOpen() }
         if window.isMiniaturized { window.deminiaturize(nil) }
         let screen = statusItem?.button?.window?.screen ?? NSScreen.main
         if let frame = screen?.visibleFrame {
@@ -120,6 +121,7 @@ final class DashboardAppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApplication.shared.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        if !wasVisible { window.makeFirstResponder(nil) }
     }
 }
 
