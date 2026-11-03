@@ -443,6 +443,7 @@ struct MenuContentView: View {
                 Text("已取得套餐，额度读取失败。请检查网络后刷新。")
             } else if data != nil {
                 Text("来源：软件专属 ChatGPT 登录 · 具体价格档位以 ChatGPT 为准")
+                    .font(.system(size: 11))
                     .foregroundStyle(TextTone.secondary(scheme))
             }
             if data == nil {
