@@ -240,27 +240,6 @@ private struct Chip: View {
     }
 }
 
-// MARK: - 菜单栏
-
-struct MenuBarLabel: View {
-    @EnvironmentObject var model: AppModel
-
-    var body: some View {
-        Image(nsImage: icon)
-            .accessibilityLabel("OpenAI 仪表盘")
-    }
-
-    /// 图标永远是表盘，只换状态，不换成警告三角
-    private var icon: NSImage {
-        switch model.errorKind {
-        case .some(.noKey): return MenuBarIcon.idle()
-        case .some:         return MenuBarIcon.alert()
-        case .none:         return MenuBarIcon.dial()
-        }
-    }
-
-}
-
 // MARK: - 主面板
 
 struct MenuContentView: View {
