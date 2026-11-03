@@ -385,10 +385,16 @@ struct MenuContentView: View {
                 Spacer()
                 Text(data == nil ? "—" : (data?.displayPlan ?? "未确认")).font(.headline)
             }
-            if let raw = data?.plan, data?.displayPlan == nil {
-                Text("Codex 账号标识：\(raw)；对应订阅档位未确认")
-                    .font(.system(size: 12))
-                    .foregroundStyle(TextTone.secondary(scheme))
+            if let raw = data?.plan {
+                if raw.lowercased() == "prolite" {
+                    Text("Codex 账号标识：\(raw)；具体 Pro 档位以 ChatGPT 为准")
+                        .font(.system(size: 12))
+                        .foregroundStyle(TextTone.secondary(scheme))
+                } else if data?.displayPlan == nil {
+                    Text("Codex 账号标识：\(raw)；对应订阅档位未确认")
+                        .font(.system(size: 12))
+                        .foregroundStyle(TextTone.secondary(scheme))
+                }
             }
             Text("Codex 本周剩余额度")
                 .font(.callout).foregroundStyle(TextTone.secondary(scheme))

@@ -20,7 +20,8 @@ struct SubscriptionTests {
         legacy.apply(["rateLimits": ["primary": weekly, "planType": "pro"]])
         precondition(legacy.plan == nil && legacy.remainingPercent == 72)
         precondition(SubscriptionSnapshot(plan: "pro").displayPlan == "Pro")
-        precondition(SubscriptionSnapshot(plan: "prolite").displayPlan == nil)
+        precondition(SubscriptionSnapshot(plan: "prolite").displayPlan == "Pro")
+        precondition(SubscriptionSnapshot(plan: "unknown").displayPlan == nil)
 
         var credits = SubscriptionSnapshot(plan: "pro")
         credits.apply(["rateLimitResetCredits": ["availableCount": 3,

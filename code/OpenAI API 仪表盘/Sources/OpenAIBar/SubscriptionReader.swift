@@ -20,7 +20,7 @@ struct SubscriptionSnapshot {
         switch plan?.lowercased() {
         case "free": return "Free"
         case "plus": return "Plus"
-        case "pro": return "Pro"
+        case "pro", "prolite": return "Pro"
         case "team": return "Team"
         case "business": return "Business"
         case "enterprise": return "Enterprise"
