@@ -13,7 +13,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI 仪表盘-1.10.5.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI 仪表盘-1.11.0.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -58,7 +58,7 @@ image::preview-settings.png[width=460]
 
 * 系统菜单栏只显示仪表盘图标。API 用量、ChatGPT 订阅与设置在同一个固定大小的面板右侧切换。
 * 左侧顶部刷新按钮更新全部已连接的数据源。API 用量和 ChatGPT 订阅各自在标题右侧显示本页最近一次成功更新的时间；左侧底部由「设置」和「退出」平分一行。API 配置保存后返回用量页。
-* 在设置的「ChatGPT 订阅」组点「连接本机 Codex」，读取已登录账号的套餐、Codex 七天额度、周重置时间及剩余重置机会。此功能需要本机安装 Codex 并使用 ChatGPT 账号登录，使用文件凭据模式。订阅到期日未由此数据源提供。断开连接会清除面板中的读数。
+* 在设置的「ChatGPT 订阅」组点「读取 Codex 账号」，读取已登录账号的套餐、Codex 七天额度、周重置时间及剩余重置机会；若接口提供明细，还会列出各次机会的有效期。此功能需要本机有 Codex CLI、Codex 应用或 ChatGPT 应用附带的 Codex 程序，并使用文件凭据模式登录 Codex。账号套餐不代表 Pro 100/200 价格档位，订阅续费日也未由此数据源提供。断开连接会清除面板中的读数。
 
 == 界面说明
 

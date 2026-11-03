@@ -297,7 +297,7 @@ struct MenuContentView: View {
                 case .settings:
                     SettingsForm { page = .usage }
                 case .subscription:
-                    subscription
+                    ScrollView { subscription }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -401,9 +401,14 @@ struct MenuContentView: View {
         let data = model.subscription
         return VStack(alignment: .leading, spacing: 15) {
             HStack {
-                Text("订阅套餐").font(.headline)
+                Text("账号套餐").font(.headline)
                 Spacer()
-                Text(data?.plan?.capitalized ?? "—").font(.headline)
+                Text(data == nil ? "—" : (data?.displayPlan ?? "未确认")).font(.headline)
+            }
+            if let raw = data?.plan, data?.displayPlan == nil {
+                Text("Codex 账号标识：\(raw)；对应订阅档位未确认")
+                    .font(.system(size: 12))
+                    .foregroundStyle(TextTone.secondary(scheme))
             }
             Text("Codex 本周剩余额度")
                 .font(.callout).foregroundStyle(TextTone.secondary(scheme))
@@ -414,7 +419,24 @@ struct MenuContentView: View {
             }
             subscriptionRow("下次周重置", data?.weeklyReset?.formatted(date: .abbreviated, time: .shortened))
             subscriptionRow("可用重置机会", data?.resetCredits.map { "\($0) 次" })
-            subscriptionRow("订阅到期", "数据源未提供")
+            if let count = data?.resetCredits, count > 0 {
+                ForEach(data?.resetCreditDetails ?? []) { credit in
+                    HStack {
+                        Text("额度重置")
+                        Spacer()
+                        Text(credit.expiresAt.map {
+                            "有效期至 \($0.formatted(date: .abbreviated, time: .shortened))"
+                        } ?? "有效期未知")
+                            .foregroundStyle(TextTone.secondary(scheme))
+                    }
+                    .font(.system(size: 12))
+                }
+                if count > (data?.resetCreditDetails.count ?? 0) {
+                    Text("另有 \(count - (data?.resetCreditDetails.count ?? 0)) 次机会，未取得有效期明细")
+                        .font(.system(size: 12))
+                        .foregroundStyle(TextTone.secondary(scheme))
+                }
+            }
             if let error = model.subscriptionError {
                 Text(error).foregroundStyle(TextTone.secondary(scheme))
             } else if !model.config.showSubscription {
@@ -424,11 +446,13 @@ struct MenuContentView: View {
             } else if data?.usageUnavailable == true {
                 Text("已取得套餐，额度读取失败。请检查网络后刷新。")
             } else if data != nil {
-                Text("来源：本机 Codex")
+                Text("来源：Codex 登录 · 具体价格档位以 ChatGPT 为准")
                     .foregroundStyle(TextTone.secondary(scheme))
             }
-            Button("订阅设置") { page = .settings }
-            .buttonStyle(GlassPillStyle(compact: true))
+            if data == nil {
+                Button("订阅设置") { page = .settings }
+                    .buttonStyle(GlassPillStyle(compact: true))
+            }
         }
         .padding(16).glassCard()
         .padding(.horizontal, UI.hPad)
@@ -1262,12 +1286,12 @@ struct SettingsForm: View {
             }
             section("ChatGPT 订阅", icon: "person") {
                 HStack {
-                    Text("本机 Codex 账号")
+                    Text("Codex 登录")
                     Spacer()
                     Text(subscriptionStatus).foregroundStyle(TextTone.secondary(scheme))
                 }
-                hint("从本机已登录的 Codex 读取订阅套餐和周额度。断开后清除仪表盘内的订阅读数。")
-                Button(model.config.showSubscription ? "断开连接" : "连接本机 Codex") {
+                hint("Codex 是 OpenAI 的编程工具。这里读取它在本机保存的 ChatGPT 登录，不复用 API 平台登录；未单独安装 CLI 时也会尝试 Codex 或 ChatGPT 应用内的程序。")
+                Button(model.config.showSubscription ? "断开连接" : "读取 Codex 账号") {
                     model.setSubscriptionEnabled(!model.config.showSubscription)
                 }
             }

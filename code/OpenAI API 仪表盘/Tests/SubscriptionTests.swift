@@ -18,7 +18,24 @@ struct SubscriptionTests {
 
         var legacy = SubscriptionSnapshot()
         legacy.apply(["rateLimits": ["primary": weekly, "planType": "pro"]])
-        precondition(legacy.plan == "pro" && legacy.remainingPercent == 72)
+        precondition(legacy.plan == nil && legacy.remainingPercent == 72)
+        precondition(SubscriptionSnapshot(plan: "pro").displayPlan == "Pro")
+        precondition(SubscriptionSnapshot(plan: "prolite").displayPlan == nil)
+
+        var credits = SubscriptionSnapshot(plan: "pro")
+        credits.apply(["rateLimitResetCredits": ["availableCount": 3,
+                                                 "credits": [
+                                                    ["id": "later", "title": "Rate-limit reset", "status": "available", "expiresAt": 1796178300],
+                                                    ["id": "used", "title": "Rate-limit reset", "status": "claimed", "expiresAt": 1796178300],
+                                                    ["id": "earlier", "title": "Rate-limit reset", "status": "available", "expiresAt": 1794028860]
+                                                 ]]])
+        precondition(credits.resetCredits == 3)
+        precondition(credits.resetCreditDetails.map(\.id) == ["earlier", "later"])
+        precondition(credits.resetCreditDetails[0].expiresAt == Date(timeIntervalSince1970: 1794028860))
+
+        var countOnly = SubscriptionSnapshot()
+        countOnly.apply(["rateLimitResetCredits": ["availableCount": 2, "credits": NSNull()]])
+        precondition(countOnly.resetCredits == 2 && countOnly.resetCreditDetails.isEmpty)
         print("Subscription fields OK")
     }
 }

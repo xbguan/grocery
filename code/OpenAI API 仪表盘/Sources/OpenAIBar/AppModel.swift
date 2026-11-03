@@ -153,6 +153,24 @@ final class AppModel: ObservableObject {
         errorKind = .noKey
     }
 
+    func loadDemoSubscription() {
+        suppressPersist = true
+        config.showSubscription = true
+        suppressPersist = false
+        var value = SubscriptionSnapshot(plan: "pro")
+        let weekly: [String: Any] = ["windowDurationMins": 10080, "usedPercent": 49,
+                                     "resetsAt": Date().addingTimeInterval(2 * 86400).timeIntervalSince1970]
+        let limits: [String: Any] = ["limitId": "codex", "planType": "prolite", "secondary": weekly]
+        let credits: [[String: Any]] = (1...3).map { index in
+            ["id": "demo-\(index)", "status": "available",
+             "expiresAt": Date().addingTimeInterval(Double(index * 86400)).timeIntervalSince1970]
+        }
+        value.apply(["rateLimits": limits,
+                     "rateLimitResetCredits": ["availableCount": 3, "credits": credits]])
+        subscription = value
+        lastSubscriptionUpdate = .now
+    }
+
     // MARK: 配置
 
     private var suppressPersist = false

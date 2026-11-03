@@ -2,20 +2,37 @@ import Foundation
 import Darwin
 
 /// Only display fields from Codex's read-only account protocol.
+struct ResetCredit: Identifiable {
+    let id: String
+    let expiresAt: Date?
+}
+
 struct SubscriptionSnapshot {
     var plan: String?
     var remainingPercent: Int?
     var weeklyReset: Date?
     var resetCredits: Int?
+    var resetCreditDetails: [ResetCredit] = []
     var usageUnavailable = false
     let fetchedAt = Date()
+
+    var displayPlan: String? {
+        switch plan?.lowercased() {
+        case "free": return "Free"
+        case "plus": return "Plus"
+        case "pro": return "Pro"
+        case "team": return "Team"
+        case "business": return "Business"
+        case "enterprise": return "Enterprise"
+        default: return nil
+        }
+    }
 
     mutating func apply(_ result: [String: Any]) {
         let buckets = result["rateLimitsByLimitId"] as? [String: [String: Any]]
         let legacy = result["rateLimits"] as? [String: Any]
         let legacyID = legacy?["limitId"] as? String
         let bucket = buckets?["codex"] ?? (legacyID == nil || legacyID == "codex" ? legacy : nil)
-        plan = bucket?["planType"] as? String ?? plan
         let week = ["primary", "secondary"].compactMap { bucket?[$0] as? [String: Any] }
             .first { $0["windowDurationMins"] as? Int == 7 * 24 * 60 }
         if let used = week?["usedPercent"] as? Int, (0...100).contains(used) {
@@ -24,13 +41,26 @@ struct SubscriptionSnapshot {
         if let timestamp = week?["resetsAt"] as? Double, timestamp > 0 {
             weeklyReset = Date(timeIntervalSince1970: timestamp)
         }
-        if let count = (result["rateLimitResetCredits"] as? [String: Any])?["availableCount"] as? Int,
+        let reset = result["rateLimitResetCredits"] as? [String: Any]
+        if let count = reset?["availableCount"] as? Int,
            count >= 0 { resetCredits = count }
+        if let credits = reset?["credits"] as? [[String: Any]] {
+            resetCreditDetails = credits.compactMap { credit in
+                guard credit["status"] as? String == "available",
+                      let id = credit["id"] as? String else { return nil }
+                let timestamp = (credit["expiresAt"] as? NSNumber)?.doubleValue
+                let expiry = timestamp.flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil }
+                return ResetCredit(id: id, expiresAt: expiry)
+            }.sorted {
+                if $0.expiresAt == $1.expiresAt { return $0.id < $1.id }
+                return ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture)
+            }
+        }
     }
 }
 
 enum SubscriptionReadError: String, LocalizedError {
-    case missing = "未找到本机 Codex。请安装 Codex CLI，并使用 ChatGPT 账号登录。"
+    case missing = "未找到本机 Codex 程序。请安装 Codex CLI、Codex 或 ChatGPT 应用。"
     case login = "请先在本机 Codex 中使用 ChatGPT 账号登录，再刷新。只支持文件存储的 Codex 登录凭据。"
     case service = "暂时无法读取 Codex 订阅数据，请检查网络和 Codex 版本后再刷新。"
     case timeout = "订阅读取超时，请稍后刷新。"
@@ -111,7 +141,7 @@ enum SubscriptionReader {
         guard account?["type"] as? String == "chatgpt" else { throw SubscriptionReadError.login }
         var snapshot = SubscriptionSnapshot(plan: account?["planType"] as? String)
         do {
-            snapshot.apply(try request(3, "account/rateLimits/read", ["excludeResetCreditDetails": true]))
+            snapshot.apply(try request(3, "account/rateLimits/read", ["excludeResetCreditDetails": false]))
         } catch {
             snapshot.usageUnavailable = true
         }

@@ -14,6 +14,7 @@ enum DemoWindow {
         if args.contains("--demo-credit") { model.loadDemoCredit() }
         if args.contains("--demo-credit-login") { model.loadDemoCreditLogin() }
         if args.contains("--demo-credit-expired") { model.loadDemoCreditExpired() }
+        if args.contains("--demo-subscription") { model.loadDemoSubscription() }
 
         let page: MenuContentView.Page = args.contains("--demo-settings") ? .settings
             : (args.contains("--demo-subscription") ? .subscription : .usage)
