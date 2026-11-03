@@ -5,9 +5,9 @@ import Foundation
 // 用法：swiftc Logo.swift Tools/menubardemo/main.swift -o membardemo && ./membardemo out.png
 
 func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
-    let out = NSImage(size: image.size)
+    let out = NSImage(size: NSSize(width: image.size.width * scale, height: image.size.height * scale))
     out.lockFocus()
-    let r = NSRect(origin: .zero, size: image.size)
+    let r = NSRect(origin: .zero, size: out.size)
     image.draw(in: r)
     color.set()
     r.fill(using: .sourceAtop)
@@ -16,13 +16,12 @@ func tinted(_ image: NSImage, _ color: NSColor) -> NSImage {
 }
 
 let scale: CGFloat = 3.0
-let iconPt: CGFloat = 18
-let iconPx = iconPt * scale
+let iconHeight = MenuBarIcon.dial().size.height * scale
 let pad: CGFloat = 30
-let rowH: CGFloat = iconPx + 46
+let rowH: CGFloat = iconHeight + 64
 let colW: CGFloat = 168
 let width: CGFloat = pad * 2 + colW * 3
-let height: CGFloat = rowH * 2 + pad
+let height: CGFloat = rowH * 2
 
 let img = NSImage(size: NSSize(width: width, height: height))
 
@@ -41,7 +40,7 @@ func drawRow(_ ctx: CGContext, y: CGFloat, dark: Bool) {
 
     for (i, item) in states.enumerated() {
         let x = pad + CGFloat(i) * colW
-        let iconRect = CGRect(x: x, y: y + rowH - 26 - iconPx, width: iconPx, height: iconPx)
+        let iconRect = CGRect(x: x, y: y + rowH - 26 - iconHeight, width: item.0.size.width * scale, height: iconHeight)
 
         // 图标按 3 倍放大绘制，模拟 Retina 下的实际观感
         let icon = tinted(item.0, ink)
@@ -62,11 +61,11 @@ func drawRow(_ ctx: CGContext, y: CGFloat, dark: Bool) {
 
 img.lockFocus()
 if let ctx = NSGraphicsContext.current?.cgContext {
-    drawRow(ctx, y: pad + rowH, dark: false)
-    drawRow(ctx, y: pad, dark: true)
+    drawRow(ctx, y: rowH, dark: false)
+    drawRow(ctx, y: 0, dark: true)
     // 分隔线
     ctx.setFillColor(NSColor.gray.withAlphaComponent(0.35).cgColor)
-    ctx.fill(CGRect(x: 0, y: pad + rowH - 0.5, width: width, height: 1))
+    ctx.fill(CGRect(x: 0, y: rowH - 0.5, width: width, height: 1))
 }
 img.unlockFocus()
 

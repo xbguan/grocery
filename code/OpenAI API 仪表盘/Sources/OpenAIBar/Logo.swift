@@ -163,7 +163,7 @@ enum MenuBarIcon {
     private enum State { case normal, idle, alert }
 
     private static func render(_ state: State) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
+        let size = NSSize(width: 27, height: 20)
         let deg = Double.pi / 180
 
         let img = NSImage(size: size, flipped: false) { _ in
@@ -171,15 +171,21 @@ enum MenuBarIcon {
 
             // 直接走 CGContext 画弧：NSBezierPath.appendArc 默认是顺时针，
             // 会把弧画到圆心下方，方向和预期相反。
-            let c = CGPoint(x: 9, y: 8.6)
-            let r: CGFloat = 5.35
+            let c = CGPoint(x: size.width / 2, y: 8.65)
+            let r: CGFloat = 6.7
 
             ctx.saveGState()
+            let frame = CGRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1)
+            ctx.addPath(CGPath(roundedRect: frame, cornerWidth: 5, cornerHeight: 5, transform: nil))
+            ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.76).cgColor)
+            ctx.setLineWidth(1.1)
+            ctx.strokePath()
+
             ctx.setLineCap(.round)
             ctx.setStrokeColor(NSColor.black.cgColor)
 
             // 240° 开口环：底部留 60° 缺口
-            ctx.setLineWidth(state == .idle ? 1.35 : 1.5)
+            ctx.setLineWidth(state == .idle ? 1.5 : 1.65)
             ctx.addArc(center: c, radius: r,
                        startAngle: -30 * deg, endAngle: 210 * deg,
                        clockwise: false)
@@ -189,8 +195,8 @@ enum MenuBarIcon {
             // 异常时压到底部 270°，读作"指针掉到底了"，不再额外加感叹号之类图形
             if state != .idle {
                 let angle = (state == .alert ? 270.0 : 55.0) * deg
-                let len: CGFloat = state == .alert ? 3.4 : 3.7
-                ctx.setLineWidth(1.5)
+                let len: CGFloat = state == .alert ? 4.25 : 4.65
+                ctx.setLineWidth(1.65)
                 ctx.move(to: c)
                 ctx.addLine(to: CGPoint(x: c.x + cos(angle) * len,
                                         y: c.y + sin(angle) * len))
@@ -199,7 +205,7 @@ enum MenuBarIcon {
 
             // 中心轴点
             ctx.setFillColor(NSColor.black.cgColor)
-            let hub: CGFloat = state == .idle ? 1.05 : 1.15
+            let hub: CGFloat = state == .idle ? 1.15 : 1.25
             ctx.fillEllipse(in: CGRect(x: c.x - hub, y: c.y - hub,
                                        width: hub * 2, height: hub * 2))
             ctx.restoreGState()
