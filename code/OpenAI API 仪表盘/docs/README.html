@@ -511,7 +511,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Bundle ID：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>安装包：<code>dist/OpenAI API 仪表盘-1.8.1.dmg</code>（Intel / Apple 芯片通用）</p>
+<p>安装包：<code>dist/OpenAI API 仪表盘-1.9.0.dmg</code>（Intel / Apple 芯片通用）</p>
 </li>
 </ul>
 </div>
@@ -523,7 +523,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>点击菜单栏图标 →「API 用量」右上角的「API 配置」</p>
+<p>点击菜单栏图标 → 左下角「设置」→「API 用量」</p>
 </li>
 <li>
 <p>填入 <strong>Admin API Key</strong>（<code>sk-admin-</code> 开头），点「测试连接」确认</p>
@@ -578,7 +578,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p>外观设置：</p>
+<p>统一设置：</p>
 </div>
 <div class="imageblock">
 <div class="content">
@@ -586,7 +586,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p>在左下角「设置」中选择系统、深色或浅色，外观立即生效并自动记住。默认跟随 macOS。</p>
+<p>在设置的「通用」组中点击外观预览卡，选择系统、深色或浅色，外观立即生效并自动记住。默认跟随 macOS。</p>
 </div>
 <div class="sect2">
 <h3 id="_视觉与交互">3.1. 视觉与交互</h3>
@@ -599,13 +599,13 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p>系统菜单栏只显示仪表盘图标。API 用量、ChatGPT 订阅与外观设置在同一个固定大小的面板右侧切换。</p>
+<p>系统菜单栏只显示仪表盘图标。API 用量、ChatGPT 订阅与设置在同一个固定大小的面板右侧切换。</p>
 </li>
 <li>
 <p>左侧顶部刷新按钮更新全部已连接的数据源。API 配置保存后返回用量页。</p>
 </li>
 <li>
-<p>在「ChatGPT 订阅」点「连接本机 Codex」，读取已登录账号的套餐、Codex 七天额度、周重置时间及剩余重置机会。此功能需要本机安装 Codex 并使用 ChatGPT 账号登录，使用文件凭据模式。订阅到期日未由此数据源提供。断开连接会清除面板中的读数。</p>
+<p>在设置的「ChatGPT 订阅」组点「连接本机 Codex」，读取已登录账号的套餐、Codex 七天额度、周重置时间及剩余重置机会。此功能需要本机安装 Codex 并使用 ChatGPT 账号登录，使用文件凭据模式。订阅到期日未由此数据源提供。断开连接会清除面板中的读数。</p>
 </li>
 </ul>
 </div>
@@ -738,7 +738,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <div class="ulist">
 <ul>
 <li>
-<p><strong>实时余额（推荐，需你登录一次）</strong>：API 配置的「余额」里打开「显示真实余额」，App 用一个隐藏的 WKWebView 打开平台账单页，页面自己会请求 <code>credit_grants</code>，我们在 <code>documentStart</code> 注入钩子把<strong>响应体</strong>截下来，解析 <code>total_available</code> 与逐笔 grant 明细；概览没有效期时再加载同一登录态下的 Credit grants 页面。取得明细后显示最近一笔尚未用完额度的到期倒计时与时间，否则显示「效期未取得」。登录态存在 App 自己的 WebKit 容器（<code>~/Library/WebKit/com.xbguan.openai-api-dashboard</code>），不保存密码、不保存 cookie 明文、不外发。</p>
+<p><strong>实时余额（推荐，需你登录一次）</strong>：设置的「API 用量」组里打开「显示实时余额」，App 用一个隐藏的 WKWebView 打开平台账单页，页面自己会请求 <code>credit_grants</code>，我们在 <code>documentStart</code> 注入钩子把<strong>响应体</strong>截下来，解析 <code>total_available</code> 与逐笔 grant 明细；概览没有效期时再加载同一登录态下的 Credit grants 页面。取得明细后显示最近一笔尚未用完额度的到期倒计时与时间，否则显示「效期未取得」。登录态存在 App 自己的 WebKit 容器（<code>~/Library/WebKit/com.xbguan.openai-api-dashboard</code>），不保存密码、不保存 cookie 明文、不外发。</p>
 </li>
 <li>
 <p><strong>估算兜底</strong>：未开启实时余额、或实时读取失败时，退回 <code>subscription</code>（额度上限）− <code>usage</code>（已用）的推算值，界面标注「估算」。</p>
@@ -749,7 +749,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>⚠️ 实现上有一条硬约束：<strong>不能自己发这个请求</strong>。从页面上下文 fetch <code>api.openai.com</code> 会被 CORS 挡掉（实测 <code>Load failed</code>），只能让页面发、我们截。</p>
 </div>
 <div class="paragraph">
-<p>若你看到「估算」，说明实时余额没读到（未登录 / 登录过期 / 页面改版），点卡片上的「登录」或 API 配置里的「重新登录」即可。</p>
+<p>若你看到「估算」，说明实时余额没读到（未登录 / 登录过期 / 页面改版），点卡片上的「登录」或设置里的「重新登录」即可。</p>
 </div>
 </div>
 </div>
@@ -758,7 +758,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <h2 id="_刷新">7. 刷新</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>菜单栏默认每 5 分钟自动刷新（API 配置里可选 5、15、30 或 60 分钟），点左栏顶部 <code>↻</code> 可手动刷新。</p>
+<p>菜单栏默认每 5 分钟自动刷新（设置的「通用」组可选 5、15、30 或 60 分钟），点左栏顶部 <code>↻</code> 可手动刷新。</p>
 </div>
 </div>
 </div>
@@ -771,7 +771,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p><code>dist/OpenAI API 仪表盘-1.8.1.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
+<p><code>dist/OpenAI API 仪表盘-1.9.0.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
 </div>
 <div class="ulist">
 <ul>
@@ -910,7 +910,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 "$BIN" --demo              # 浅色 + 假数据
 "$BIN" --demo --demo-dark  # 深色
 "$BIN" --demo --demo-empty # 未配置 Key 的状态
-"$BIN" --demo --demo-settings  # 预览右侧外观设置</code></pre>
+"$BIN" --demo --demo-settings  # 预览右侧统一设置</code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -973,7 +973,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 <div class="sect2">
 <h3 id="_只想换_key不卸载">12.3. 只想换 Key、不卸载</h3>
 <div class="paragraph">
-<p>API 配置页点「清除 Key」即可——删除当前版本的加密凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。</p>
+<p>设置中点 Admin Key 旁的「清除」即可——删除当前版本的加密凭据，App 和其他设置都保留。旧版凭据可按上面的手动命令或卸载脚本清理。</p>
 </div>
 </div>
 </div>
@@ -981,7 +981,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-11-03 08:02:31 +0800
+Last updated 2026-11-03 08:24:43 +0800
 </div>
 </div>
 </body>

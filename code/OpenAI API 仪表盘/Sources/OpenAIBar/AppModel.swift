@@ -146,7 +146,7 @@ final class AppModel: ObservableObject {
     func loadDemoEmpty() {
         snapshot = nil
         errorText = "还没有配置 Admin Key"
-        errorHint = "Admin Key 请在 API 配置中填入，App 不会内置任何 Key。"
+        errorHint = "Admin Key 请在 设置的「API 用量」中填入，App 不会内置任何 Key。"
         errorKind = .noKey
     }
 
@@ -204,7 +204,7 @@ final class AppModel: ObservableObject {
         snapshot = nil
         hasLoadedOnce = false
         errorText = "还没有配置 Admin Key"
-        errorHint = "在「API 配置」里填入 Admin Key，它会加密保存在本机。"
+        errorHint = "在设置的「API 用量」里填入 Admin Key，它会加密保存在本机。"
         errorKind = .noKey
         return true
     }
@@ -351,7 +351,7 @@ final class AppModel: ObservableObject {
 
         guard config.hasKey else {
             errorText = "还没有配置 Admin Key"
-            errorHint = config.credentialReadFailed ? "请检查本地凭据目录，或在 API 配置中重新填写 Key。" : "请在 API 配置中填写 Admin Key，它会加密保存在本机。"
+            errorHint = config.credentialReadFailed ? "请检查本地凭据目录，或在 设置的「API 用量」中重新填写 Key。" : "请在 设置的「API 用量」中填写 Admin Key，它会加密保存在本机。"
             errorKind = .noKey
             return
         }

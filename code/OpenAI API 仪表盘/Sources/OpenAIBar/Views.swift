@@ -265,11 +265,9 @@ struct MenuContentView: View {
         case usage = "API 用量"
         case subscription = "ChatGPT 订阅"
         case settings = "设置"
-        case configuration = "API 配置"
     }
 
     @State private var page: Page
-    @State private var showCreditConfig = false
     @State private var costRange: CostRange = .last7
 
     init(initialPage: Page = .usage) {
@@ -289,16 +287,8 @@ struct MenuContentView: View {
                     } else {
                         usageContent
                     }
-                case .configuration:
-                    APIConfigurationView(showCredit: showCreditConfig) { page = .usage }
                 case .settings:
-                    AppearanceRow(selection: model.config.appearanceMode) { mode in
-                        model.update { $0.appearanceMode = mode }
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard()
-                    .padding(.horizontal, UI.hPad)
+                    SettingsForm { page = .usage }
                 case .subscription:
                     subscription
                 }
@@ -353,7 +343,7 @@ struct MenuContentView: View {
     }
 
     private func navButton(_ destination: Page, icon: String) -> some View {
-        let selected = page == destination || (page == .configuration && destination == .usage)
+        let selected = page == destination
         return Button { page = destination } label: {
             Label {
                 Text(destination.rawValue)
@@ -403,9 +393,7 @@ struct MenuContentView: View {
                 Text("来源：本机 Codex · " + Fmt.updatedLabel(data.fetchedAt))
                     .foregroundStyle(TextTone.secondary(scheme))
             }
-            Button(model.config.showSubscription ? "断开订阅读取" : "连接本机 Codex") {
-                model.setSubscriptionEnabled(!model.config.showSubscription)
-            }
+            Button("订阅设置") { page = .settings }
             .buttonStyle(GlassPillStyle(compact: true))
         }
         .padding(16).glassCard()
@@ -454,19 +442,11 @@ struct MenuContentView: View {
                 }
             }
             Spacer(minLength: 8)
-            if page == .usage {
-                CircleIconButton(system: "slider.horizontal.3", help: "API 配置") { openConfiguration() }
-            }
 
         }
         .padding(.horizontal, UI.hPad)
         .padding(.top, 14)
         .padding(.bottom, 12)
-    }
-
-    private func openConfiguration(credit: Bool = false) {
-        showCreditConfig = credit
-        page = .configuration
     }
 
     private var title: String {
@@ -586,11 +566,11 @@ struct MenuContentView: View {
                 Chip(text: "未开启")
                 Spacer()
             }
-            Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。如需此功能，请到 API 配置中开启「显示真实余额」，并登录 OpenAI 平台。")
+            Text("官方暂未开放使用 ADMIN KEY 获取余额的能力。如需此功能，请到设置中开启「显示实时余额」，并登录 OpenAI 平台。")
                 .font(.system(size: 10.5))
                 .foregroundStyle(TextTone.secondary(scheme))
                 .fixedSize(horizontal: false, vertical: true)
-            creditLink("去 API 配置开启", icon: "chevron.right") { openConfiguration(credit: true) }
+            creditLink("去设置开启", icon: "chevron.right") { page = .settings }
             if let b = snap.balance, let available = b.available {
                 Text("估算额度：剩余 \(Fmt.money(available))" +
                      (b.limit.map { " / 上限 \(Fmt.money($0))" } ?? "") +
@@ -994,10 +974,10 @@ struct MenuContentView: View {
     private var primaryAction: some View {
         switch model.errorKind {
         case .some(.noKey):
-            Button("填入 Admin Key") { openConfiguration() }
+            Button("填入 Admin Key") { page = .settings }
                 .buttonStyle(BrandButtonStyle(scheme: scheme))
         case .some(.auth):
-            Button("重新填写 Key") { openConfiguration() }
+            Button("重新填写 Key") { page = .settings }
                 .buttonStyle(BrandButtonStyle(scheme: scheme))
         case .some:
             Button {
@@ -1081,14 +1061,8 @@ private struct DayBars: View {
 
 // MARK: - 设置
 
-struct APIConfigurationView: View {
+struct SettingsForm: View {
     let onSave: () -> Void
-    @State private var sectionIndex: Int
-
-    init(showCredit: Bool, onSave: @escaping () -> Void) {
-        _sectionIndex = State(initialValue: showCredit ? 1 : 0)
-        self.onSave = onSave
-    }
     @EnvironmentObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
 
@@ -1107,20 +1081,10 @@ struct APIConfigurationView: View {
     private enum Field { case key, project, label }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Picker("配置类别", selection: $sectionIndex) {
-                Text("凭据").tag(0)
-                Text("余额").tag(1)
-                Text("其他").tag(2)
-            }
-            .labelsHidden().pickerStyle(.segmented)
-            switch sectionIndex {
-            case 0: keySection
-            case 1: creditSection
-            default:
-                projectSection
-                displaySection
-                aboutSection
+        VStack(spacing: 0) {
+            ViewThatFits(in: .vertical) {
+                groups.fixedSize(horizontal: false, vertical: true)
+                ScrollView { groups }
             }
             Spacer(minLength: 0)
             footerBar
@@ -1129,113 +1093,97 @@ struct APIConfigurationView: View {
         .onAppear(perform: loadDrafts)
     }
 
-    // MARK: 各分区
-
-    private var keySection: some View {
-        section("Admin API Key", icon: "key.horizontal") {
-            HStack(spacing: 8) {
-                Group {
-                    if showKey {
-                        TextField("sk-admin-…", text: $keyDraft)
-                            .focused($focusedField, equals: .key)
-                    } else {
-                        SecureField("sk-admin-…", text: $keyDraft)
-                            .focused($focusedField, equals: .key)
+    private var groups: some View {
+        VStack(alignment: .leading, spacing: UI.gap) {
+            section("通用", icon: "slider.horizontal.3") {
+                AppearanceRow(selection: model.config.appearanceMode) { mode in
+                    model.update { $0.appearanceMode = mode }
+                }
+                row("自动刷新间隔") {
+                    Picker("自动刷新间隔", selection: $refreshDraft) {
+                        ForEach([5, 15, 30, 60], id: \.self) { Text("\($0) 分钟").tag($0) }
+                    }
+                    .labelsHidden()
+                }
+                row("备注名") {
+                    TextField("OpenAI 仪表盘", text: $labelDraft)
+                        .focused($focusedField, equals: .label)
+                }
+            }
+            section("API 用量", icon: "chevron.left.forwardslash.chevron.right") {
+                row("Admin Key") {
+                    Group {
+                        if showKey {
+                            TextField("sk-admin-…", text: $keyDraft)
+                        } else {
+                            SecureField("sk-admin-…", text: $keyDraft)
+                        }
+                    }
+                    .focused($focusedField, equals: .key)
+                    .help(keyFingerprint ?? "Admin Key 在本机加密保存")
+                    Button { showKey.toggle() } label: {
+                        Image(systemName: showKey ? "eye.slash" : "eye")
+                    }
+                    .accessibilityLabel(showKey ? "隐藏 Admin Key" : "显示 Admin Key")
+                    Button(isTesting ? "测试中…" : "测试连接") { runTest() }
+                        .disabled(isTesting || keyDraft.isEmpty)
+                    Button("清除") { clearKey() }.disabled(keyDraft.isEmpty)
+                }
+                if let testMessage {
+                    Text(testMessage).font(.caption)
+                        .foregroundStyle(testOK ? Color.brand(scheme) : Color.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                row("项目 ID") {
+                    TextField("选填 · proj_…", text: $projectDraft)
+                        .focused($focusedField, equals: .project)
+                        .help("留空统计整个组织，填写后仅统计该项目")
+                }
+                row("显示实时余额") {
+                    Toggle("显示实时余额", isOn: $creditDraft)
+                        .labelsHidden().toggleStyle(.switch)
+                    if model.config.showCredit && !creditDraft {
+                        Text("保存后清除平台登录态").font(.caption)
                     }
                 }
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, design: .monospaced))
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(inputBG)
-                .overlay(inputBorder)
-
-                Button(showKey ? "隐藏" : "显示") { showKey.toggle() }
-                    .buttonStyle(GlassPillStyle(compact: true))
-                    .frame(width: 46)
-            }
-
-            Text("须以 sk-admin- 开头；普通项目 Key 不可用。Key 在本机加密保存。")
-                .font(.system(size: 11))
-                .foregroundStyle(TextTone.tertiary(scheme))
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let fp = keyFingerprint {
-                HStack(spacing: 5) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(Color.brand(scheme))
-                    Text(fp)
-                        .font(.system(size: 10.5, design: .monospaced))
-                        .textSelection(.enabled)
+                row("OpenAI 平台") {
+                    Text(creditStatusText).lineLimit(1).help(creditStatusText)
+                    Spacer(minLength: 0)
+                    Button(model.liveCredit == nil ? "登录" : "重新登录") {
+                        creditDraft = true
+                        model.loginForCredit()
+                    }
+                    Button("退出登录") { model.clearCreditLogin() }
                 }
-                .foregroundStyle(TextTone.secondary(scheme))
             }
-
-            HStack(spacing: 10) {
-                Button("测试连接") { runTest() }
-                    .buttonStyle(GlassPillStyle(compact: true))
-                    .disabled(isTesting || keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-
-                Button("清除 Key") { clearKey() }
-                    .buttonStyle(GlassPillStyle(compact: true))
-                    .foregroundStyle(TextTone.secondary(scheme))
-                    .disabled(keyDraft.isEmpty)
-
-                if isTesting {
-                    ProgressView().controlSize(.small)
+            section("ChatGPT 订阅", icon: "person") {
+                row("本机 Codex 账号") {
+                    Text(subscriptionStatus)
+                    Spacer(minLength: 0)
+                    Button(model.config.showSubscription ? "断开连接" : "连接本机 Codex") {
+                        model.setSubscriptionEnabled(!model.config.showSubscription)
+                    }
                 }
-                Spacer()
-            }
-
-            if let msg = testMessage {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: testOK ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                        .font(.system(size: 11))
-                    Text(msg)
-                        .font(.system(size: 11))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-                .foregroundStyle(testOK ? Color.brand(scheme) : Color.orange)
             }
         }
+        .controlSize(.small)
     }
 
-    /// 实时余额：官方 API 拿不到，只能借平台登录态
-    private var creditSection: some View {
-        section("API 余额（实时）", icon: "creditcard") {
-            Toggle(isOn: $creditDraft) {
-                Text("显示真实余额")
-                    .font(.system(size: 12))
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
+    private var subscriptionStatus: String {
+        if model.subscriptionLoading { return "读取中…" }
+        if model.subscriptionError != nil { return "读取失败" }
+        if model.subscription != nil { return "已连接" }
+        return model.config.showSubscription ? "等待读取" : "未连接"
+    }
 
-            Text("官方未开放用 Key 读取余额的接口，此项与 Key 无关：开启后借本机平台登录态读取，登录态存于 App 的 WebKit 容器，不存密码与 cookie。\n注意：关闭开关会清空本机登录态，下次需重新登录。")
-                .font(.system(size: 11))
-                .foregroundStyle(TextTone.tertiary(scheme))
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 10) {
-                Button(model.liveCredit == nil ? "登录 OpenAI 平台" : "重新登录") {
-                    creditDraft = true
-                    model.loginForCredit()
-                }
-                .buttonStyle(GlassPillStyle(compact: true))
-
-                Button("退出登录") { model.clearCreditLogin() }
-                    .buttonStyle(GlassPillStyle(compact: true))
-                    .foregroundStyle(TextTone.secondary(scheme))
-
-                Spacer()
-
-                Text(creditStatusText)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(TextTone.secondary(scheme))
-                    .lineLimit(1)
-            }
+    private func row<Content: View>(_ title: String,
+                                    @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 8) {
+            Text(title).frame(width: 92, alignment: .leading)
+            content()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .font(.system(size: 12))
     }
 
     private var creditStatusText: String {
@@ -1248,87 +1196,6 @@ struct APIConfigurationView: View {
         case .failed(let m): return "失败：\(m)"
         case .ready: return "已读取"
         case .off, .idle: return "尚未读取"
-        }
-    }
-
-    private var projectSection: some View {
-        section("项目（可选）", icon: "square.stack.3d.up") {
-            TextField("proj_…", text: $projectDraft)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, design: .monospaced))
-                .padding(.horizontal, 11)
-                .padding(.vertical, 9)
-                .background(inputBG)
-                .overlay(inputBorder)
-                .focused($focusedField, equals: .project)
-            Text("留空统计整个组织，填写后仅统计该项目。")
-                .font(.system(size: 11))
-                .foregroundStyle(TextTone.tertiary(scheme))
-        }
-    }
-
-    private var displaySection: some View {
-        section("显示", icon: "slider.horizontal.3") {
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("菜单栏备注名")
-                        .font(.system(size: 11.5, weight: .medium))
-                    TextField("OpenAI API 仪表盘", text: $labelDraft)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 12))
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 9)
-                        .background(inputBG)
-                        .overlay(inputBorder)
-                        .focused($focusedField, equals: .label)
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("自动刷新")
-                        .font(.system(size: 11.5, weight: .medium))
-                    Menu {
-                        ForEach([5, 15, 30, 60], id: \.self) { mins in
-                            Button {
-                                refreshDraft = mins
-                            } label: {
-                                if refreshDraft == mins {
-                                    Label("\(mins) 分钟", systemImage: "checkmark")
-                                } else {
-                                    Text("\(mins) 分钟")
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Text("\(refreshDraft) 分钟")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(TextTone.secondary(scheme))
-                        }
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 9)
-                        .background(inputBG)
-                        .overlay(inputBorder)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-    }
-
-    private var aboutSection: some View {
-        section("数据来源", icon: "info.circle") {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("· 花费与用量按 UTC 自然日统计，来自组织级接口。")
-                Text("· 余额借本机登录态读取、不出本机；Admin Key 在本机加密保存。")
-            }
-            .font(.system(size: 11))
-            .foregroundStyle(TextTone.secondary(scheme))
-            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1357,16 +1224,6 @@ struct APIConfigurationView: View {
     }
 
     // MARK: 零件
-
-    private var inputBG: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Glass.inset(scheme))
-    }
-
-    private var inputBorder: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(Glass.stroke(scheme), lineWidth: 1)
-    }
 
     private func section<Content: View>(_ title: String,
                                         icon: String,
