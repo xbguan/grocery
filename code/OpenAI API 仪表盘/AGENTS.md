@@ -73,7 +73,8 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 
 - API 用量、ChatGPT 订阅与统一设置共用固定尺寸的左右面板。切换只更新右侧内容，左侧导航与底部操作保持原位。
 - 左下角「设置」在右侧纵向展示「通用」「API 用量」「ChatGPT 订阅」三组。外观以系统、深色、浅色迷你窗口预览卡选择并立即生效；刷新间隔、备注名、Admin Key、项目与余额开关共用「保存」。账号连接操作即时执行。
-- 设置页参考 iOS 27 的分组与 Liquid Glass 控件风格，保留内联提示和外观预览卡，主要表单控件采用 44pt 操作高度。允许右侧设置正文上下滚动，底部「保存」固定。
+- iOS 27 仅作为毛玻璃材质的视觉参考。字号和控件密度按 macOS 桌面场景设计，参考 [CC Switch 4.0.25 的字体层级](https://github.com/farion1231/cc-switch/blob/v4.0.25/tailwind.config.cjs#L181-L191)。本项目设置页使用 14pt 分组标题、13pt 正文、12pt 常规字重外观选项、11pt 提示、32pt 输入框。区内操作复用「订阅设置」紧凑按钮。
+- 保留内联提示和外观预览卡。允许右侧设置正文上下滚动，底部「保存」固定。导航选中态用品牌色，键盘导航时保留可见焦点。参照 [Apple 无障碍设计指南](https://developer.apple.com/design/human-interface-guidelines/accessibility) 检查两种外观下的可读性和键盘操作。
 - 以完整 API 页为尺寸基准，常规屏幕一屏展示；可视高度不足时优先保证内容可达，仅右侧允许滚动。
 - 系统菜单栏只显示状态图标，金额只在 API 内容区展示。
 

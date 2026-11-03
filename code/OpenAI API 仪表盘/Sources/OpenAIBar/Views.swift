@@ -122,11 +122,13 @@ struct PanelBackground: View {
                     ? [Color(srgb: 0.137, 0.137, 0.153), Color(srgb: 0.071, 0.071, 0.082)]
                     : [Color(srgb: 0.965, 0.968, 0.976), Color(srgb: 0.902, 0.906, 0.922)],
                 startPoint: .top, endPoint: .bottom)
+                .opacity(0.55)
             RadialGradient(
                 colors: [Color.white.opacity(scheme == .dark ? 0.10 : 0.75), Color.clear],
                 center: UnitPoint(x: 0.5, y: -0.1),
                 startRadius: 0, endRadius: 420)
         }
+        .background(.regularMaterial)
         .ignoresSafeArea()
     }
 }
@@ -163,6 +165,7 @@ struct BrandButtonStyle: ButtonStyle {
 
 /// 次要按钮：玻璃胶囊
 struct GlassPillStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
     @Environment(\.colorScheme) private var scheme
     var compact: Bool = false
 
@@ -173,7 +176,7 @@ struct GlassPillStyle: ButtonStyle {
             .padding(.vertical, compact ? 6 : 7)
             .background(Capsule().fill(Glass.fill(scheme)))
             .overlay(Capsule().strokeBorder(Glass.stroke(scheme), lineWidth: 0.8))
-            .opacity(configuration.isPressed ? 0.7 : 1)
+            .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.48)
     }
 }
 
@@ -267,6 +270,8 @@ struct MenuContentView: View {
         case settings = "设置"
     }
 
+    @State private var usingKeyboard = false
+    @State private var navigationMonitor: Any?
     @State private var page: Page
     @State private var costRange: CostRange = .last7
 
@@ -298,7 +303,20 @@ struct MenuContentView: View {
         .frame(width: UI.panelWidth, height: UI.panelHeight)
         .background(PanelBackground())
         .tint(Color.brand(scheme))
-        .onAppear { model.refreshCreditOnPanelOpen() }
+        .onAppear {
+            model.refreshCreditOnPanelOpen()
+            guard navigationMonitor == nil else { return }
+            usingKeyboard = false
+            navigationMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown]) { event in
+                if event.type == .leftMouseDown { usingKeyboard = false }
+                else if event.keyCode == 48 { usingKeyboard = true } // Tab or Shift-Tab
+                return event
+            }
+        }
+        .onDisappear {
+            if let navigationMonitor { NSEvent.removeMonitor(navigationMonitor) }
+            navigationMonitor = nil
+        }
     }
 
     private var sidebar: some View {
@@ -364,6 +382,7 @@ struct MenuContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled(!usingKeyboard)
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -1073,35 +1092,14 @@ private struct SettingsFieldSurface: ViewModifier {
         content
             .textFieldStyle(.plain)
             .font(.system(size: 13))
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12)
+            .padding(.horizontal, 9)
+            .frame(maxWidth: .infinity, minHeight: 32)
+            .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(focused ? Color.brand(scheme) : Glass.hairline(scheme),
                               lineWidth: focused ? 2 : 1)
                 .allowsHitTesting(false))
             .contentShape(Rectangle())
-    }
-}
-
-private struct SettingsActionStyle: ButtonStyle {
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.isEnabled) private var enabled
-    var prominent = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(prominent ? Color.black : Color.primary)
-            .padding(.horizontal, prominent ? 26 : 16)
-            .frame(minHeight: 44)
-            .background {
-                if prominent { Capsule().fill(Color.brand(scheme)) }
-                else { Capsule().fill(.thinMaterial) }
-            }
-            .overlay(Capsule().strokeBorder(Glass.stroke(scheme), lineWidth: 1))
-            .opacity(enabled ? (configuration.isPressed ? 0.75 : 1) : 0.48)
-            .contentShape(Capsule())
     }
 }
 
@@ -1138,7 +1136,7 @@ struct SettingsForm: View {
     }
 
     private var groups: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             section("通用", icon: "slider.horizontal.3") {
                 AppearanceRow(selection: model.config.appearanceMode) { mode in
                     model.update { $0.appearanceMode = mode }
@@ -1182,7 +1180,7 @@ struct SettingsForm: View {
                         .accessibilityLabel("Admin Key")
                         Button { showKey.toggle() } label: {
                             Image(systemName: showKey ? "eye.slash" : "eye")
-                                .frame(width: 40, height: 44)
+                                .frame(width: 28, height: 32)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -1192,7 +1190,7 @@ struct SettingsForm: View {
                 }
                 hint("使用 sk-admin- 开头的组织管理员 Key。普通项目 Key 无法查询组织用量。Key 在本机加密保存。")
                 if let keyFingerprint {
-                    Text(keyFingerprint).font(.system(size: 13, design: .monospaced))
+                    Text(keyFingerprint).font(.system(size: 11, design: .monospaced))
                         .textSelection(.enabled)
                 }
                 HStack(spacing: 10) {
@@ -1201,7 +1199,7 @@ struct SettingsForm: View {
                     Button("清除 Key") { clearKey() }.disabled(keyDraft.isEmpty)
                 }
                 if let testMessage {
-                    Text(testMessage).font(.system(size: 11.5))
+                    Text(testMessage).font(.system(size: 11))
                         .foregroundStyle(testOK ? Color.brand(scheme) : Color.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1217,9 +1215,8 @@ struct SettingsForm: View {
                     Text("显示实时余额")
                     Spacer()
                     Toggle("显示实时余额", isOn: $creditDraft)
-                        .labelsHidden().toggleStyle(.switch).controlSize(.large)
-                        .scaleEffect(1.3)
-                        .frame(width: 54, height: 44)
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+
                 }
                 hint("余额通过本机的 OpenAI 平台登录会话读取，Admin Key 无法读取余额。登录态由本机 WebKit 管理，App 不保存密码或明文 Cookie。关闭开关并保存后会清除平台登录态，下次需要重新登录。")
                 HStack {
@@ -1248,15 +1245,15 @@ struct SettingsForm: View {
             }
         }
         .font(.system(size: 13))
-        .buttonStyle(SettingsActionStyle())
+        .buttonStyle(GlassPillStyle(compact: true))
     }
 
     private func hint(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11.5))
+            .font(.system(size: 11))
             .foregroundStyle(TextTone.secondary(scheme))
             .fixedSize(horizontal: false, vertical: true)
-            .lineSpacing(2)
+            .lineSpacing(1)
     }
 
     private var subscriptionStatus: String {
@@ -1295,7 +1292,8 @@ struct SettingsForm: View {
             Spacer()
             Text(appVersion).font(.caption).foregroundStyle(TextTone.secondary(scheme))
             Button("保存") { saveAndClose() }
-                .buttonStyle(SettingsActionStyle(prominent: true))
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
                 .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, UI.hPad)
@@ -1307,14 +1305,14 @@ struct SettingsForm: View {
     private func section<Content: View>(_ title: String,
                                         icon: String,
                                         @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: icon)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .medium, design: .rounded))
                 .padding(.bottom, 3)
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
+        .padding(13)
         .glassCard(radius: 24)
     }
 

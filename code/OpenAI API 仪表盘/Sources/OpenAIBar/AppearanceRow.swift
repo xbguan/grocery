@@ -24,13 +24,13 @@ struct AppearanceRow: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("外观模式").font(.system(size: 13, weight: .medium))
+        VStack(alignment: .leading, spacing: 7) {
+            Text("外观模式").font(.system(size: 13))
             HStack(spacing: 10) {
                 ForEach(AppearanceMode.allCases, id: \.self) { mode in
                     let selected = selection == mode
                     Button { select(mode) } label: {
-                        VStack(spacing: 8) {
+                        VStack(spacing: 5) {
                             ZStack(alignment: .topLeading) {
                                 HStack(spacing: 0) {
                                     (mode == .dark ? Color(white: 0.26) : Color(white: 0.94))
@@ -43,16 +43,16 @@ struct AppearanceRow: View {
                                 }
                                 .padding(6)
                             }
-                            .frame(height: 52)
+                            .frame(height: 32)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                             HStack(spacing: 4) {
                                 if selected { Image(systemName: "checkmark") }
                                 Text(mode.title)
                             }
-                                .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                                .font(.system(size: 12))
                                 .foregroundStyle(scheme == .dark ? Color.white : .black)
                         }
-                        .padding(8)
+                        .padding(6)
                         .frame(maxWidth: .infinity)
                         .background(Glass.inset(scheme), in: RoundedRectangle(cornerRadius: 10))
                         .overlay(RoundedRectangle(cornerRadius: 10)
@@ -66,7 +66,7 @@ struct AppearanceRow: View {
                 }
             }
             Text("选择后立即生效。系统模式跟随 macOS 外观。")
-                .font(.system(size: 11.5)).foregroundStyle(TextTone.secondary(scheme))
+                .font(.system(size: 11)).foregroundStyle(TextTone.secondary(scheme))
         }
     }
 }
