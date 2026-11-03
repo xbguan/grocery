@@ -37,6 +37,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var creditState: CreditBridge.State = .off
 
     @Published private(set) var subscription: SubscriptionSnapshot?
+    @Published private(set) var lastSubscriptionUpdate: Date?
     @Published private(set) var subscriptionError: String?
     @Published private(set) var subscriptionLoading = false
     private var subscriptionTask: Task<Void, Never>?
@@ -45,6 +46,7 @@ final class AppModel: ObservableObject {
         config.showSubscription = enabled
         subscriptionTask?.cancel()
         subscriptionTask = nil
+        lastSubscriptionUpdate = nil
         subscription = nil
         subscriptionError = nil
         subscriptionLoading = false
@@ -60,6 +62,7 @@ final class AppModel: ObservableObject {
             subscriptionLoading = false
             switch result {
             case .success(let value):
+                lastSubscriptionUpdate = value.fetchedAt
                 subscription = value
                 subscriptionError = nil
             case .failure(let error):
@@ -468,8 +471,8 @@ enum Fmt {
         return "\(value)"
     }
 
-    static func updatedLabel(_ date: Date) -> String {
-        let s = max(0, Date().timeIntervalSince(date))
+    static func updatedLabel(_ date: Date, relativeTo now: Date = .now) -> String {
+        let s = max(0, now.timeIntervalSince(date))
         if s < 15 { return "刚刚更新" }
         if s < 60 { return "\(Int(s)) 秒前更新" }
         if s < 3600 { return "\(Int(s / 60)) 分钟前更新" }

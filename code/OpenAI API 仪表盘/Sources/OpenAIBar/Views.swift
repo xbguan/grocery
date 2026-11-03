@@ -344,16 +344,14 @@ struct MenuContentView: View {
             navButton(.usage, icon: "chevron.left.forwardslash.chevron.right")
             navButton(.subscription, icon: "person")
             Spacer()
-            HStack(spacing: 4) {
-                Text(statusText).font(.caption2).lineLimit(1)
-                    .foregroundStyle(TextTone.secondary(scheme))
-                    .help(statusText)
-                Spacer(minLength: 0)
+            Divider().padding(.bottom, 2)
+            HStack(spacing: 0) {
                 Button { page = .settings } label: {
                     sidebarActionLabel("设置", icon: "gearshape")
                 }
                     .foregroundStyle(page == .settings ? Color.brand(scheme) : .primary)
                     .accessibilityAddTraits(page == .settings ? .isSelected : [])
+                Divider().frame(height: 14)
                 Button { NSApplication.shared.terminate(nil) } label: {
                     sidebarActionLabel("退出", icon: "rectangle.portrait.and.arrow.right")
                 }
@@ -373,7 +371,7 @@ struct MenuContentView: View {
         }
         .font(.system(size: 13))
         .fixedSize()
-        .frame(minWidth: 51, minHeight: 30)
+        .frame(maxWidth: .infinity, minHeight: 30)
         .contentShape(Rectangle())
     }
 
@@ -425,8 +423,8 @@ struct MenuContentView: View {
                 Text("正在读取本机 Codex 账号…")
             } else if data?.usageUnavailable == true {
                 Text("已取得套餐，额度读取失败。请检查网络后刷新。")
-            } else if let data {
-                Text("来源：本机 Codex · " + Fmt.updatedLabel(data.fetchedAt))
+            } else if data != nil {
+                Text("来源：本机 Codex")
                     .foregroundStyle(TextTone.secondary(scheme))
             }
             Button("订阅设置") { page = .settings }
@@ -467,7 +465,7 @@ struct MenuContentView: View {
     // MARK: 头部
 
     private var header: some View {
-        HStack(spacing: 11) {
+        HStack(alignment: .firstTextBaseline, spacing: 11) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.rawValue)
                     .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -478,11 +476,28 @@ struct MenuContentView: View {
                 }
             }
             Spacer(minLength: 8)
-
+            if page != .settings {
+                pageUpdateLabel
+                    .font(.system(size: 11))
+                    .foregroundStyle(TextTone.secondary(scheme))
+            }
         }
         .padding(.horizontal, UI.hPad)
         .padding(.top, 14)
         .padding(.bottom, 12)
+    }
+
+    @ViewBuilder private var pageUpdateLabel: some View {
+        let isUsage = page == .usage
+        if let updated = isUsage ? model.snapshot?.fetchedAt : model.lastSubscriptionUpdate {
+            TimelineView(.periodic(from: .now, by: 1)) { clock in
+                Text(Fmt.updatedLabel(updated, relativeTo: clock.date))
+                    .monospacedDigit()
+            }
+            .help(updated.formatted(date: .abbreviated, time: .standard))
+        } else {
+            Text((isUsage ? model.isLoading : model.subscriptionLoading) ? "正在更新…" : "尚未更新")
+        }
     }
 
     private var title: String {
@@ -1038,14 +1053,6 @@ struct MenuContentView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: 底部
-
-    private var statusText: String {
-        if model.isLoading && model.snapshot == nil { return "正在更新…" }
-        let latest = [model.snapshot?.fetchedAt, model.liveCredit?.at, model.subscription?.fetchedAt]
-            .compactMap { $0 }.max()
-        return latest.map { Fmt.updatedLabel($0) } ?? "尚未加载"
-    }
 
 }
 
