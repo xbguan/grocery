@@ -62,7 +62,7 @@ final class DashboardAppDelegate: NSObject, NSApplicationDelegate {
         let model = demo ? AppModel(demo: true) : AppModel()
         self.model = model
 
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem = statusItem
         statusItem.button?.toolTip = "OpenAI 仪表盘"
         statusItem.button?.target = self
