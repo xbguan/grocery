@@ -171,6 +171,7 @@ final class AppModel: ObservableObject {
     func loadDemoSubscription() {
         suppressPersist = true
         config.showSubscription = true
+        config.hasConnectedSubscription = true
         suppressPersist = false
         var value = SubscriptionSnapshot(email: "linda@example.com", plan: "prolite")
         value.hasQuota = true
@@ -195,16 +196,26 @@ final class AppModel: ObservableObject {
             var day = SubscriptionDay(id: id)
             day.tokens = tokens
             day.messages = messages
-            day.messageModels = ["gpt-6-astra": messages * 7 / 10, "gpt-6-sol": messages * 3 / 10]
+            let astra = messages / 2
+            let sol = messages * 3 / 10
+            let small = messages / 10
+            day.messageModels = ["gpt-6-astra": astra, "gpt-6-sol": sol,
+                                 "gpt-5.6-sol": small, "gpt-5.6-terra": messages - astra - sol - small]
             day.messageClients = ["Codex": messages]
             day.usage = [
                 UsageAttribution(feature: "对话", model: "gpt-6-astra", surface: "desktop_app",
                                  trigger: "user_message", value: Double(tokens) / 1_000_000),
                 UsageAttribution(feature: "自动化", model: "gpt-6-sol", surface: "web",
-                                 trigger: "automation", value: Double(tokens) / 4_000_000)
+                                 trigger: "automation", value: Double(tokens) / 4_000_000),
+                UsageAttribution(feature: "文件分析", model: "gpt-5.6-sol", surface: "desktop_app",
+                                 trigger: "user_message", value: Double(tokens) / 6_000_000),
+                UsageAttribution(feature: "图像生成", model: "gpt-5.6-terra", surface: "web",
+                                 trigger: "automation", value: Double(tokens) / 8_000_000)
             ]
-            day.plugins = ["Codex App Tools": index % 5 + 18, "Unified Computer Use": index % 4 + 4]
-            day.skills = ["其他技能": index % 3]
+            day.plugins = ["Codex App Tools": index % 5 + 18,
+                           "Unified Computer Use": index % 4 + 4,
+                           "Computer Use": index % 3 + 3]
+            day.skills = ["Connector Openai Search Service": index % 2 + 1]
             value.days[id] = day
         }
         subscription = value

@@ -36,6 +36,7 @@ private struct ChartSeries: Identifiable {
     let id: String
     let values: [Double]
     let color: Color
+    let styleIndex: Int
 }
 
 struct SubscriptionAnalyticsView: View {
@@ -188,7 +189,7 @@ struct SubscriptionAnalyticsView: View {
                 metric("插件调用", total)
                 lineChart(series)
                 axis(points)
-                legend(series.map { ($0.id, $0.color) })
+                legend(series.map { ($0.id, $0.color) }, markers: true)
             } else {
                 unavailable("暂未取得此时段的工具活动")
             }
@@ -218,7 +219,7 @@ struct SubscriptionAnalyticsView: View {
                 if !series.isEmpty {
                     lineChart(series)
                     axis(points)
-                    legend(series.map { ($0.id, $0.color) })
+                    legend(series.map { ($0.id, $0.color) }, markers: true)
                 } else {
                     unavailable("该时段暂无模型明细")
                 }
@@ -276,7 +277,10 @@ struct SubscriptionAnalyticsView: View {
     }
 
     private func stackedUsageChart(_ points: [SubscriptionDay], names: [String]) -> some View {
-        let totals = points.map { $0.usage.reduce(0) { $0 + max(0, $1.value) } }
+        let totals = points.map { point in
+            let grouped = usageValues(point)
+            return names.reduce(0) { $0 + (grouped[$1] ?? 0) }
+        }
         let peak = max(totals.max() ?? 0, 0.001)
         return GeometryReader { geometry in
             let slot = geometry.size.width / CGFloat(max(points.count, 1))
@@ -286,9 +290,17 @@ struct SubscriptionAnalyticsView: View {
                     let grouped = usageValues(point)
                     VStack(spacing: 0) {
                         ForEach(Array(names.enumerated().reversed()), id: \.offset) { colorIndex, name in
+                            let height = max(0, geometry.size.height * (grouped[name] ?? 0) / peak)
                             Rectangle()
                                 .fill(usageColor(colorIndex))
-                                .frame(height: max(0, geometry.size.height * (grouped[name] ?? 0) / peak))
+                                .frame(height: height)
+                                .overlay(alignment: .top) {
+                                    if height > 1 {
+                                        Rectangle()
+                                            .fill(Color.white.opacity(scheme == .dark ? 0.30 : 0.75))
+                                            .frame(height: 0.5)
+                                    }
+                                }
                         }
                     }
                     .frame(width: barWidth)
@@ -320,6 +332,18 @@ struct SubscriptionAnalyticsView: View {
                         }
                     }
                     .stroke(item.color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                    ForEach(Array(item.values.enumerated()), id: \.offset) { index, value in
+                        if index % max(1, item.values.count / 10) == 0 || index == item.values.count - 1 {
+                            Image(systemName: markerSymbol(item.styleIndex))
+                                .font(.system(size: 7, weight: .semibold))
+                                .foregroundStyle(item.color)
+                                .accessibilityHidden(true)
+                                .position(
+                                    x: geometry.size.width * CGFloat(index) / CGFloat(max(1, item.values.count - 1)),
+                                    y: geometry.size.height * (1 - CGFloat(value / peak))
+                                )
+                        }
+                    }
                 }
             }
         }
@@ -342,11 +366,21 @@ struct SubscriptionAnalyticsView: View {
         return String(date.suffix(5)).replacingOccurrences(of: "-", with: "/")
     }
 
-    private func legend(_ items: [(String, Color)]) -> some View {
+    private func legend(_ items: [(String, Color)], markers: Bool = false) -> some View {
         LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], alignment: .leading, spacing: 5) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 HStack(spacing: 5) {
-                    Circle().fill(item.1).frame(width: 6, height: 6)
+                    if markers {
+                        Image(systemName: markerSymbol(index))
+                            .font(.system(size: 7, weight: .semibold))
+                            .foregroundStyle(item.1)
+                            .frame(width: 7, height: 7)
+                            .accessibilityHidden(true)
+                    } else {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(item.1)
+                            .frame(width: 7, height: 7)
+                    }
                     Text(item.0).lineLimit(1)
                 }
                 .font(.system(size: 9.5))
@@ -366,15 +400,26 @@ struct SubscriptionAnalyticsView: View {
         for day in points {
             for (name, value) in usageValues(day) { totals[name, default: 0] += value }
         }
-        return Array(totals.sorted { $0.value > $1.value }.prefix(4).map(\.key))
+        return Array(totals.sorted {
+            $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value
+        }.prefix(4).map(\.key))
     }
 
     private func usageColor(_ index: Int) -> Color {
         switch index {
         case 0: return Color.brand(scheme)
-        case 1: return Color.brand(scheme).opacity(0.70)
-        case 2: return Color.brand(scheme).opacity(0.43)
-        default: return TextTone.tertiary(scheme).opacity(0.5)
+        case 1: return Color(nsColor: .systemBlue)
+        case 2: return Color(nsColor: .systemOrange)
+        default: return Color(nsColor: .systemPurple)
+        }
+    }
+
+    private func markerSymbol(_ index: Int) -> String {
+        switch index {
+        case 0: return "circle.fill"
+        case 1: return "square.fill"
+        case 2: return "diamond.fill"
+        default: return "triangle.fill"
         }
     }
 
@@ -384,10 +429,13 @@ struct SubscriptionAnalyticsView: View {
         for day in points {
             for (name, value) in values(day) { totals[name, default: 0] += value }
         }
-        return totals.sorted { $0.value > $1.value }.prefix(4).enumerated().map { index, item in
+        return totals.sorted {
+            $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value
+        }.prefix(4).enumerated().map { index, item in
             ChartSeries(id: item.key,
                         values: points.map { Double(values($0)[item.key] ?? 0) },
-                        color: usageColor(index))
+                        color: usageColor(index),
+                        styleIndex: index)
         }
     }
 }
