@@ -117,7 +117,7 @@ private struct GlassCard: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func glassCard(radius: CGFloat = UI.cardRadius, elevated: Bool = false) -> some View {
         modifier(GlassCard(radius: radius, elevated: elevated))
     }
@@ -393,6 +393,7 @@ struct MenuContentView: View {
             if let data = model.subscription {
                 weeklyQuota(data)
                 resetCredits(data)
+                SubscriptionAnalyticsView(data: data)
             }
             if let message = subscriptionMessage {
                 Text(message)
@@ -412,9 +413,8 @@ struct MenuContentView: View {
     private var subscriptionMessage: String? {
         if let error = model.subscriptionError { return error }
         if model.subscriptionLoginInProgress { return "等待 ChatGPT 登录…" }
-        if !model.config.showSubscription { return "在设置中登录 ChatGPT，可读取套餐及 Codex 周额度。" }
+        if !model.config.showSubscription { return "在设置中登录 ChatGPT，可读取套餐和用量分析。" }
         if model.subscriptionLoading { return "正在读取订阅…" }
-        if model.subscription?.usageUnavailable == true { return "已取得套餐，额度读取失败。请检查网络后刷新。" }
         return nil
     }
 
@@ -1330,7 +1330,7 @@ struct SettingsForm: View {
                     Spacer()
                     Text(subscriptionStatus).foregroundStyle(TextTone.secondary(scheme))
                 }
-                hint("订阅登录由本软件单独保存，不受日常 Codex 切换供应商影响，也不复用 API 余额的平台登录。读取仍需本机有 Codex CLI、Codex 或 ChatGPT 应用。")
+                hint("订阅数据来自本软件内登录的 ChatGPT 网页会话；登录态由本机 WebKit 单独管理，不依赖本机 Codex，也不复用 API 余额的平台登录。")
                 HStack(spacing: 10) {
                     Button(model.subscriptionLoginInProgress ? "登录中…" : "登录 ChatGPT") {
                         model.loginForSubscription()

@@ -41,75 +41,36 @@ final class AppModel: ObservableObject {
     @Published private(set) var subscriptionError: String?
     @Published private(set) var subscriptionLoading = false
     @Published private(set) var subscriptionLoginInProgress = false
-    private var subscriptionTask: Task<Void, Never>?
+    let subscriptionBridge = SubscriptionBridge()
 
     func loginForSubscription() {
-        guard !subscriptionLoginInProgress else { return }
-        subscriptionTask?.cancel()
-        lastSubscriptionUpdate = nil
-        subscription = nil
-        subscriptionError = nil
-        subscriptionLoading = true
-        subscriptionLoginInProgress = true
-        subscriptionTask = Task {
-            let result = await Task.detached(priority: .userInitiated) {
-                Result {
-                    try SubscriptionReader.login { url in
-                        DispatchQueue.main.sync { NSWorkspace.shared.open(url) }
-                    }
-                }
-            }.value
-            guard !Task.isCancelled else { return }
-            subscriptionLoading = false
-            subscriptionLoginInProgress = false
-            switch result {
-            case .success(let value):
-                config.showSubscription = true
-                lastSubscriptionUpdate = value.fetchedAt
-                subscription = value
-            case .failure(let error):
-                subscriptionError = (error as? SubscriptionReadError ?? .service).localizedDescription
-            }
-        }
+        if !config.showSubscription { config.showSubscription = true }
+        subscriptionBridge.start()
+        subscriptionBridge.showLogin()
+        syncSubscription()
     }
 
     func logoutSubscription() {
-        guard !subscriptionLoading else { return }
-        subscriptionLoading = true
-        subscriptionError = nil
-        subscriptionTask = Task {
-            let result = await Task.detached(priority: .utility) {
-                Result { try SubscriptionReader.logout() }
-            }.value
-            guard !Task.isCancelled else { return }
-            subscriptionLoading = false
-            switch result {
-            case .success:
-                config.showSubscription = false
-                subscription = nil
-                lastSubscriptionUpdate = nil
-            case .failure(let error):
-                subscriptionError = (error as? SubscriptionReadError ?? .service).localizedDescription
-            }
-        }
+        subscriptionBridge.logout()
+        config.showSubscription = false
+        syncSubscription()
     }
 
     private func refreshSubscription() {
-        guard config.showSubscription, !subscriptionLoading else { return }
-        subscriptionLoading = true
-        subscriptionTask = Task {
-            let result = await Task.detached(priority: .utility) { Result { try SubscriptionReader.read() } }.value
-            guard !Task.isCancelled else { return }
-            subscriptionLoading = false
-            switch result {
-            case .success(let value):
-                lastSubscriptionUpdate = value.fetchedAt
-                subscription = value
-                subscriptionError = nil
-            case .failure(let error):
-                subscription = nil
-                subscriptionError = (error as? SubscriptionReadError ?? .service).localizedDescription
-            }
+        guard config.showSubscription else { return }
+        subscriptionBridge.start()
+        subscriptionBridge.refresh()
+    }
+
+    private func syncSubscription() {
+        subscription = subscriptionBridge.snapshot
+        lastSubscriptionUpdate = subscription?.fetchedAt
+        subscriptionLoginInProgress = subscriptionBridge.isLoginWindowOpen
+        subscriptionLoading = subscriptionBridge.state == .loading
+        switch subscriptionBridge.state {
+        case .needsLogin: subscriptionError = "请在订阅设置中登录 ChatGPT。"
+        case .failed(let message): subscriptionError = message
+        default: subscriptionError = nil
         }
     }
 
@@ -119,7 +80,9 @@ final class AppModel: ObservableObject {
         self.config = ConfigStore.user.load()
         NSApplication.shared.appearance = config.appearanceMode.appearance
         creditBridge.onChange = { [weak self] in self?.syncCredit() }
+        subscriptionBridge.onChange = { [weak self] in self?.syncSubscription() }
         if config.showCredit { creditBridge.start() }
+        if config.showSubscription { subscriptionBridge.start() }
         startAutoRefresh()
         Task { await refresh() }
     }
@@ -199,15 +162,40 @@ final class AppModel: ObservableObject {
         config.showSubscription = true
         suppressPersist = false
         var value = SubscriptionSnapshot(email: "linda@example.com", plan: "prolite")
-        let weekly: [String: Any] = ["windowDurationMins": 10080, "usedPercent": 50,
-                                     "resetsAt": Date().addingTimeInterval(2 * 86400).timeIntervalSince1970]
-        let limits: [String: Any] = ["limitId": "codex", "planType": "prolite", "secondary": weekly]
-        let credits: [[String: Any]] = (1...3).map { index in
-            ["id": "demo-\(index)", "status": "available",
-             "expiresAt": Date().addingTimeInterval(Double(index * 86400)).timeIntervalSince1970]
+        value.hasQuota = true
+        value.hasTokens = true
+        value.hasUsageHistory = true
+        value.hasTools = true
+        value.hasMessages = true
+        value.remainingPercent = 32
+        value.weeklyReset = Date().addingTimeInterval(86_400)
+        value.resetCredits = 3
+        value.resetCreditDetails = (1...3).map {
+            ResetCredit(id: "demo-\($0)", expiresAt: Date().addingTimeInterval(Double($0 * 86_400)))
         }
-        value.apply(["rateLimits": limits,
-                     "rateLimitResetCredits": ["availableCount": 3, "credits": credits]])
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        for index in 0..<30 {
+            let date = Calendar.current.date(byAdding: .day, value: index - 29, to: .now)!
+            let id = formatter.string(from: date)
+            let tokens = (index % 6 + 2) * 100_000
+            let messages = (index % 5 + 2) * 18
+            var day = SubscriptionDay(id: id)
+            day.tokens = tokens
+            day.messages = messages
+            day.messageModels = ["gpt-6-astra": messages * 7 / 10, "gpt-6-sol": messages * 3 / 10]
+            day.messageClients = ["Codex": messages]
+            day.usage = [
+                UsageAttribution(feature: "对话", model: "gpt-6-astra", surface: "desktop_app",
+                                 trigger: "user_message", value: Double(tokens) / 1_000_000),
+                UsageAttribution(feature: "自动化", model: "gpt-6-sol", surface: "web",
+                                 trigger: "automation", value: Double(tokens) / 4_000_000)
+            ]
+            day.plugins = ["Codex App Tools": index % 5 + 18, "Unified Computer Use": index % 4 + 4]
+            day.skills = ["其他技能": index % 3]
+            value.days[id] = day
+        }
         subscription = value
         lastSubscriptionUpdate = .now
     }
