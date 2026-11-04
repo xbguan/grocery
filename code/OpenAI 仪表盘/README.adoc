@@ -10,7 +10,7 @@
 == 已安装
 
 * 应用位置：`/Applications/OpenAI 仪表盘.app`（放 `~/Applications/` 同样能用，卸载脚本两处都会找）
-* 源码工程：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘/`
+* 源码工程：`/Users/xbguan/project/grocery/code/OpenAI 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
 * 安装包：`dist/OpenAI 仪表盘-1.14.0.dmg`（Intel / Apple 芯片通用）
@@ -186,7 +186,7 @@ Admin Key 存在 *该用户的 Application Support 目录* 里，不随安装包
 
 [source,bash]
 ----
-cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
+cd "/Users/xbguan/project/grocery/code/OpenAI 仪表盘"
 
 ./build.sh                 # 只编译本机架构（日常开发，增量几秒）
 ./build.sh --universal     # Intel + Apple 芯片通用版本
@@ -245,7 +245,7 @@ BIN=".build/bundle/OpenAI 仪表盘.app/Contents/MacOS/OpenAIBar"
 
 [source,bash]
 ----
-cd "/Users/xbguan/project/grocery/code/OpenAI API 仪表盘"
+cd "/Users/xbguan/project/grocery/code/OpenAI 仪表盘"
 ./uninstall.sh              # 列出将删除的内容，确认后执行
 ./uninstall.sh --dry-run    # 只看不删
 ----

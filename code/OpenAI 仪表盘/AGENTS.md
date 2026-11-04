@@ -97,7 +97,7 @@ lipo -create .build/x86_64/release/OpenAIBar .build/arm64/release/OpenAIBar -out
 
 ## 5. 目录与路径
 
-- 项目根：`/Users/xbguan/project/grocery/code/OpenAI API 仪表盘`
+- 项目根：`/Users/xbguan/project/grocery/code/OpenAI 仪表盘`
 - 源码：`Sources/OpenAIBar/`；工具：`Tools/`；产物：`.build/bundle/*.app`、`dist/*.dmg`
 - 文档以 `README.adoc` 为源，改完渲染：`asciidoctor README.adoc -o docs/README.html -a imagesdir=.`
 

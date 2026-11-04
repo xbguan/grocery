@@ -23,7 +23,7 @@
 ### DMG 与 GitHub Release 保留策略
 
 - `dist/` 只保留当前最新版本的 `公司代理-<VERSION>.dmg`。新 DMG 构建并校验通过后，删除 `dist/` 中其它旧版 DMG，再本地提交；旧版需要回退时从 git 历史恢复。
-- 本项目与 `OpenAI API 仪表盘` 分别维护独立 Release；本项目标签使用 `corp-proxy-v<VERSION>`，每条 Release 只附当前版本的一个 DMG。
+- 本项目与 `OpenAI 仪表盘` 分别维护独立 Release；本项目标签使用 `corp-proxy-v<VERSION>`，每条 Release 只附当前版本的一个 DMG。
 - 改动完成后先在本地提交并验证。只有收到用户明确的「推送并发布」通知，才推送代码并在推送成功后更新 Release；若用户自行推送，则等用户明确通知「已推送，发布」后再更新 Release。不得仅因检测到远端更新自动发布。
 - 推送本项目的代码、构建、打包或图标变更后，创建对应版本的 Release，上传 `dist/` 中的唯一 DMG，并核对附件可下载、SHA-256 与本地文件一致。
 - 新 Release 核对通过后，删除本项目旧版本的 Release 及其标签；不得删除另一子项目的 Release。仓库当前文件与 GitHub Releases 均只保留本项目最新的一个 DMG。
