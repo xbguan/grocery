@@ -15,14 +15,15 @@ enum KeyStoreTests {
         case "seed":
             precondition(!cfg.hasKey && !cfg.credentialReadFailed)
             let previousVersion = try JSONDecoder().decode(AppConfig.self,
-                from: Data("{\"showSubscription\":true}".utf8))
+                from: Data("{\"showSubscription\":true,\"projectID\":\"proj-fixture\",\"accountLabel\":\"fixture\"}".utf8))
             precondition(previousVersion.showSubscription && !previousVersion.hasConnectedSubscription)
+            let normalized = try JSONEncoder().encode(previousVersion)
+            let savedFields = try JSONSerialization.jsonObject(with: normalized) as! [String: Any]
+            precondition(savedFields["projectID"] == nil && savedFields["accountLabel"] == nil)
             precondition(store.save("dummy-upgrade-key"))
             cfg.adminKey = "dummy-upgrade-key"
             cfg.showSubscription = true
             cfg.hasConnectedSubscription = true
-            cfg.accountLabel = "fixture"
-            cfg.projectID = "proj-fixture"
             cfg.appearanceMode = .dark
             cfg.refreshMinutes = 15
             config.save(cfg)
@@ -35,7 +36,6 @@ enum KeyStoreTests {
         case "upgrade":
             precondition(cfg.adminKey == "dummy-upgrade-key" && !cfg.credentialReadFailed)
             precondition(cfg.showSubscription && cfg.hasConnectedSubscription)
-            precondition(cfg.projectID == "proj-fixture" && cfg.accountLabel == "fixture")
             precondition(cfg.appearanceMode == .dark && cfg.refreshMinutes == 15)
             precondition(store.save("dummy-replacement"))
             precondition(config.load().adminKey == "dummy-replacement")
@@ -45,7 +45,7 @@ enum KeyStoreTests {
             precondition(config.load().credentialReadFailed)
             precondition(store.delete())
             let after = config.load()
-            precondition(!after.hasKey && !after.credentialReadFailed && after.accountLabel == "fixture")
+            precondition(!after.hasKey && !after.credentialReadFailed)
         default: fatalError("Expected seed or upgrade")
         }
         print("PASS", CommandLine.arguments.last!)

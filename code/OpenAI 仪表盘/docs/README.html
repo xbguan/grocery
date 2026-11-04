@@ -506,7 +506,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>Bundle ID：<code>com.xbguan.openai-api-dashboard</code></p>
 </li>
 <li>
-<p>安装包：<code>dist/OpenAI 仪表盘-1.14.0.dmg</code>（Intel / Apple 芯片通用）</p>
+<p>安装包：<code>dist/OpenAI 仪表盘-1.15.4.dmg</code>（Intel / Apple 芯片通用）</p>
 </li>
 </ul>
 </div>
@@ -524,7 +524,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>填入 <strong>Admin API Key</strong>（<code>sk-admin-</code> 开头），点「测试连接」确认</p>
 </li>
 <li>
-<p>点「保存」→ Key 在本机加密保存，面板自动刷新</p>
+<p>输入完成后按回车或离开输入框 → Key 在本机加密保存，面板自动刷新</p>
 </li>
 </ol>
 </div>
@@ -533,7 +533,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 普通项目 Key（<code>sk-proj-</code>）读不到组织用量，会报 403。</p>
 </div>
 <div class="paragraph">
-<p>可选：填 <strong>项目 ID</strong>（<code>proj_&#8230;&#8203;</code>）只统计单个项目；填 <strong>菜单栏备注名</strong> 便于区分多个账号。</p>
+<p>API 花费与用量统计整个组织。</p>
 </div>
 </div>
 </div>
@@ -573,15 +573,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p>统一设置：</p>
-</div>
-<div class="imageblock">
-<div class="content">
-<img src="./preview-settings.png" alt="preview settings" width="460">
-</div>
-</div>
-<div class="paragraph">
-<p>在设置的「通用」组中点击外观预览卡，选择系统、深色或浅色，外观立即生效并自动记住。默认跟随 macOS。设置正文可上下滚动，各项说明随字段显示，保存按钮固定在底部。</p>
+<p>在设置的「通用」组中点击外观预览卡，选择系统、深色或浅色，外观立即生效并自动记住。刷新间隔和余额开关选择后也立即生效；Admin Key 在失焦或按回车时加密保存。设置正文可上下滚动，底部不显示保存栏。</p>
 </div>
 <div class="sect2">
 <h3 id="_视觉与交互">3.1. 视觉与交互</h3>
@@ -600,7 +592,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 <p>点击菜单栏图标会在该屏幕中央打开独立窗口；窗口左上角使用系统标准关闭和最小化按钮。应用也显示在程序坞，点击程序坞图标可重新打开窗口。关闭只隐藏窗口；真正退出请点左侧底部「退出」。窗口打开时不会默认高亮刷新按钮，按 Tab 导航时仍显示焦点提示。</p>
 </li>
 <li>
-<p>左侧顶部刷新按钮更新全部已连接的数据源。API 用量和 ChatGPT 订阅各自在标题右侧显示本页最近一次成功更新的时间；左侧底部由「设置」和「退出」平分一行。API 配置保存后返回用量页。</p>
+<p>左侧顶部刷新按钮更新全部已连接的数据源。API 用量和 ChatGPT 订阅各自在标题右侧显示本页最近一次成功更新的时间；左侧底部由「设置」和「退出」平分一行。订阅页保留滚动能力，但隐藏滚动条。</p>
 </li>
 <li>
 <p>在设置的「ChatGPT 订阅」组点「登录 ChatGPT」，在本软件的独立 WebKit 窗口使用同一 ChatGPT 账号登录。登录态由 WebKit 单独管理，不复用 API 余额的平台登录，也不依赖本机安装 Codex。软件读取 ChatGPT 用量页返回的套餐、Codex 周额度、重置机会，以及 Tokens 用量、用量历史记录、工具活动和消息分析。Tokens 支持昨天、今天、7 天、14 天、30 天；其余分析支持 7 天、30 天。面板高度不变，订阅右侧可独立滚动。网页数据可能延迟或缺失，未取得的项目会显示暂无数据，不使用模拟值。额度卡右上角显示脱敏邮箱，悬停可查看完整地址。账号套餐不代表 Pro 100/200 价格档位，订阅续费日也未由此数据源提供。「退出登录」只清除软件专属的 ChatGPT 登录。</p>
@@ -769,7 +761,7 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 </div>
 </div>
 <div class="paragraph">
-<p><code>dist/OpenAI 仪表盘-1.14.0.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
+<p><code>dist/OpenAI 仪表盘-1.15.4.dmg</code> 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。</p>
 </div>
 <div class="ulist">
 <ul>
@@ -979,7 +971,7 @@ rm -rf ~/Library/"Application Support"/OpenAIApiDashboard</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2026-11-04 16:06:28 +0800
+Last updated 2026-11-04 19:14:53 +0800
 </div>
 </div>
 </body>

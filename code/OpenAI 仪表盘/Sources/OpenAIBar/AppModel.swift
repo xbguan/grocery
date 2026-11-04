@@ -233,7 +233,6 @@ final class AppModel: ObservableObject {
             NSApplication.shared.appearance = config.appearanceMode.appearance
         }
         let keyChanged = old.adminKey != config.adminKey
-        let projectChanged = old.projectID != config.projectID
 
         ConfigStore.user.save(config)
         if old.refreshMinutes != config.refreshMinutes { startAutoRefresh() }
@@ -259,7 +258,7 @@ final class AppModel: ObservableObject {
                 syncCredit()
             }
         }
-        if keyChanged || projectChanged {
+        if keyChanged {
             snapshot = nil
             hasLoadedOnce = false
             Task { await refresh() }
@@ -435,8 +434,7 @@ final class AppModel: ObservableObject {
         errorHint = nil
         errorKind = nil
 
-        let client = OpenAIClient(adminKey: config.trimmedKey,
-                                  projectID: config.projectID.trimmingCharacters(in: .whitespaces))
+        let client = OpenAIClient(adminKey: config.trimmedKey)
 
         do {
             async let core = client.fetchUsageAndCost(days: 30)

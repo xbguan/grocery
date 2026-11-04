@@ -101,7 +101,6 @@ struct APIError: LocalizedError {
 
 struct OpenAIClient {
     let adminKey: String
-    let projectID: String?
 
     private static let baseURL = "https://api.openai.com"
 
@@ -169,31 +168,22 @@ struct OpenAIClient {
         }
         let startTime = String(Int(start.timeIntervalSince1970))
 
-        var costQuery: [String: String] = [
+        let costQuery: [String: String] = [
             "start_time": startTime,
             "bucket_width": "1d",
             "limit": String(span),
             "group_by": "line_item"
         ]
-        var usageQuery: [String: String] = [
+        let usageQuery: [String: String] = [
             "start_time": startTime,
             "bucket_width": "1d",
             "limit": String(span),
             "group_by": "model"
         ]
-        if let pid = projectID, !pid.isEmpty {
-            costQuery["project_ids"] = pid
-            usageQuery["project_ids"] = pid
-        }
-
-        // 转成不可变值，避免并发捕获可变变量
-        let finalCostQuery = costQuery
-        let finalUsageQuery = usageQuery
-
         async let costsResp: CostResponse = get("/v1/organization/costs",
-                                                query: finalCostQuery, as: CostResponse.self)
+                                                query: costQuery, as: CostResponse.self)
         async let usageResp: UsageResponse = get("/v1/organization/usage/completions",
-                                                 query: finalUsageQuery, as: UsageResponse.self)
+                                                 query: usageQuery, as: UsageResponse.self)
         let costs = try await costsResp
         let usage = try await usageResp
 
@@ -378,7 +368,7 @@ struct OpenAIClient {
 
     /// 轻量连通性/权限检测
     static func verify(adminKey: String) async throws {
-        let client = OpenAIClient(adminKey: adminKey, projectID: nil)
+        let client = OpenAIClient(adminKey: adminKey)
         _ = try await client.rawGET("/v1/organization/costs",
                                     query: ["start_time": String(Int(Date().timeIntervalSince1970) - 86400),
                                             "bucket_width": "1d",

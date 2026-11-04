@@ -285,9 +285,9 @@ struct MenuContentView: View {
                         usageContent
                     }
                 case .settings:
-                    SettingsForm { page = .usage }
+                    SettingsForm()
                 case .subscription:
-                    ScrollView { subscription }
+                    ScrollView(.vertical, showsIndicators: false) { subscription }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -570,9 +570,7 @@ struct MenuContentView: View {
         }
     }
 
-    private var title: String {
-        model.config.accountLabel.isEmpty ? "OpenAI 仪表盘" : model.config.accountLabel
-    }
+    private var title: String { "OpenAI 仪表盘" }
 
     private var subtitle: String {
         if model.errorKind == .noKey { return model.config.credentialReadFailed ? "凭据读取失败" : "未配置 Admin Key" }
@@ -1194,15 +1192,10 @@ private struct SettingsFieldSurface: ViewModifier {
 }
 
 struct SettingsForm: View {
-    let onSave: () -> Void
     @EnvironmentObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
 
     @State private var keyDraft = ""
-    @State private var projectDraft = ""
-    @State private var labelDraft = ""
-    @State private var refreshDraft = 5
-    @State private var creditDraft = false
     @State private var showKey = false
     @State private var testMessage: String?
     @State private var testOK = false
@@ -1210,19 +1203,20 @@ struct SettingsForm: View {
     @State private var didInit = false
     @FocusState private var focusedField: Field?
 
-    private enum Field { case key, project, label }
+    private enum Field { case key }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                groups
-                    .padding(.horizontal, UI.hPad)
-                    .padding(.vertical, 6)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            footerBar
+        ScrollView {
+            groups
+                .padding(.horizontal, UI.hPad)
+                .padding(.vertical, 6)
         }
+        .scrollBounceBehavior(.basedOnSize)
         .onAppear(perform: loadDrafts)
+        .onChange(of: focusedField) { previous, current in
+            if previous == .key && current != .key { commitKey() }
+        }
+        .onDisappear(perform: commitKey)
     }
 
     private var groups: some View {
@@ -1234,27 +1228,29 @@ struct SettingsForm: View {
                 Divider()
                 row("自动刷新间隔") {
                     Menu {
-                        Picker("自动刷新间隔", selection: $refreshDraft) {
-                            ForEach([5, 15, 30, 60], id: \.self) { Text("\($0) 分钟").tag($0) }
+                        ForEach([5, 15, 30, 60], id: \.self) { minutes in
+                            Button {
+                                model.update { $0.refreshMinutes = minutes }
+                            } label: {
+                                if model.config.refreshMinutes == minutes {
+                                    Label("\(minutes) 分钟", systemImage: "checkmark")
+                                } else {
+                                    Text("\(minutes) 分钟")
+                                }
+                            }
                         }
                     } label: {
                         HStack {
-                            Text("\(refreshDraft) 分钟")
+                            Text("\(model.config.refreshMinutes) 分钟")
                             Spacer()
                             Image(systemName: "chevron.up.chevron.down").font(.footnote)
                         }
                         .modifier(SettingsFieldSurface())
                     }
                     .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
-                    .accessibilityLabel("自动刷新间隔，\(refreshDraft) 分钟")
+                    .accessibilityLabel("自动刷新间隔，\(model.config.refreshMinutes) 分钟")
                 }
                 hint("按此间隔更新所有已连接的数据源，也可以点击左栏顶部手动刷新。")
-                row("备注名") {
-                    TextField("OpenAI 仪表盘", text: $labelDraft)
-                        .focused($focusedField, equals: .label)
-                        .modifier(SettingsFieldSurface(focused: focusedField == .label))
-                }
-                hint("显示在左栏顶部，留空使用默认名称。")
             }
             section("API 用量", icon: "chevron.left.forwardslash.chevron.right") {
                 row("Admin Key") {
@@ -1267,6 +1263,7 @@ struct SettingsForm: View {
                             }
                         }
                         .focused($focusedField, equals: .key)
+                        .onSubmit(commitKey)
                         .accessibilityLabel("Admin Key")
                         Button { showKey.toggle() } label: {
                             Image(systemName: showKey ? "eye.slash" : "eye")
@@ -1302,21 +1299,18 @@ struct SettingsForm: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Divider()
-                row("项目 ID") {
-                    TextField("选填 · proj_…", text: $projectDraft)
-                        .focused($focusedField, equals: .project)
-                        .modifier(SettingsFieldSurface(focused: focusedField == .project))
-                }
-                hint("留空统计整个组织，填写后仅统计该项目。花费与用量按 UTC 自然日统计。")
-                Divider()
+                hint("花费与用量按 UTC 自然日统计。")
                 HStack {
                     Text("显示实时余额")
                     Spacer()
-                    Toggle("显示实时余额", isOn: $creditDraft)
+                    Toggle("显示实时余额", isOn: Binding(
+                        get: { model.config.showCredit },
+                        set: { value in model.update { $0.showCredit = value } }
+                    ))
                         .labelsHidden().toggleStyle(.switch).controlSize(.small)
 
                 }
-                hint("余额通过本机的 OpenAI 平台登录会话读取，Admin Key 无法读取余额。登录态由本机 WebKit 管理，App 不保存密码或明文 Cookie。关闭开关并保存后会清除平台登录态，下次需要重新登录。")
+                hint("余额通过本机的 OpenAI 平台登录会话读取，Admin Key 无法读取余额。登录态由本机 WebKit 管理，App 不保存密码或明文 Cookie。关闭开关后会清除平台登录态，下次需要重新登录。")
                 HStack {
                     Text("OpenAI 平台")
                     Spacer()
@@ -1324,7 +1318,6 @@ struct SettingsForm: View {
                 }
                 HStack(spacing: 10) {
                     Button(model.liveCredit == nil ? "登录平台" : "重新登录") {
-                        creditDraft = true
                         model.loginForCredit()
                     }
                     Button("退出登录") { model.clearCreditLogin() }
@@ -1390,21 +1383,6 @@ struct SettingsForm: View {
         }
     }
 
-    private var footerBar: some View {
-        HStack(spacing: 12) {
-            Spacer()
-            Text(appVersion).font(.caption).foregroundStyle(TextTone.secondary(scheme))
-            Button("保存") { saveAndClose() }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-                .keyboardShortcut(.defaultAction)
-        }
-        .padding(.horizontal, UI.hPad)
-        .padding(.vertical, 10)
-        .background(.regularMaterial)
-        .overlay(alignment: .top) { Divider() }
-    }
-
     private func section<Content: View>(_ title: String,
                                         icon: String,
                                         @ViewBuilder content: () -> Content) -> some View {
@@ -1419,11 +1397,6 @@ struct SettingsForm: View {
         .glassCard(radius: 24)
     }
 
-    private var appVersion: String {
-        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        return v.isEmpty ? "" : "v\(v)"
-    }
-
     private var keyFingerprint: String? {
         let t = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard t.count > 16 else { return nil }
@@ -1436,33 +1409,22 @@ struct SettingsForm: View {
         guard !didInit else { return }
         didInit = true
         keyDraft = model.config.adminKey
-        projectDraft = model.config.projectID
-        labelDraft = model.config.accountLabel
-        refreshDraft = model.config.refreshMinutes
-        creditDraft = model.config.showCredit
     }
 
-    /// 保存后返回 API 用量页
-    private func saveAndClose() {
+    private func commitKey() {
         let key = keyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        if key != model.config.adminKey {
-            let saved = key.isEmpty ? ConfigStore.user.credentials.delete() : ConfigStore.user.credentials.save(key)
-            guard saved else {
-                testOK = false
-                testMessage = "无法更新本地加密凭据，本次设置未保存。"
-                return
-            }
+        guard didInit && key != model.config.adminKey else { return }
+        let saved = key.isEmpty ? ConfigStore.user.credentials.delete() : ConfigStore.user.credentials.save(key)
+        guard saved else {
+            testOK = false
+            testMessage = "无法更新本地加密凭据，Admin Key 未保存。"
+            return
         }
         model.update { cfg in
             cfg.adminKey = key
             if !key.isEmpty { cfg.credentialReadFailed = false }
-            cfg.projectID = projectDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-            cfg.accountLabel = labelDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-            cfg.refreshMinutes = refreshDraft
-            cfg.showCredit = creditDraft
         }
-        NSApp.keyWindow?.makeFirstResponder(nil)
-        onSave()
+        testMessage = nil
     }
 
     private func clearKey() {
