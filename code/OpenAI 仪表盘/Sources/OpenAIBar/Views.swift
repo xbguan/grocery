@@ -391,8 +391,7 @@ struct MenuContentView: View {
     private var subscription: some View {
         VStack(alignment: .leading, spacing: UI.gap) {
             if let data = model.subscription {
-                weeklyQuota(data)
-                resetCredits(data)
+                subscriptionSummary(data)
                 SubscriptionAnalyticsView(data: data)
             }
             if let message = subscriptionMessage {
@@ -416,6 +415,15 @@ struct MenuContentView: View {
         if !model.config.hasConnectedSubscription { return "在设置中登录 ChatGPT，可读取套餐和用量分析。" }
         if model.subscriptionLoading { return "正在读取订阅…" }
         return nil
+    }
+
+    private func subscriptionSummary(_ data: SubscriptionSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            weeklyQuota(data)
+            Divider()
+            resetCredits(data)
+        }
+        .padding(16).glassCard()
     }
 
     private func weeklyQuota(_ data: SubscriptionSnapshot) -> some View {
@@ -455,7 +463,6 @@ struct MenuContentView: View {
             .font(.system(size: 12))
             .foregroundStyle(TextTone.secondary(scheme))
         }
-        .padding(16).glassCard()
     }
 
     private func resetCredits(_ data: SubscriptionSnapshot) -> some View {
@@ -481,7 +488,6 @@ struct MenuContentView: View {
                     .foregroundStyle(TextTone.secondary(scheme))
             }
         }
-        .padding(16).glassCard()
     }
 
     private func planBadge(_ data: SubscriptionSnapshot) -> some View {
