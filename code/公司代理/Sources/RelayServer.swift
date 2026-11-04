@@ -162,7 +162,10 @@ final class RelayServer {
         guard writeAll(upstream, blob) else { return }
 
         if isConnect {
-            guard let (resp, extra) = readHead(upstream, limit: 32 * 1024) else { return }
+            guard let (resp, extra) = readHead(upstream, limit: 32 * 1024, timeout: 8) else {
+                _ = writeAll(client, Data("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8))
+                return
+            }
             guard writeAll(client, resp) else { return }
             let statusLine = String(data: resp, encoding: .isoLatin1)?.components(separatedBy: "\r\n").first ?? ""
             guard statusLine.contains(" 200") else { return }
@@ -242,10 +245,18 @@ final class RelayServer {
     }
 
     /// 读到 \r\n\r\n 为止，返回（头，多读出来的字节）
-    private func readHead(_ fd: Int32, limit: Int = 64 * 1024) -> (Data, Data)? {
+    private func readHead(_ fd: Int32, limit: Int = 64 * 1024,
+                          timeout: TimeInterval? = nil) -> (Data, Data)? {
         var acc = Data()
         var buf = [UInt8](repeating: 0, count: 8192)
+        let deadline = timeout.map { ProcessInfo.processInfo.systemUptime + $0 }
         while acc.count < limit {
+            if let deadline {
+                let remaining = deadline - ProcessInfo.processInfo.systemUptime
+                guard remaining > 0 else { return nil }
+                var pfd = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+                guard poll(&pfd, 1, Int32(remaining * 1000)) > 0 else { return nil }
+            }
             let n = recv(fd, &buf, buf.count, 0)
             if n <= 0 { return nil }
             acc.append(contentsOf: buf[0..<n])
