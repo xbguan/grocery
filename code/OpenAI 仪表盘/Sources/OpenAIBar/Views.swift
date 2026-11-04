@@ -1206,7 +1206,7 @@ struct SettingsForm: View {
     private enum Field { case key }
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             groups
                 .padding(.horizontal, UI.hPad)
                 .padding(.vertical, 6)

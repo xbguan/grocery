@@ -13,7 +13,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI 仪表盘-1.15.4.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI 仪表盘-1.15.5.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -44,7 +44,7 @@ image::preview-empty.png[width=380]
 
 image::preview-credit.png[width=380]
 
-在设置的「通用」组中点击外观预览卡，选择系统、深色或浅色，外观立即生效并自动记住。刷新间隔和余额开关选择后也立即生效；Admin Key 在失焦或按回车时加密保存。设置正文可上下滚动，底部不显示保存栏。
+在设置的「通用」组中点击外观预览卡，选择系统、深色或浅色，外观立即生效并自动记住。刷新间隔和余额开关选择后也立即生效；Admin Key 在失焦或按回车时加密保存。设置正文可上下滚动，但不显示滚动条；底部不显示保存栏。
 
 === 视觉与交互
 
@@ -144,7 +144,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI 仪表盘-1.15.4.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI 仪表盘-1.15.5.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上
