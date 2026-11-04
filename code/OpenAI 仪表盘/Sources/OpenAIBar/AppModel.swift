@@ -44,7 +44,6 @@ final class AppModel: ObservableObject {
     let subscriptionBridge = SubscriptionBridge()
 
     func loginForSubscription() {
-        if !config.showSubscription { config.showSubscription = true }
         subscriptionBridge.start()
         subscriptionBridge.showLogin()
         syncSubscription()
@@ -52,18 +51,27 @@ final class AppModel: ObservableObject {
 
     func logoutSubscription() {
         subscriptionBridge.logout()
-        config.showSubscription = false
+        var updated = config
+        updated.showSubscription = false
+        updated.hasConnectedSubscription = false
+        config = updated
         syncSubscription()
     }
 
     private func refreshSubscription() {
-        guard config.showSubscription else { return }
+        guard config.showSubscription && config.hasConnectedSubscription else { return }
         subscriptionBridge.start()
         subscriptionBridge.refresh()
     }
 
     private func syncSubscription() {
         subscription = subscriptionBridge.snapshot
+        if subscription?.hasQuota == true && !config.hasConnectedSubscription {
+            var updated = config
+            updated.showSubscription = true
+            updated.hasConnectedSubscription = true
+            config = updated
+        }
         lastSubscriptionUpdate = subscription?.fetchedAt
         subscriptionLoginInProgress = subscriptionBridge.isLoginWindowOpen
         subscriptionLoading = subscriptionBridge.state == .loading
@@ -82,7 +90,7 @@ final class AppModel: ObservableObject {
         creditBridge.onChange = { [weak self] in self?.syncCredit() }
         subscriptionBridge.onChange = { [weak self] in self?.syncSubscription() }
         if config.showCredit { creditBridge.start() }
-        if config.showSubscription { subscriptionBridge.start() }
+        if config.showSubscription && config.hasConnectedSubscription { subscriptionBridge.start() }
         startAutoRefresh()
         Task { await refresh() }
     }
@@ -90,6 +98,9 @@ final class AppModel: ObservableObject {
     /// 预览用：注入假数据，不发网络请求
     init(demo: Bool) {
         self.config = AppConfig()
+        isDemo = true
+        creditBridge.onChange = { [weak self] in self?.syncCredit() }
+        subscriptionBridge.onChange = { [weak self] in self?.syncSubscription() }
         if demo { loadDemo() }
     }
 
@@ -203,9 +214,10 @@ final class AppModel: ObservableObject {
     // MARK: 配置
 
     private var suppressPersist = false
+    private var isDemo = false
 
     private func persistIfNeeded(old: AppConfig) {
-        guard !suppressPersist else { return }
+        guard !isDemo && !suppressPersist else { return }
         if old.appearanceMode != config.appearanceMode {
             NSApplication.shared.appearance = config.appearanceMode.appearance
         }

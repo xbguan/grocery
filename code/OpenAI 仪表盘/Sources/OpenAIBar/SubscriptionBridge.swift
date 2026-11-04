@@ -18,6 +18,7 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
     var isLoginWindowOpen: Bool { loginWindow != nil }
 
     private static let pageURL = URL(string: "https://chatgpt.com/settings/usage?tab=analytics")!
+    private static let loginURL = URL(string: "https://chatgpt.com/auth/login?next=%2Fsettings%2Fusage%3Ftab%3Danalytics")!
     private static let storeID = UUID(uuidString: "B27C8B49-EC7A-4E5F-A5D8-2AC31F02773B")!
     private let store = WKWebsiteDataStore(forIdentifier: storeID)
     private var webView: WKWebView?
@@ -32,7 +33,6 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
     func start() {
         guard !enabled, !clearingSession else { return }
         enabled = true
-        refresh(force: true)
     }
 
     func stop() {
@@ -54,6 +54,7 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
 
     func refresh(force: Bool = false) {
         guard enabled else { return }
+        if !force && (state == .loading || state == .needsLogin || loginWindow != nil) { return }
         if !force, let lastLoad, Date().timeIntervalSince(lastLoad) < 60 { return }
         lastLoad = .now
         state = .loading
@@ -91,7 +92,7 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
         loginWindow = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        view.load(URLRequest(url: Self.pageURL))
+        view.load(URLRequest(url: Self.loginURL))
     }
 
     func logout() {
@@ -174,8 +175,10 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
     }
 
     func windowWillClose(_ notification: Notification) {
+        loginView?.stopLoading()
         loginWindow = nil
         loginView = nil
+        if snapshot?.hasQuota != true && webView == nil { state = .needsLogin }
         onChange?()
     }
 

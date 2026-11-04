@@ -411,9 +411,9 @@ struct MenuContentView: View {
     }
 
     private var subscriptionMessage: String? {
-        if let error = model.subscriptionError { return error }
         if model.subscriptionLoginInProgress { return "等待 ChatGPT 登录…" }
-        if !model.config.showSubscription { return "在设置中登录 ChatGPT，可读取套餐和用量分析。" }
+        if let error = model.subscriptionError { return error }
+        if !model.config.hasConnectedSubscription { return "在设置中登录 ChatGPT，可读取套餐和用量分析。" }
         if model.subscriptionLoading { return "正在读取订阅…" }
         return nil
     }
@@ -1332,13 +1332,11 @@ struct SettingsForm: View {
                 }
                 hint("订阅数据来自本软件内登录的 ChatGPT 网页会话；登录态由本机 WebKit 单独管理，不依赖本机 Codex，也不复用 API 余额的平台登录。")
                 HStack(spacing: 10) {
-                    Button(model.subscriptionLoginInProgress ? "登录中…" : "登录 ChatGPT") {
+                    Button(model.subscriptionLoginInProgress ? "返回登录窗口" : "登录 ChatGPT") {
                         model.loginForSubscription()
                     }
-                    .disabled(model.subscriptionLoading)
-                    if model.config.showSubscription {
+                    if model.config.hasConnectedSubscription {
                         Button("退出登录") { model.logoutSubscription() }
-                            .disabled(model.subscriptionLoading)
                     }
                 }
             }
@@ -1357,10 +1355,11 @@ struct SettingsForm: View {
 
     private var subscriptionStatus: String {
         if model.subscriptionLoginInProgress { return "登录中…" }
+        if !model.config.hasConnectedSubscription { return "未连接" }
         if model.subscriptionLoading { return "读取中…" }
         if model.subscriptionError != nil { return "读取失败" }
         if model.subscription != nil { return "已连接" }
-        return model.config.showSubscription ? "等待读取" : "未连接"
+        return "等待读取"
     }
 
     private func row<Content: View>(_ title: String,
