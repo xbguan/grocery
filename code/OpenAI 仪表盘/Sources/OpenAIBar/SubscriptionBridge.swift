@@ -17,8 +17,9 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
     private(set) var snapshot: SubscriptionSnapshot? { didSet { onChange?() } }
     var isLoginWindowOpen: Bool { loginWindow != nil }
 
-    private static let pageURL = URL(string: "https://chatgpt.com/settings/usage?tab=analytics")!
-    private static let loginURL = URL(string: "https://chatgpt.com/auth/login?next=%2Fsettings%2Fusage%3Ftab%3Danalytics")!
+    static let pageURL = URL(string: "https://chatgpt.com/settings/usage")!
+    static let loginURL = URL(string: "https://chatgpt.com/auth/login?next=%2Fsettings%2Fusage")!
+    private static let analyticsURL = URL(string: "https://chatgpt.com/settings/usage?tab=analytics")!
     private static let storeID = UUID(uuidString: "B27C8B49-EC7A-4E5F-A5D8-2AC31F02773B")!
     private let store = WKWebsiteDataStore(forIdentifier: storeID)
     private var webView: WKWebView?
@@ -132,6 +133,14 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
         return view
     }
 
+    static func analyticsPage(afterResponse path: String, at url: URL?) -> URL? {
+        path == "/backend-api/wham/usage" && url == pageURL ? analyticsURL : nil
+    }
+
+    static func hasFreshQuota(afterResponse path: String, snapshot: SubscriptionSnapshot) -> Bool {
+        path == "/backend-api/wham/usage" && snapshot.hasQuota
+    }
+
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard enabled, let item = message.body as? [String: Any],
               let path = item["path"] as? String else { return }
@@ -146,7 +155,7 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
         var value = snapshot ?? SubscriptionSnapshot()
         guard value.applyWebResponse(path: path, body: body) else { return }
         snapshot = value
-        if value.hasQuota {
+        if Self.hasFreshQuota(afterResponse: path, snapshot: value) {
             timeout?.invalidate()
             timeout = nil
             state = .ready
@@ -155,6 +164,8 @@ final class SubscriptionBridge: NSObject, WKScriptMessageHandler, WKNavigationDe
                 loginWindow = nil
                 loginView = nil
                 refresh(force: true)
+            } else if let analyticsURL = Self.analyticsPage(afterResponse: path, at: message.webView?.url) {
+                message.webView?.load(URLRequest(url: analyticsURL))
             }
         }
     }
