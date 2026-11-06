@@ -127,18 +127,6 @@ final class RelayServer {
         let target = parts[1]
 
         let isConnect = method == "CONNECT"
-        let upstream = connectTimeout(conf.host, UInt16(conf.port), timeout: 8)
-        guard upstream >= 0 else {
-            _ = writeAll(client, Data("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8))
-            return
-        }
-        defer { close(upstream) }
-
-        var one: Int32 = 1
-        setsockopt(upstream, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
-        var zero = timeval(tv_sec: 0, tv_usec: 0)
-        setsockopt(upstream, SOL_SOCKET, SO_RCVTIMEO, &zero, socklen_t(MemoryLayout<timeval>.size))
-
         // 只有账号密码都填了才注入；否则注入 "user:" 反而会被上游判成错误认证
         let hasCreds = !conf.user.isEmpty && !conf.pass.isEmpty
         let auth = "Proxy-Authorization: Basic "
@@ -159,23 +147,48 @@ final class RelayServer {
             rebuilt.append(ln)
         }
         let blob = Data((rebuilt.joined(separator: "\r\n") + "\r\n\r\n").utf8)
-        guard writeAll(upstream, blob) else { return }
-
-        if isConnect {
-            guard let (resp, extra) = readHead(upstream, limit: 32 * 1024, timeout: 8) else {
-                _ = writeAll(client, Data("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8))
+        let retryGitHub = isConnect && target.lowercased() == "github.com:443"
+        let deadline = retryGitHub ? ProcessInfo.processInfo.systemUptime + 8 : nil
+        let badGateway = Data("HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+        let lastAttempt = retryGitHub ? 2 : 0
+        for attempt in 0...lastAttempt {
+            if attempt > 0 { Thread.sleep(forTimeInterval: Double(attempt)) }
+            let upstream = connectTimeout(conf.host, UInt16(conf.port), timeout: 8, deadline: deadline)
+            guard upstream >= 0 else {
+                _ = writeAll(client, badGateway)
                 return
             }
-            guard writeAll(client, resp) else { return }
-            let statusLine = String(data: resp, encoding: .isoLatin1)?.components(separatedBy: "\r\n").first ?? ""
-            guard statusLine.contains(" 200") else { return }
-            if !leftover.isEmpty { _ = writeAll(upstream, leftover) }
-            if !extra.isEmpty { _ = writeAll(client, extra) }
-        } else {
-            if !leftover.isEmpty { _ = writeAll(upstream, leftover) }
-        }
+            defer { close(upstream) }
 
-        splice(client, upstream)
+            var one: Int32 = 1
+            setsockopt(upstream, IPPROTO_TCP, TCP_NODELAY, &one, socklen_t(MemoryLayout<Int32>.size))
+            guard writeAll(upstream, blob, deadline: deadline) else {
+                if retryGitHub { _ = writeAll(client, badGateway) }
+                return
+            }
+
+            if isConnect {
+                let timeout = deadline.map { $0 - ProcessInfo.processInfo.systemUptime } ?? 8
+                guard let (resp, extra) = readHead(upstream, limit: 32 * 1024, timeout: timeout) else {
+                    _ = writeAll(client, badGateway)
+                    return
+                }
+                let statusLine = String(decoding: resp.prefix(while: { $0 != 13 }), as: UTF8.self)
+                let status = statusLine.split(separator: " ").dropFirst().first
+                if status == "502", attempt < lastAttempt, let deadline,
+                   ProcessInfo.processInfo.systemUptime + Double(attempt + 1) < deadline {
+                    continue
+                }
+                guard writeAll(client, resp), status == "200" else { return }
+                if !leftover.isEmpty { _ = writeAll(upstream, leftover) }
+                if !extra.isEmpty { _ = writeAll(client, extra) }
+            } else if !leftover.isEmpty {
+                _ = writeAll(upstream, leftover)
+            }
+
+            splice(client, upstream)
+            return
+        }
     }
 
     // MARK: 双向搬运
@@ -215,13 +228,20 @@ final class RelayServer {
     // MARK: 底层 I/O
 
     @discardableResult
-    private func writeAll(_ fd: Int32, _ data: Data) -> Bool {
+    private func writeAll(_ fd: Int32, _ data: Data, deadline: TimeInterval? = nil) -> Bool {
         var ok = true
         data.withUnsafeBytes { raw in
             guard let base = raw.baseAddress else { return }
             var off = 0
             while off < raw.count {
-                let n = send(fd, base.advanced(by: off), raw.count - off, 0)
+                if let deadline {
+                    let remaining = deadline - ProcessInfo.processInfo.systemUptime
+                    guard remaining > 0 else { ok = false; return }
+                    var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+                    guard poll(&pfd, 1, Int32(remaining * 1000)) > 0 else { ok = false; return }
+                }
+                let n = send(fd, base.advanced(by: off), raw.count - off, deadline == nil ? 0 : MSG_DONTWAIT)
+                if deadline != nil, n < 0, errno == EAGAIN || errno == EINTR { continue }
                 if n <= 0 { ok = false; return }
                 off += n
             }
@@ -269,17 +289,42 @@ final class RelayServer {
         return nil
     }
 
-    /// 带超时的 TCP 连接
-    private func connectTimeout(_ host: String, _ port: UInt16, timeout: TimeInterval) -> Int32 {
-        var hints = addrinfo(ai_flags: 0, ai_family: AF_UNSPEC, ai_socktype: SOCK_STREAM,
-                             ai_protocol: 0, ai_addrlen: 0, ai_canonname: nil,
-                             ai_addr: nil, ai_next: nil)
-        var res: UnsafeMutablePointer<addrinfo>?
-        guard getaddrinfo(host, String(port), &hints, &res) == 0, let head = res else { return -1 }
-        defer { freeaddrinfo(head) }
+    private final class ProxyAddresses {
+        var head: UnsafeMutablePointer<addrinfo>?
 
-        var ptr: UnsafeMutablePointer<addrinfo>? = head
+        func resolve(_ host: String, _ port: UInt16, numericOnly: Bool = false) -> Bool {
+            var hints = addrinfo(ai_flags: numericOnly ? AI_NUMERICHOST : 0, ai_family: AF_UNSPEC,
+                                 ai_socktype: SOCK_STREAM, ai_protocol: 0, ai_addrlen: 0,
+                                 ai_canonname: nil, ai_addr: nil, ai_next: nil)
+            return getaddrinfo(host, String(port), &hints, &head) == 0
+        }
+
+        deinit { if let head { freeaddrinfo(head) } }
+    }
+
+    /// A slow lookup of a configured proxy hostname must also fit the handshake budget.
+    private func connectTimeout(_ host: String, _ port: UInt16, timeout: TimeInterval,
+                                deadline: TimeInterval?) -> Int32 {
+        let addresses = ProxyAddresses()
+        if let deadline {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return -1 }
+            if !addresses.resolve(host, port, numericOnly: true) {
+                let resolved = DispatchSemaphore(value: 0)
+                DispatchQueue.global(qos: .utility).async {
+                    _ = addresses.resolve(host, port)
+                    resolved.signal()
+                }
+                let remaining = max(0, deadline - ProcessInfo.processInfo.systemUptime)
+                guard resolved.wait(timeout: .now() + remaining) == .success else { return -1 }
+            }
+        } else if !addresses.resolve(host, port) {
+            return -1
+        }
+        defer { withExtendedLifetime(addresses) {} }
+        var ptr = addresses.head
         while let ai = ptr {
+            let remaining = deadline.map { $0 - ProcessInfo.processInfo.systemUptime } ?? timeout
+            guard remaining > 0 else { return -1 }
             let fd = socket(ai.pointee.ai_family, ai.pointee.ai_socktype, ai.pointee.ai_protocol)
             if fd >= 0 {
                 let flags = fcntl(fd, F_GETFL, 0)
@@ -291,7 +336,7 @@ final class RelayServer {
                 }
                 if errno == EINPROGRESS {
                     var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
-                    let sel = poll(&pfd, 1, Int32(timeout * 1000))
+                    let sel = poll(&pfd, 1, Int32(remaining * 1000))
                     if sel > 0 {
                         var e: Int32 = 0
                         var len = socklen_t(MemoryLayout<Int32>.size)

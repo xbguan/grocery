@@ -30,7 +30,7 @@
 |`build.sh` |一键编译 + 组装 .app + ad-hoc 签名 + 生成 DMG（缺架构或版本不符即失败）
 |`AGENTS.md` |项目规约：交付必须出新 DMG、必须 universal2、装机自检清单
 |`packaging/卸载公司代理.command` |App 已被拖进废纸篓时的备用清理脚本（随 DMG 分发）
-|`dist/公司代理-2.4.1.dmg` |成品安装包
+|`dist/公司代理-2.5.0.dmg` |成品安装包
 |===
 
 == 构建
@@ -39,7 +39,7 @@
 ----
 cd code/公司代理
 ./build.sh
-# 产物：build/app/公司代理.app、dist/公司代理-2.4.1.dmg
+# 产物：build/app/公司代理.app、dist/公司代理-2.5.0.dmg
 ----
 
 要求：macOS 13+、Xcode Command Line Tools（`swiftc`）。
@@ -225,6 +225,8 @@ NOTE: 本机系统是 macOS 14，macOS 26/27 的 Liquid Glass 相关 API（`glas
 === 为什么需要本地中继
 
 macOS 系统代理里保存的代理账号密码，Chromium 系（Chrome/Edge/ChatGPT 桌面版）不读取，会反复弹「登录以访问此站点」。中继在本机代填认证，浏览器看到的是无需认证的 `127.0.0.1:7899`。
+
+建立 `CONNECT github.com:443` 隧道时，如果上游返回 `502`，中继最多重试两次，分别等待 1 秒、2 秒。三次尝试共用 8 秒建连预算。隧道成功后正常转发数据，其他域名仍按原流程处理。
 
 === 中继的两个实现要点（踩坑记录）
 
