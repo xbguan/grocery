@@ -152,7 +152,7 @@ struct SubscriptionAnalyticsView: View {
                 rangePicker(AnalysisRange.allCases, selected: $tokenRange)
             }
             if data.hasTokens, points.contains(where: { $0.tokens != nil }) {
-                Text(Fmt.tokens(total))
+                Text(TokenUnit(for: total).format(total))
                     .font(.system(size: 24, weight: .semibold, design: .rounded).monospacedDigit())
                     .accessibilityLabel("已用 Tokens \(total)")
                 Text("已用 Tokens · UTC")
@@ -279,12 +279,16 @@ struct SubscriptionAnalyticsView: View {
     }
 
     private func barChart(_ points: [SubscriptionDay]) -> some View {
-        let step = axisStep(Double(points.compactMap(\.tokens).max() ?? 0))
+        let maximum = points.compactMap(\.tokens).max() ?? 0
+        let unit = TokenUnit(for: maximum)
+        let step = axisStep(Double(maximum))
         let peak = Double(step * 3)
         return HStack(spacing: 6) {
             VStack(alignment: .trailing, spacing: 0) {
                 ForEach((0...3).reversed(), id: \.self) { index in
-                    Text(Fmt.tokens(step * index))
+                    Text(unit.format(step * index))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                     if index > 0 { Spacer(minLength: 0) }
                 }
@@ -310,7 +314,7 @@ struct SubscriptionAnalyticsView: View {
                 .overlay {
                     if let index = hoveredTokenDay, points.indices.contains(index) {
                         hoverCard(date: points[index].id, summary: "当天 Tokens",
-                                  rows: [("用量", "\((points[index].tokens ?? 0).formatted())", Color.brand(scheme))])
+                                  rows: [("用量", points[index].tokens.map(unit.format) ?? "—", Color.brand(scheme))])
                             .frame(width: 168)
                             .position(tooltipPosition(tokenPointer, in: geometry.size, rows: 1))
                             .allowsHitTesting(false)
