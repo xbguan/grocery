@@ -13,7 +13,7 @@
 * 源码工程：`/Users/xbguan/project/grocery/code/OpenAI 仪表盘/`
 * 配置目录：`~/Library/Application Support/OpenAIApiDashboard/`
 * Bundle ID：`com.xbguan.openai-api-dashboard`
-* 安装包：`dist/OpenAI 仪表盘-1.15.8.dmg`（Intel / Apple 芯片通用）
+* 安装包：`dist/OpenAI 仪表盘-1.15.9.dmg`（Intel / Apple 芯片通用）
 
 == 首次使用（必须做一次）
 
@@ -24,7 +24,7 @@
 获取 Admin Key：https://platform.openai.com/settings/organization/admin-keys[platform.openai.com → Organization → Admin keys]
 普通项目 Key（`sk-proj-`）读不到组织用量，会报 403。
 
-API 花费与用量统计整个组织。
+API 花费与用量统计整个组织。美元金额统一显示两位小数，合计使用原始金额求和后再四舍五入。
 
 == 界面预览
 
@@ -146,7 +146,7 @@ GET /v1/dashboard/billing/credit_grants  → 403
 
 image::dmg-window.png[width=520]
 
-`dist/OpenAI 仪表盘-1.15.8.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
+`dist/OpenAI 仪表盘-1.15.9.dmg` 是标准拖拽式安装镜像：打开后把左边的 App 拖进右边的「应用程序」即可。
 
 * *通用二进制*：同时包含 `arm64` 与 `x86_64`，Intel 与 Apple 芯片的 Mac 都原生运行，不需要 Rosetta
 * *系统要求*：macOS 14.0 及以上

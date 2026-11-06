@@ -510,24 +510,13 @@ final class AppModel: ObservableObject {
 
 enum Fmt {
     static func money(_ value: Double) -> String {
-        let v = abs(value)
         let f = NumberFormatter()
         f.numberStyle = .currency
         f.locale = Locale(identifier: "en_US")
         f.currencySymbol = "$"
-        if v == 0 {
-            f.minimumFractionDigits = 0
-            f.maximumFractionDigits = 0
-        } else if v < 0.01 {
-            f.minimumFractionDigits = 2
-            f.maximumFractionDigits = 4
-        } else if v < 1 {
-            f.minimumFractionDigits = 2
-            f.maximumFractionDigits = 3
-        } else {
-            f.minimumFractionDigits = 2
-            f.maximumFractionDigits = 2
-        }
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        f.roundingMode = .halfUp
         return f.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
     }
 
