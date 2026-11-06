@@ -52,6 +52,10 @@ enum TextTone {
 // MARK: - 玻璃材质
 
 enum Glass {
+    static func urgent(_ s: ColorScheme) -> Color {
+        s == .dark ? Color(nsColor: .systemOrange) : Color(nsColor: .systemRed)
+    }
+
     /// 卡片填充：上亮下暗，制造"玻璃片"的厚度
     static func fill(_ s: ColorScheme) -> LinearGradient {
         s == .dark
@@ -418,15 +422,17 @@ struct MenuContentView: View {
     }
 
     private func subscriptionSummary(_ data: SubscriptionSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            weeklyQuota(data)
-            Divider()
-            resetCredits(data)
+        TimelineView(.periodic(from: .now, by: 60)) { clock in
+            VStack(alignment: .leading, spacing: 14) {
+                weeklyQuota(data, asOf: clock.date)
+                Divider()
+                resetCredits(data, asOf: clock.date)
+            }
+            .padding(16).glassCard()
         }
-        .padding(16).glassCard()
     }
 
-    private func weeklyQuota(_ data: SubscriptionSnapshot) -> some View {
+    private func weeklyQuota(_ data: SubscriptionSnapshot, asOf now: Date) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("Codex 本周剩余额度").fixedSize()
@@ -456,16 +462,18 @@ struct MenuContentView: View {
                     ProgressView("Codex 本周剩余额度", value: Double(percent), total: 100)
                 }
             }
-            HStack {
+            HStack(spacing: 5) {
                 Text("下次周重置")
                 Text(data.weeklyReset?.formatted(date: .abbreviated, time: .shortened) ?? "未取得")
+                subscriptionCountdown(until: data.weeklyReset, asOf: now,
+                                      normalColor: TextTone.secondary(scheme))
             }
             .font(.system(size: 12))
             .foregroundStyle(TextTone.secondary(scheme))
         }
     }
 
-    private func resetCredits(_ data: SubscriptionSnapshot) -> some View {
+    private func resetCredits(_ data: SubscriptionSnapshot, asOf now: Date) -> some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack {
                 Text("可用重置次数")
@@ -476,7 +484,11 @@ struct MenuContentView: View {
             ForEach(data.resetCreditDetails) { credit in
                 Divider()
                 HStack {
-                    Text(credit.expiresAt.map { "\($0.formatted(date: .abbreviated, time: .shortened)) 到期" } ?? "到期时间未知")
+                    HStack(spacing: 5) {
+                        Text(credit.expiresAt?.formatted(date: .abbreviated, time: .shortened) ?? "时间未知")
+                        subscriptionCountdown(until: credit.expiresAt, asOf: now,
+                                              normalColor: Color.primary)
+                    }
                     Spacer()
                     Text("1 次")
                 }
@@ -487,6 +499,24 @@ struct MenuContentView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(TextTone.secondary(scheme))
             }
+        }
+    }
+
+    @ViewBuilder
+    private func subscriptionCountdown(until date: Date?, asOf now: Date,
+                                       normalColor: Color) -> some View {
+        if let date, let countdown = SubscriptionCountdown.make(until: date, asOf: now) {
+            Text(countdown.text)
+                .font(.system(size: 12).monospacedDigit())
+                .foregroundStyle(countdown.isUrgent ? Glass.urgent(scheme) : normalColor)
+                .padding(.horizontal, countdown.isUrgent ? 5 : 0)
+                .padding(.vertical, countdown.isUrgent ? 2 : 0)
+                .background {
+                    if countdown.isUrgent {
+                        Capsule().fill(Glass.urgent(scheme).opacity(scheme == .dark ? 0.16 : 0.10))
+                    }
+                }
+                .accessibilityLabel("剩余 \(countdown.text)")
         }
     }
 
