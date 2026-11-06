@@ -75,6 +75,8 @@ final class DashboardAppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                 DemoWindow.show()
             }
+        } else {
+            showDashboard()
         }
     }
 
