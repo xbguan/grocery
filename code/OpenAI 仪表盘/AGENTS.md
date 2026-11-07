@@ -30,10 +30,10 @@
 
 ### 1.2 GitHub Release 同步
 
-- 本项目与 `公司代理` 分别维护独立 Release；本项目标签使用 `openai-dashboard-v<版本>`，每条 Release 只附当前版本的一个 DMG。
+- 本项目在 `grocery` 仓库维护独立 Release；`公司代理` 已迁至独立的 `corporate-proxy` 仓库。本项目标签使用 `openai-dashboard-v<版本>`，每条 Release 只附当前版本的一个 DMG。
 - 改动完成后先在本地提交并验证。只有收到用户明确的「推送并发布」通知，才推送代码并在推送成功后更新 Release；若用户自行推送，则等用户明确通知「已推送，发布」后再更新 Release。不得仅因检测到远端更新自动发布。
 - 推送本项目的代码、资源、构建或打包变更前，完成升版、重新构建和上述校验；推送成功后创建对应版本的 Release，上传 `dist/` 中的唯一 DMG，并核对附件可下载、SHA-256 与本地文件一致。
-- 新 Release 核对通过后，删除本项目旧版本的 Release 及其标签；不得删除另一子项目的 Release。仓库当前文件与 GitHub Releases 均只保留本项目最新的一个 DMG，旧版本仍可从 git 历史恢复。
+- 新 Release 核对通过后，只删除本项目旧版本的 Release 及其标签。仓库当前文件与 GitHub Releases 均只保留本项目最新的一个 DMG，旧版本仍可从 git 历史恢复。
 - 仅推送文档或规约变更、DMG 内容未变时，不升版或重复上传 DMG；更新本项目现有 Release 的说明，保持下载附件不变。
 
 ## 2. 架构规约：必须同时支持 Intel 与 M 芯片
